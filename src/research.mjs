@@ -103,7 +103,7 @@ function frozenSources(sources, context) {
       omissions !== undefined &&
       (!Array.isArray(omissions) ||
         omissions.length > 8 ||
-        !omissions.every((o) => line(o, 500)))
+        !Array.from(omissions).every((o) => line(o, 500)))
     )
       throw refuse(
         `${at} omissions must be at most 8 single-line strings of at most 500 characters`,

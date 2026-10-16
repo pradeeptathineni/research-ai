@@ -154,6 +154,7 @@ describe("researchQuestion with sources", () => {
       { ...ok, omissions: Array.from({ length: 9 }, () => "gap") },
     ],
     "omission not text": [{ ...ok, omissions: [3] }],
+    "sparse omission array": [{ ...ok, omissions: Array(1) }],
     "omissions not array": [{ ...ok, omissions: "gap" }],
     "long omission": [{ ...ok, omissions: ["g".repeat(501)] }],
   };
