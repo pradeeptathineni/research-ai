@@ -1,6 +1,40 @@
 #!/usr/bin/env node
-import { parseArgs } from 'node:util';
-import { codexReadiness, profiles, researchQuestion } from '../src/index.mjs';
+import { open, stat } from "node:fs/promises";
+import { parseArgs } from "node:util";
+import { codexReadiness, profiles, researchQuestion } from "../src/index.mjs";
+
+const sourcesFileLimit = 256 * 1024;
+
+/** Reads one explicit regular file of at most 256 KiB as a JSON array; nothing else is opened. */
+async function readSourcesFile(path) {
+  const refuse = (why) => new Error(`--sources ${why}`);
+  const regular = (info) => info.isFile() && info.size <= sourcesFileLimit;
+  let handle;
+  try {
+    if (!regular(await stat(path)))
+      throw refuse("must be a regular file of at most 256 KiB");
+    handle = await open(path, "r");
+    if (!regular(await handle.stat()))
+      throw refuse("must be a regular file of at most 256 KiB");
+    const buffer = Buffer.alloc(sourcesFileLimit + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead > sourcesFileLimit) throw refuse("file grew beyond 256 KiB");
+    return JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(
+        buffer.subarray(0, bytesRead),
+      ),
+    );
+  } catch (failure) {
+    if (failure.message?.startsWith("--sources")) throw failure;
+    throw refuse(
+      failure instanceof SyntaxError || failure instanceof TypeError
+        ? "must be UTF-8 JSON"
+        : `cannot be read (${failure.code ?? "error"})`,
+    );
+  } finally {
+    await handle?.close();
+  }
+}
 
 const usage = `Usage: research-ai [options] <question>
 
@@ -10,6 +44,10 @@ fallible Markdown answer to stdout and a JSON receipt to stderr. Nothing is save
 Options:
   --profile quick|wide   action/time budget (default quick: 8 searches, 20 reads, 240s)
   --context TEXT         extra untrusted context for the question
+  --sources FILE         frozen review of supplied sources instead of live web search:
+                         FILE is a JSON array (1-8, regular file <=256 KiB) of
+                         {"uri","text","observedAt"?,"omissions"?[]}. Its contents are sent
+                         to the provider; nothing is fetched. Context is then <=8,000 chars.
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installed/authenticated state without inference
@@ -30,12 +68,13 @@ async function main() {
     parsed = parseArgs({
       allowPositionals: true,
       options: {
-        profile: { type: 'string' },
-        context: { type: 'string' },
-        model: { type: 'string' },
-        effort: { type: 'string' },
-        readiness: { type: 'boolean' },
-        help: { type: 'boolean', short: 'h' },
+        profile: { type: "string" },
+        context: { type: "string" },
+        sources: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+        readiness: { type: "boolean" },
+        help: { type: "boolean", short: "h" },
       },
     });
   } catch (failure) {
@@ -51,32 +90,51 @@ async function main() {
     process.stdout.write(`${JSON.stringify(state)}\n`);
     return state.available ? 0 : 1;
   }
-  const question = positionals.join(' ').trim();
+  const question = positionals.join(" ").trim();
   if (!question) return fail(usage);
   if (values.profile !== undefined && !Object.hasOwn(profiles, values.profile))
-    return fail(`research-ai: unknown profile ${JSON.stringify(values.profile)}`);
+    return fail(
+      `research-ai: unknown profile ${JSON.stringify(values.profile)}`,
+    );
+  let sources;
+  if (values.sources !== undefined) {
+    try {
+      sources = await readSourcesFile(values.sources);
+    } catch (failure) {
+      return fail(`research-ai: ${failure.message}`);
+    }
+  }
   // Readiness runs only version/login probes, so an unusable CLI fails before any session.
   const ready = await codexReadiness();
   if (!ready.available)
     return fail(
-      `research-ai: ${ready.installed ? 'Codex CLI is not logged in' : 'Codex CLI unavailable (not found or its login probe failed)'}; install it and run \`codex login\`.`,
+      `research-ai: ${ready.installed ? "Codex CLI is not logged in" : "Codex CLI unavailable (not found or its login probe failed)"}; install it and run \`codex login\`.`,
     );
   const controller = new AbortController();
-  process.once('SIGINT', () => controller.abort());
+  process.once("SIGINT", () => controller.abort());
   try {
     const result = await researchQuestion(question, {
       profile: values.profile,
       context: values.context,
+      sources,
       model: values.model,
       effort: values.effort,
       signal: controller.signal,
       progress: (event) => process.stderr.write(`${event}\n`),
     });
     if (result.answer) process.stdout.write(`${result.answer}\n`);
-    process.stderr.write(`${JSON.stringify({ status: result.status, ...result.receipt })}\n`);
-    return result.status === 'complete' ? 0 : result.status === 'partial' ? 2 : 1;
+    process.stderr.write(
+      `${JSON.stringify({ status: result.status, ...result.receipt })}\n`,
+    );
+    return result.status === "complete"
+      ? 0
+      : result.status === "partial"
+        ? 2
+        : 1;
   } catch (failure) {
-    return fail(`research-ai: ${failure instanceof Error ? failure.message : failure}`);
+    return fail(
+      `research-ai: ${failure instanceof Error ? failure.message : failure}`,
+    );
   }
 }
 

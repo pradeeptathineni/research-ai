@@ -1,5 +1,5 @@
 export interface Readable {
-  format: 'markdown';
+  format: "markdown";
   text: string;
 }
 
@@ -45,12 +45,12 @@ export interface Termination {
 
 /** Received-byte metadata only; the unparsed wire is never decoded or retained. */
 export interface StdoutReceipt {
-  text: '';
+  text: "";
   capturedDigest: string;
   capturedBytes: number;
   omittedBytes: number;
   captureComplete: false;
-  captureScope: 'runner-stdout';
+  captureScope: "runner-stdout";
 }
 
 export interface SessionOptions {
@@ -117,9 +117,12 @@ export function withCodexWorkspace<T>(
 export function sessionCompleted(outcome: SessionOutcome): boolean;
 
 export const profiles: Readonly<Record<Profile, Readonly<Budget>>>;
-export function ordinaryResearchPrompt(question: string, context?: string): string;
+export function ordinaryResearchPrompt(
+  question: string,
+  context?: string,
+): string;
 
-export type Profile = 'quick' | 'wide';
+export type Profile = "quick" | "wide";
 
 export interface ResearchResult {
   /**
@@ -127,7 +130,7 @@ export interface ResearchResult {
    * `partial`: stopped or failed, but completed interim notes were checkpointed.
    * `failed`: nothing readable arrived.
    */
-  status: 'complete' | 'partial' | 'failed';
+  status: "complete" | "partial" | "failed";
   /** Fallible Markdown research, not verified truth. Empty when nothing readable arrived. */
   answer: string;
   receipt: {
@@ -140,8 +143,12 @@ export interface ResearchResult {
     searches: number;
     actionCounts: ActionCounts;
     nativeSessions: 0 | 1;
-    stages: SessionOutcome['stages'];
+    stages: SessionOutcome["stages"];
     termination: Termination;
+    /** Present only for frozen review (`sources` supplied); live receipts omit it. */
+    mode?: "frozen";
+    /** Supplied sources as given, with the SHA-256 of each exact text. Not a verification. */
+    source?: FrozenSourceReceipt[];
     /** Present unless complete: start error, `cancelled`, guard trigger or missing final answer. */
     failure?: string;
     /** Bounded stderr/event diagnostic, present unless complete. */
@@ -149,10 +156,39 @@ export interface ResearchResult {
   };
 }
 
+/** Caller-captured public material. Never fetched, followed or checked; text only, never a path. */
+export interface FrozenSource {
+  /** http(s) citation identity: printable ASCII, at most 2,000 characters, no credentials, unique. */
+  uri: string;
+  /** Non-empty well-formed text; all sources together at most 48,000 UTF-16 units. */
+  text: string;
+  /** Caller-supplied single-line note, at most 64 characters; not checked or current. */
+  observedAt?: string | undefined;
+  /** Up to 8 single-line caller notes (500 characters each) on what the text leaves out. */
+  omissions?: string[] | undefined;
+}
+
+export interface FrozenSourceReceipt {
+  uri: string;
+  /** Lowercase hex SHA-256 of the exact UTF-8 text. */
+  sha256: string;
+  observedAt?: string;
+  omissions?: string[];
+}
+
 export interface ResearchOptions {
   profile?: Profile | undefined;
-  /** Extra untrusted context, passed to the model as labelled data. */
+  /**
+   * Extra untrusted context, passed to the model as labelled data. With `sources`, at most
+   * 8,000 UTF-16 units.
+   */
   context?: string | undefined;
+  /**
+   * 1–8 supplied sources select frozen review: web search is disabled and the model sees only
+   * this material. Absent means live research. Invalid or empty sources throw
+   * `invalid_sources: …` before any lease or native session; there is no fallback to live.
+   */
+  sources?: FrozenSource[] | undefined;
   model?: string | undefined;
   effort?: string | undefined;
   signal?: AbortSignal | undefined;
@@ -162,7 +198,7 @@ export interface ResearchOptions {
   lease?: string | undefined;
 }
 
-/** Throws `question_required`, `unknown_profile` or a lease error before any native session. */
+/** Throws `question_required`, `unknown_profile`, `invalid_sources` or a lease error before any native session. */
 export function researchQuestion(
   question: string,
   options?: ResearchOptions,

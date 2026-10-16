@@ -5,7 +5,7 @@ authenticated [Codex CLI](https://github.com/openai/codex). It returns
 **fallible** Markdown research with a receipt. It maintains no corpus or durable
 research store, and does not verify claims or score sources.
 
-`@pradeeptathineni/research-ai` 0.1.0 · MIT · Node 24 · zero runtime dependencies ·
+`@pradeeptathineni/research-ai` 0.2.0 · MIT · Node 24 · zero runtime dependencies ·
 no build step (`.mjs` plus hand-written `.d.ts`).
 
 ## Run
@@ -46,14 +46,55 @@ import {
   researchQuestion,
   codexReadiness,
   withCodexWorkspace,
-} from '@pradeeptathineni/research-ai';
+} from "@pradeeptathineni/research-ai";
 
-const { status, answer, receipt } = await researchQuestion('question', {
-  profile: 'quick',
+const { status, answer, receipt } = await researchQuestion("question", {
+  profile: "quick",
   signal: AbortSignal.timeout(300_000),
   onCheckpoint: (note) => console.error(note.text), // bounded interim notes
 });
 ```
+
+### Frozen sources
+
+To reuse material you already captured instead of a live web search, pass it
+explicitly. Without `sources`, behaviour and receipts are unchanged.
+
+```js
+await researchQuestion("question", {
+  sources: [
+    {
+      uri: "https://example.org/a",
+      text: "...",
+      observedAt: "caller note",
+      omissions: ["gap"],
+    },
+  ],
+});
+```
+
+```sh
+node bin/research-ai.mjs --sources captured.json "question"
+```
+
+- `sources` (or the `--sources FILE` JSON array, a regular file of at most
+  256 KiB that you name; no path is discovered or copied into the package) holds
+  1–8 `{ uri, text, observedAt?, omissions? }`. `text` is text, never a path.
+  `uri` is an http(s) citation identity: printable ASCII, at most 2,000
+  characters, unique, no credentials. Combined text is at most 48,000 UTF-16
+  units; `observedAt` is one line of at most 64 characters; `omissions` is at
+  most 8 single-line strings of at most 500 characters. With sources, `context`
+  is at most 8,000 units.
+- Anything empty, malformed or over a limit is refused (`invalid_sources`)
+  before a lease or session; it is never truncated and never falls back to live.
+- Web search is disabled and nothing is fetched or followed. The supplied text,
+  URIs and notes are sent to the provider as untrusted data; keep private
+  material out of the file. The prompt tells the model that dates, coverage and
+  independence are unknown unless the text says so, and to report unanswered
+  parts and stale-information limits.
+- The receipt adds `mode: 'frozen'` and `source: [{ uri, sha256, observedAt?,
+omissions? }]` (SHA-256 of the exact UTF-8 text, caller notes verbatim). This
+  identifies what was supplied; it does not verify, date or certify anything.
 
 `withCodexWorkspace({ lease, prefix }, async (workspace) => workspace.run(options))`
 is the lower-level executor. Callers supply the prompt, live or frozen mode,
