@@ -113,6 +113,13 @@ export interface TerminalEvidence {
   protocolFailure: string | null;
 }
 
+export interface SessionCleanup {
+  /** True only when the spawned POSIX group is confirmed absent (or spawn never occurred). */
+  complete: boolean;
+  /** Failed/unknown cleanup preserves the lease and workspace for inspection. */
+  error: "process_group_cleanup_failed" | null;
+}
+
 export interface SessionOutcome {
   /** Process start failure message; the session never ran or was not observed. */
   error?: string;
@@ -134,6 +141,7 @@ export interface SessionOutcome {
   oversizedResponse?: string;
   termination: Termination;
   terminal: TerminalEvidence;
+  cleanup: SessionCleanup;
   /** Start/abort/guard, then explicit protocol/terminal cause, then exit/missing-text reason; null on success. */
   failureReason: string | null;
 }
@@ -144,7 +152,7 @@ export interface CodexWorkspace {
   run(options: SessionOptions): Promise<SessionOutcome>;
 }
 
-/** Callback completion aborts/drains unfinished work before releasing the workspace. */
+/** Callback completion drains the group; unconfirmed cleanup preserves ownership for inspection. */
 export function withCodexWorkspace<T>(
   names: { lease: string; prefix: string },
   body: (workspace: CodexWorkspace) => Promise<T>,
@@ -163,7 +171,7 @@ export type Profile = "quick" | "wide";
 /** research-outcome-v1: producer contract; native/consumer qualification is separate. */
 export interface ResearchResult {
   /**
-   * `complete`: explicit terminal success, nonempty final text, clean exit and no contradiction.
+   * `complete`: explicit terminal success, nonempty final text, clean exit, confirmed cleanup and no contradiction.
    * `partial`: stopped or failed, but completed interim notes were checkpointed.
    * `failed`: nothing readable arrived.
    */
@@ -183,6 +191,7 @@ export interface ResearchResult {
     stages: SessionOutcome["stages"];
     termination: Termination;
     terminal: TerminalEvidence;
+    cleanup: SessionCleanup;
     /** Legacy compatible mode: frozen for supplied sources; omission means live. */
     mode?: "frozen";
     /** Supplied sources as given, with the SHA-256 of each exact text. Not a verification. */

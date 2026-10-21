@@ -107,6 +107,18 @@ async function acquireLease(path) {
     }
     if (alive) throw new Error('runner_busy');
     if (!owner.childPid) throw new Error('runner_interrupted_lease_requires_inspection');
+    if (process.platform !== 'win32') {
+      const groupId = owner.processGroupId ?? owner.childPid;
+      if (!Number.isSafeInteger(groupId) || groupId < 1 ||
+          groupId !== owner.childPid) throw new Error('invalid_runner_lease');
+      try {
+        process.kill(-groupId, 0);
+        throw new Error('runner_orphan_still_active');
+      } catch (failure) {
+        if (failure.code !== 'ESRCH') throw failure;
+      }
+    }
+    if (owner.cleanupRequired) throw new Error('runner_interrupted_lease_requires_inspection');
     try {
       process.kill(owner.childPid, 0);
       throw new Error('runner_orphan_still_active');
@@ -267,13 +279,41 @@ export async function withCodexWorkspace({ lease, prefix }, body) {
   } finally {
     open = false;
     scope.abort();
+    let observed;
     try {
-      if (pending) await pending.catch(() => {});
+      if (pending) observed = await pending.catch(() => {});
     } finally {
-      await rm(directory, { recursive: true, force: true });
-      await rm(lease, { recursive: true, force: true });
+      // Unknown cleanup retains its ownership record and workspace for inspection.
+      if (observed?.cleanup?.complete !== false) {
+        await rm(directory, { recursive: true, force: true });
+        await rm(lease, { recursive: true, force: true });
+      }
     }
   }
+}
+
+// Only the freshly spawned detached child's group is signaled; stale leases are never killed.
+async function cleanupProcessGroup(child) {
+  if (!child.pid) return { complete: true, error: null };
+  if (process.platform === 'win32') return { complete: false, error: 'process_group_cleanup_failed' };
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (failure) {
+    return failure.code === 'ESRCH' ? { complete: true, error: null } :
+      { complete: false, error: 'process_group_cleanup_failed' };
+  }
+  const until = performance.now() + 1000;
+  while (performance.now() < until) {
+    try { process.kill(-child.pid, 0); }
+    catch (failure) {
+      if (failure.code === 'ESRCH') return { complete: true, error: null };
+      // A dying/reparented group can transiently deny an existence probe.
+      // EPERM is unknown, never absence; retain the bound and keep observing.
+      if (failure.code !== 'EPERM') return { complete: false, error: 'process_group_cleanup_failed' };
+    }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  return { complete: false, error: 'process_group_cleanup_failed' };
 }
 
 async function runSession(lease, directory, options) {
@@ -345,6 +385,7 @@ async function runSession(lease, directory, options) {
     const terminal = { completed: 0, failed: 0, protocolFailure: null };
     const protocolFailure = (reason) => { terminal.protocolFailure ??= reason; };
     const termination = { exitCode: null, signal: null, trigger: null };
+    let cleanup = { complete: false, error: null }, cleanupTask, startError;
     const outcome = (error) => ({
       ...(error === undefined ? {} : { error }),
       aborted: signal.aborted,
@@ -365,6 +406,7 @@ async function runSession(lease, directory, options) {
       ...(oversizedResponse === undefined ? {} : { oversizedResponse }),
       termination: { ...termination },
       terminal: { ...terminal },
+      cleanup: { ...cleanup },
       failureReason:
         error ?? (signal.aborted ? 'cancelled' : null) ?? termination.trigger ??
         terminal.protocolFailure ??
@@ -382,6 +424,7 @@ async function runSession(lease, directory, options) {
     };
     const stop = (trigger = 'runner_guard') => {
       termination.trigger ??= trigger;
+      if (cleanup.complete) return;
       try {
         if (child.pid && process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL');
         else child.kill('SIGKILL');
@@ -389,14 +432,13 @@ async function runSession(lease, directory, options) {
         /* already exited */
       }
     };
-    if (child.pid)
-      void writeFile(
-        join(lease, 'owner.json'),
-        JSON.stringify({ pid: process.pid, childPid: child.pid, started: Date.now() }),
-      ).catch(() => {
-        diagnostic = 'runner_lease_registration_failed';
-        stop('lease_registration_failed');
-      });
+    const owner = { pid: process.pid, childPid: child.pid,
+      ...(process.platform === 'win32' ? {} : { processGroupId: child.pid }),
+      directory, started: Date.now() };
+    const registered = child.pid ? writeFile(join(lease, 'owner.json'), JSON.stringify(owner)).catch(() => {
+      diagnostic = 'runner_lease_registration_failed';
+      stop('lease_registration_failed');
+    }) : Promise.resolve();
     const timer = setTimeout(() => stop('native_deadline'), budget.seconds * 1000);
     const abort = () => stop('request_aborted');
     signal.addEventListener('abort', abort, { once: true });
@@ -543,8 +585,21 @@ async function runSession(lease, directory, options) {
       if (diagnostic.length < 1000)
         diagnostic += chunk.toString().slice(0, 1000 - diagnostic.length);
     });
-    child.on('error', (failure) => settle(failure.message));
-    child.on('close', (code, childSignal) => {
+    child.on('error', (failure) => { startError = failure.message; });
+    // Exit precedes close: stop descendants even if they inherited the runner's pipes.
+    child.once('exit', () => {
+      cleanupTask = cleanupProcessGroup(child);
+      void cleanupTask.then((result) => {
+        if (!result.complete) {
+          termination.trigger ??= result.error;
+          // Unconfirmed descendants can hold inherited pipes open indefinitely.
+          // Stop our observation handles, retaining ownership rather than waiting forever.
+          child.stdout.destroy();
+          child.stderr.destroy();
+        }
+      });
+    });
+    child.on('close', async (code, childSignal) => {
       try { utf8.decode(); }
       catch { protocolFailure('invalid_runner_utf8'); }
       if (termination.trigger !== 'output_byte_limit') {
@@ -554,8 +609,14 @@ async function runSession(lease, directory, options) {
       termination.exitCode = code;
       termination.signal = childSignal;
       clearTimeout(timer);
+      cleanup = await (cleanupTask ?? cleanupProcessGroup(child));
+      await registered;
+      if (!cleanup.complete) {
+        termination.trigger ??= cleanup.error;
+        await writeFile(join(lease, 'owner.json'), JSON.stringify({ ...owner, cleanupRequired: true })).catch(() => {});
+      }
       signal.removeEventListener('abort', abort);
-      settle();
+      settle(startError);
     });
     // A child that exits before reading its prompt reports through `close`, not a host crash.
     child.stdin.on?.('error', () => {});
@@ -567,6 +628,7 @@ async function runSession(lease, directory, options) {
 export function sessionCompleted(outcome) {
   return (
     outcome.error === undefined &&
+    outcome.cleanup?.complete === true &&
     !outcome.aborted &&
     outcome.termination.exitCode === 0 &&
     typeof outcome.final === 'string' && Boolean(outcome.final.trim()) &&

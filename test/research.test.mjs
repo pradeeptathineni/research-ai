@@ -351,9 +351,12 @@ describe('pure helpers', () => {
       final: 'answer',
       terminal: { completed: 1, failed: 0, protocolFailure: null },
       failureReason: null,
+      cleanup: { complete: true, error: null },
       termination: { exitCode: 0, signal: null, trigger: null },
     };
     assert.equal(sessionCompleted(base), true);
+    assert.equal(sessionCompleted({ ...base, cleanup: undefined }), false);
+    assert.equal(sessionCompleted({ ...base, cleanup: { complete: false, error: 'process_group_cleanup_failed' } }), false);
     assert.equal(sessionCompleted({ ...base, final: '' }), false);
     assert.equal(sessionCompleted({ ...base, final: ' \n' }), false);
     assert.equal(sessionCompleted({ ...base, terminal: undefined }), false);

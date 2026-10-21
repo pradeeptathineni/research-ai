@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { researchQuestion, withCodexWorkspace, sessionCompleted } from '../src/index.mjs';
 import { fakeCodex, message, search } from './fake-codex.mjs';
@@ -244,5 +245,163 @@ it('handles invalid and asynchronous note-reader returns without losing the mess
     assert.equal(outcome.readable, undefined);
     assert.equal(outcome.terminal.protocolFailure, null);
     partition(outcome.actionCounts.messages);
+  }
+});
+
+const processAlive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
+async function withUnreferencedDescendant(inheritPipes = false) {
+  const executable = join(fixture.env.PATH, 'codex');
+  const original = await readFile(executable, 'utf8');
+  const marker = "process.stdin.on('end', () => {";
+  assert.ok(original.includes(marker));
+  await writeFile(executable, original.replace(marker, marker + `
+    const descendant = require('node:child_process').spawn(process.execPath,
+      ['-e', 'setInterval(() => {}, 1000)'], { stdio: ${inheritPipes ? "['ignore', 'inherit', 'inherit']" : "'ignore'"} });
+    descendant.unref();
+    writeFileSync(join(home, 'normal-descendant.json'), JSON.stringify({ pid: descendant.pid, leader: process.pid }));`));
+}
+for (const exitCode of [0, 7]) {
+  it(`confirms descendant termination before releasing ownership on leader exit ${exitCode}`, async () => {
+    await withUnreferencedDescendant();
+    await fixture.scenario({ events: [message(exact), success], exitCode });
+    let descendantPid, aliveBeforeLeaseRelease;
+    try {
+      const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-normal-group-' }, async ws => {
+        const observed = await ws.run({ prompt: 'Synthetic normal-exit group cleanup', live: false,
+          budget: { searches: 0, documents: 0, seconds: 5 }, signal: new AbortController().signal });
+        descendantPid = JSON.parse(await readFile(join(fixture.home, 'normal-descendant.json'), 'utf8')).pid;
+        assert.equal(await absent(fixture.lease), false, 'still inside owned workspace callback');
+        aliveBeforeLeaseRelease = processAlive(descendantPid);
+        assert.equal(aliveBeforeLeaseRelease, false);
+        assert.deepEqual(observed.cleanup, { complete: true, error: null });
+        return observed;
+      });
+      assert.equal(outcome.termination.exitCode, exitCode);
+      assert.equal(sessionCompleted(outcome), exitCode === 0);
+      assert.equal(outcome.readable.text, exact);
+      assert.equal(await absent(fixture.lease), true);
+      assert.equal(processAlive(descendantPid), false);
+    } finally {
+      if (!descendantPid) descendantPid = JSON.parse(await readFile(join(fixture.home, 'normal-descendant.json'), 'utf8')).pid;
+      if (processAlive(descendantPid)) process.kill(descendantPid, 'SIGKILL');
+    }
+  });
+}
+it('preserves recoverable ownership and truthful failure when owned-group cleanup is denied', async () => {
+  await withUnreferencedDescendant();
+  await fixture.scenario({ events: [message(exact), success] });
+  const originalKill = process.kill;
+  let leader, directory;
+  try {
+    process.kill = (pid, signal) => {
+      if (pid === -leader && signal === 'SIGKILL') throw Object.assign(new Error('synthetic cleanup denial'), { code: 'EPERM' });
+      return originalKill(pid, signal);
+    };
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-denied-group-' }, async ws => {
+      directory = ws.directory;
+      return await ws.run({ prompt: 'Synthetic denied owned-group cleanup', live: false,
+        budget: { searches: 0, documents: 0, seconds: 5 }, signal: new AbortController().signal,
+        onCheckpoint: () => { leader = JSON.parse(readFileSync(join(fixture.home, 'normal-descendant.json'), 'utf8')).leader; } });
+    });
+    assert.equal(sessionCompleted(outcome), false);
+    assert.equal(outcome.failureReason, 'process_group_cleanup_failed');
+    assert.deepEqual(outcome.cleanup, { complete: false, error: 'process_group_cleanup_failed' });
+    assert.equal(outcome.readable.text, exact);
+    assert.equal(outcome.termination.exitCode, 0);
+    assert.equal(await absent(fixture.lease), false);
+    assert.equal(await absent(directory), false);
+    const owner = JSON.parse(await readFile(join(fixture.lease, 'owner.json'), 'utf8'));
+    assert.equal(owner.processGroupId, leader);
+    assert.equal(owner.directory, directory);
+    owner.pid = spawnSync(process.execPath, ['-e', '']).pid;
+    await writeFile(join(fixture.lease, 'owner.json'), JSON.stringify(owner));
+    await assert.rejects(run(), /runner_orphan_still_active/);
+    delete owner.processGroupId; // Legacy detached runners used childPid as their PGID.
+    await writeFile(join(fixture.lease, 'owner.json'), JSON.stringify(owner));
+    await assert.rejects(run(), /runner_orphan_still_active/);
+  } finally {
+    process.kill = originalKill;
+    const owned = JSON.parse(await readFile(join(fixture.home, 'normal-descendant.json'), 'utf8'));
+    if (processAlive(owned.pid)) originalKill(-owned.leader, 'SIGKILL');
+    for (let n = 0; n < 200 && processAlive(owned.pid); n++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(processAlive(owned.pid), false);
+    if (directory) await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it('retains ownership when group absence stays unconfirmable through the observation bound', { timeout: 5000 }, async () => {
+  await withUnreferencedDescendant();
+  await fixture.scenario({ events: [message(exact), success] });
+  const originalKill = process.kill;
+  let leader, directory, probes = 0;
+  try {
+    process.kill = (pid, signal) => {
+      if (pid === -leader && signal === 0) {
+        probes++;
+        throw Object.assign(new Error('synthetic unknown group observation'), { code: 'EPERM' });
+      }
+      return originalKill(pid, signal);
+    };
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-unknown-group-' }, async ws => {
+      directory = ws.directory;
+      return await ws.run({ prompt: 'Synthetic bounded group observation', live: false,
+        budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal,
+        onCheckpoint: () => { leader = JSON.parse(readFileSync(join(fixture.home, 'normal-descendant.json'), 'utf8')).leader; } });
+    });
+    assert.equal(probes > 1, true);
+    assert.equal(outcome.cleanup.complete, false);
+    assert.equal(outcome.cleanup.error, 'process_group_cleanup_failed');
+    assert.equal(outcome.failureReason, 'process_group_cleanup_failed');
+    assert.equal(sessionCompleted(outcome), false);
+    assert.equal(await absent(fixture.lease), false);
+    assert.equal(await absent(directory), false);
+    assert.equal(JSON.parse(await readFile(join(fixture.lease, 'owner.json'), 'utf8')).cleanupRequired, true);
+  } finally {
+    process.kill = originalKill;
+    const owned = JSON.parse(await readFile(join(fixture.home, 'normal-descendant.json'), 'utf8'));
+    if (processAlive(owned.pid)) originalKill(-owned.leader, 'SIGKILL');
+    for (let n = 0; n < 200 && processAlive(owned.pid); n++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(processAlive(owned.pid), false);
+    if (directory) await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it('returns bounded unknown cleanup when denied descendants retain inherited pipes', { timeout: 7000 }, async () => {
+  await withUnreferencedDescendant(true);
+  await fixture.scenario({ events: [message(exact), success] });
+  const originalKill = process.kill;
+  let leader, descendant, directory, fallbackUsed = false;
+  const fallback = setTimeout(() => {
+    fallbackUsed = true;
+    if (leader) { try { originalKill(-leader, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
+  }, 3000);
+  try {
+    process.kill = (pid, signal) => {
+      if (pid === -leader && signal === 'SIGKILL') throw Object.assign(new Error('synthetic inherited-pipe cleanup denial'), { code: 'EPERM' });
+      return originalKill(pid, signal);
+    };
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-denied-pipes-' }, async ws => {
+      directory = ws.directory;
+      return await ws.run({ prompt: 'Synthetic inherited-pipe denial', live: false,
+        budget: { searches: 0, documents: 0, seconds: 5 }, signal: new AbortController().signal,
+        onCheckpoint: () => { const owned = JSON.parse(readFileSync(join(fixture.home, 'normal-descendant.json'), 'utf8')); leader = owned.leader; descendant = owned.pid; } });
+    });
+    assert.equal(fallbackUsed, false, 'runtime settled before the owned-test safety fallback');
+    assert.equal(outcome.cleanup.complete, false);
+    assert.equal(outcome.failureReason, 'process_group_cleanup_failed');
+    assert.equal(sessionCompleted(outcome), false);
+    assert.equal(outcome.readable.text, exact);
+    assert.equal(processAlive(descendant), true, 'denied group remains owned and visibly unresolved');
+    assert.equal(await absent(fixture.lease), false);
+    assert.equal(await absent(directory), false);
+  } finally {
+    clearTimeout(fallback);
+    process.kill = originalKill;
+    if (leader) { try { originalKill(-leader, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
+    if (descendant) {
+      for (let n = 0; n < 200 && processAlive(descendant); n++) await new Promise(resolve => setTimeout(resolve, 10));
+      assert.equal(processAlive(descendant), false);
+    }
+    if (directory) await rm(directory, { recursive: true, force: true });
   }
 });

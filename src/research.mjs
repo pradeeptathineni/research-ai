@@ -175,6 +175,7 @@ export async function researchQuestion(question, options = {}) {
       stages: outcome.stages,
       termination: outcome.termination,
       terminal: outcome.terminal,
+      cleanup: outcome.cleanup,
       ...(complete
         ? {}
         : {

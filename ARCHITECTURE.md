@@ -43,12 +43,15 @@ advertisement is distinct from native protocol or permission qualification.
    caps. Completed messages are sorted into `checkpointed`, `duplicate`,
    `unreadable`, `limited`, `afterStop` or `schema`. Checkpoints are bounded to
    24,000 UTF-16 units or 64 notes, with an explicit omission notice.
-5. Any guard, the deadline or an abort SIGKILLs the process group. `close`
-   settles the outcome. The directory and lease are always removed.
+5. Any guard, the deadline or an abort SIGKILLs the process group. Every leader
+   exit also stops remaining group members, including on zero/nonzero normal
+   exits. `close` waits for bounded group-absence confirmation before settling.
+   Confirmed cleanup releases the directory/lease; unknown cleanup retains both
+   with owned leader/group/directory metadata for inspection.
 
 `sessionCompleted` requires exactly one `turn.completed`, no failed terminal or
 fatal/malformed protocol event, a clean zero exit, nonempty final text, no abort,
-no start error and no guard trigger. `terminal` preserves explicit event counts
+no start error, no guard trigger and confirmed group cleanup. `terminal` preserves explicit event counts
 and a sticky protocol reason; `failureReason` explains ineligibility separately
 from stderr diagnostics. Readable completed notes remain partial evidence on
 failure. Known thread/turn starts or item lifecycle activity after a terminal
@@ -73,6 +76,7 @@ and schema policy. Readiness's advertised profile is a separate observation.
 | `model` / `effort` | Actual explicit/config selection when known; optional in SessionOutcome and `host-default` in research receipts when the CLI chose. No model is invented from usage. |
 | `usage` / `provider` | Unvalidated provider-reported usage; null means unknown, never zero or free. No billing/quota inference. |
 | `termination` | Exit code, process signal and first host guard/stop trigger stay independent from provider terminal evidence. |
+| `cleanup` | `complete:true` only after the owned POSIX group is confirmed absent (or no child spawned). Unknown/failed cleanup is explicit and prevents completion; lease/workspace remain available for inspection. |
 | `terminal` | Explicit success/failure counts and sticky protocol failure. Unknown nonterminal extensions remain tolerated; known post-terminal lifecycle activity contradicts completion. |
 | `failureReason` / `receipt.failure` | Start error, cancellation, then first host guard; otherwise explicit protocol/conflicting/failed terminal cause before generic bad exit or missing terminal/text. Nonzero exit and cause remain in separate fields. |
 | `actionCounts.messages` | Every received completed agent message enters exactly one category: checkpointed, unreadable, duplicate, limited, afterStop or schema. Categories sum to completed. |
@@ -96,7 +100,17 @@ protocol. Promise-returning callbacks are refused; rejection is handled, but the
 side effects are not awaited or authorized. Callers must perform asynchronous work
 outside these callbacks and must not mutate received notes.
 
-Workspace callback return/throw drains pending work before release. A live lease
+Workspace callback return/throw drains pending work before release. Every owned
+leader exit, including success/nonzero exit, starts remaining-group termination.
+The supervisor uses at most one second of group-absence polling; it retains
+`cleanup.complete:false` / `process_group_cleanup_failed` and ownership if absence
+cannot be confirmed. The supervisor closes its own pipe handles on unconfirmed
+cleanup so inherited descendant pipes cannot keep the API pending forever;
+unreceived output is not invented or promoted. The original exit/signal and cancellation/guard causes remain
+separate. A retained lease records group/leader/directory and requires inspection;
+a stale live group is never displaced even if its leader is gone. Legacy detached
+runner leases are probed using their recorded child PID as the group ID. Stale lease
+inspection only probes existence and never signals user processes. A live lease
 owner or still-running orphan is never displaced. Cancellation after an observed
 final frame remains cancellation, not completion. Guards kill the POSIX process
 group, including descendants. Windows and real native enforcement remain separate

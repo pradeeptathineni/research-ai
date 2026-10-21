@@ -128,7 +128,7 @@ budget, optional JSON output schema, response byte cap, checkpoint reader and
 their own absolute lease path and a simple temporary-directory prefix. Those
 paths and callbacks are trusted host configuration, never model/source input.
 Each workspace allows one session. Returning or throwing
-from its callback aborts and drains unfinished work before releasing the lease;
+from its callback drains the owned group before releasing the lease;
 later or additional calls are refused. Invalid options and cancelled requests
 fail before native dispatch. Budget limits are finite: at most 10,000 searches
 and reads each, 3,600 seconds, and an optional response cap of 1–3,000,000 bytes.
@@ -157,6 +157,9 @@ fails after spawn, research stops with a named callback trigger and preserves
 eligible partial notes. Async callback returns are refused. Workspace callback
 return/throw drains the process group before cleanup. The outcome contract keeps
 protocol cause and process exit separate, including on partial/failed answers.
+`cleanup` confirms whether the owned POSIX group is absent, including descendants
+after a normal leader exit. Failed/unknown cleanup prevents completion and retains
+the lease/workspace for inspection; it never silently frees their ownership.
 
 ## Limitations
 
