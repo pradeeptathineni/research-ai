@@ -520,3 +520,48 @@ describe('terminal lifecycle ordering', () => {
     });
   }
 });
+
+describe('malformed completed-message partition', () => {
+  const text = '  Café 😀\nExact partial.\n';
+  const partition = (counts) => {
+    assert.equal(counts.completed, counts.checkpointed + counts.unreadable +
+      counts.duplicate + counts.limited + counts.afterStop + counts.schema);
+  };
+  for (const [name, invalid] of [['numeric text', 42], ['lone surrogate', '\uD800']]) {
+    it(`categorizes ${name} as unreadable and preserves prior text in both APIs`, async () => {
+      await fixture.scenario({ events: [message(text), message(invalid), { type: 'turn.completed' }] });
+      assert.equal(process.env.PATH, fixture.env.PATH);
+      assert.equal(process.env.HOME, fixture.home);
+      const expected = { completed: 2, checkpointed: 1, unreadable: 1,
+        duplicate: 0, limited: 0, afterStop: 0, schema: 0 };
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, 'invalid_runner_event');
+      assert.deepEqual(result.receipt.actionCounts.messages, expected);
+      partition(result.receipt.actionCounts.messages);
+      const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-partition-' },
+        ws => ws.run({ prompt: 'Synthetic malformed message accounting', live: false,
+          budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.failureReason, 'invalid_runner_event');
+      assert.equal(outcome.readable.text, text);
+      assert.equal(outcome.final, text);
+      assert.deepEqual(outcome.actionCounts.messages, expected);
+      partition(outcome.actionCounts.messages);
+    });
+    it(`keeps schema-category precedence for ${name}`, async () => {
+      await fixture.scenario({ events: [message(text), message(invalid), { type: 'turn.completed' }] });
+      const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-partition-schema-' },
+        ws => ws.run({ prompt: 'Synthetic schema message accounting', live: false, structured: true,
+          budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.failureReason, 'invalid_runner_event');
+      assert.equal(outcome.readable, undefined);
+      assert.equal(outcome.final, text);
+      assert.deepEqual(outcome.actionCounts.messages, { completed: 2, checkpointed: 0,
+        unreadable: 0, duplicate: 0, limited: 0, afterStop: 0, schema: 2 });
+      partition(outcome.actionCounts.messages);
+    });
+  }
+});

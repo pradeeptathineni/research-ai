@@ -369,8 +369,12 @@ async function runSession(lease, directory, options) {
         if (event.item?.type === 'agent_message' && event.type === 'item.completed') {
           messages.completed++;
           const alreadyStopped = termination.trigger !== null;
-          if (typeof event.item.text !== 'string' || !event.item.text.isWellFormed())
+          if (typeof event.item.text !== 'string' || !event.item.text.isWellFormed()) {
+            if (alreadyStopped) messages.afterStop++;
+            else if (structured) messages.schema++;
+            else messages.unreadable++;
             throw new Error('invalid message');
+          }
           final = event.item.text;
           if (maxResponseBytes && Buffer.byteLength(final) > maxResponseBytes) {
             oversizedResponse = final;
