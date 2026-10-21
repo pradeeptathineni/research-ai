@@ -21,11 +21,26 @@ if (args[0] === '--version') {
   process.stdin.on('data', (chunk) => (prompt += chunk));
   process.stdin.on('end', () => {
     writeFileSync(join(home, 'record.json'), JSON.stringify({ args, env: process.env, prompt }));
-    for (const event of scenario.events ?? [])
-      process.stdout.write((typeof event === 'string' ? event : JSON.stringify(event)) + '\\n');
-    if (scenario.stderr) process.stderr.write(scenario.stderr);
-    if (scenario.hang) setInterval(() => {}, 1000);
-    else process.exitCode = scenario.exitCode ?? 0;
+    const lines = (scenario.events ?? []).map((event) =>
+      typeof event === 'string' ? event : JSON.stringify(event));
+    const wire = Buffer.concat([
+      Buffer.from(lines.join('\\n') + (lines.length && !scenario.noFinalNewline ? '\\n' : '')),
+      Buffer.from(scenario.rawSuffixBase64 ?? '', 'base64'),
+    ]);
+    let offset = 0;
+    const emit = () => {
+      if (offset < wire.length) {
+        const end = Math.min(wire.length, offset + (scenario.chunkBytes ?? wire.length));
+        process.stdout.write(wire.subarray(offset, end));
+        offset = end;
+        setImmediate(emit);
+      } else {
+        if (scenario.stderr) process.stderr.write(scenario.stderr);
+        if (scenario.hang) setInterval(() => {}, 1000);
+        else process.exitCode = scenario.exitCode ?? 0;
+      }
+    };
+    emit();
   });
 }
 `;

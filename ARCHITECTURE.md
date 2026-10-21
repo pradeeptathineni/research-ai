@@ -36,8 +36,13 @@ an outcome object for the caller to interpret.
 5. Any guard, the deadline or an abort SIGKILLs the process group. `close`
    settles the outcome. The directory and lease are always removed.
 
-`sessionCompleted` is true only for a clean zero exit with a final message,
-no abort, no start error and no guard trigger.
+`sessionCompleted` requires exactly one `turn.completed`, no failed terminal or
+fatal/malformed protocol event, a clean zero exit, nonempty final text, no abort,
+no start error and no guard trigger. `terminal` preserves explicit event counts
+and a sticky protocol reason; `failureReason` explains ineligibility separately
+from stderr diagnostics. Readable completed notes remain partial evidence on
+failure. Unknown nonterminal extensions are ignored. A final JSONL record without
+a newline is accepted; malformed/truncated UTF-8 is never complete.
 
 ## Consumers
 

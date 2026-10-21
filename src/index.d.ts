@@ -72,12 +72,19 @@ export interface SessionOptions {
   maxResponseBytes?: number | undefined;
   /** Calls already charged against `budget.searches` before the session. */
   initialSearches?: number | undefined;
-  /** Reads a completed message as a checkpoint note; default is trimmed non-empty text. */
+  /** Reads a completed message as a checkpoint note; default preserves exact non-empty text. */
   readNote?: ((text: string) => Readable | undefined) | undefined;
   /** Receives the bounded combined checkpoint after each accepted note. */
   onCheckpoint?: ((readable: Readable) => void) | undefined;
   /** Runs synchronously after preparation, immediately before the native process starts. */
   beforeSpawn?: (() => void) | undefined;
+}
+
+/** Explicit terminal counts and sticky protocol failure; stderr alone is diagnostic. */
+export interface TerminalEvidence {
+  completed: number;
+  failed: number;
+  protocolFailure: string | null;
 }
 
 export interface SessionOutcome {
@@ -100,6 +107,9 @@ export interface SessionOutcome {
   /** Untruncated last over-cap final message, for the caller's own bounded receipt. */
   oversizedResponse?: string;
   termination: Termination;
+  terminal: TerminalEvidence;
+  /** Null only when eligible for completion; otherwise a machine-readable reason. */
+  failureReason: string | null;
 }
 
 export interface CodexWorkspace {
@@ -126,7 +136,7 @@ export type Profile = "quick" | "wide";
 
 export interface ResearchResult {
   /**
-   * `complete`: clean zero exit with a final message and no guard.
+   * `complete`: explicit terminal success, nonempty final text, clean exit and no contradiction.
    * `partial`: stopped or failed, but completed interim notes were checkpointed.
    * `failed`: nothing readable arrived.
    */
@@ -145,11 +155,12 @@ export interface ResearchResult {
     nativeSessions: 0 | 1;
     stages: SessionOutcome["stages"];
     termination: Termination;
+    terminal: TerminalEvidence;
     /** Present only for frozen review (`sources` supplied); live receipts omit it. */
     mode?: "frozen";
     /** Supplied sources as given, with the SHA-256 of each exact text. Not a verification. */
     source?: FrozenSourceReceipt[];
-    /** Present unless complete: start error, `cancelled`, guard trigger or missing final answer. */
+    /** Present unless complete: start error, `cancelled`, guard, protocol/terminal failure or missing final answer. */
     failure?: string;
     /** Bounded stderr/event diagnostic, present unless complete. */
     diagnostic?: string;

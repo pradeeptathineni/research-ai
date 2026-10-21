@@ -266,6 +266,9 @@ async function runSession(lease, directory, options) {
     };
     const wireDigest = maxResponseBytes ? createHash('sha256') : undefined;
     const decoder = new StringDecoder('utf8');
+    const utf8 = new TextDecoder('utf-8', { fatal: true });
+    const terminal = { completed: 0, failed: 0, protocolFailure: null };
+    const protocolFailure = (reason) => { terminal.protocolFailure ??= reason; };
     const termination = { exitCode: null, signal: null, trigger: null };
     const outcome = (error) => ({
       ...(error === undefined ? {} : { error }),
@@ -286,6 +289,16 @@ async function runSession(lease, directory, options) {
       ...(stdoutReceipt ? { stdoutReceipt } : {}),
       ...(oversizedResponse === undefined ? {} : { oversizedResponse }),
       termination: { ...termination },
+      terminal: { ...terminal },
+      failureReason:
+        error ?? (signal.aborted ? 'cancelled' : null) ?? termination.trigger ??
+        (termination.exitCode !== 0 || termination.signal !== null
+          ? (final ? 'runner_failed' : 'no_final_answer') : null) ??
+        terminal.protocolFailure ??
+        (terminal.completed + terminal.failed > 1 ? 'conflicting_runner_terminal' : null) ??
+        (terminal.failed ? 'runner_turn_failed' : null) ??
+        (terminal.completed !== 1 ? 'missing_runner_terminal' : null) ??
+        (!final.trim() ? 'no_final_answer' : null),
     });
     const settle = (error) => {
       if (settled) return;
@@ -313,6 +326,91 @@ async function runSession(lease, directory, options) {
     const abort = () => stop('request_aborted');
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) stop('request_aborted');
+    const consumeLine = (line) => {
+      try {
+        const event = JSON.parse(line);
+        if (!event || typeof event !== 'object' || Array.isArray(event) ||
+            typeof event.type !== 'string' || !event.type)
+          throw new Error('invalid event');
+        if (['item.started', 'item.updated', 'item.completed'].includes(event.type) &&
+            (!event.item || typeof event.item !== 'object' || Array.isArray(event.item) ||
+             typeof event.item.type !== 'string')) throw new Error('invalid item');
+        if (event.type === 'turn.completed') {
+          terminal.completed++;
+          if (event.error !== undefined || (event.usage !== undefined &&
+              (!event.usage || typeof event.usage !== 'object' || Array.isArray(event.usage))))
+            protocolFailure('invalid_runner_terminal');
+        }
+        if (event.type === 'turn.failed') terminal.failed++;
+        if (event.type === 'error') protocolFailure('runner_protocol_error');
+        if (event.type === 'error' || event.type === 'turn.failed')
+          diagnostic = typeof event.message === 'string' ? event.message.slice(0, 1000) :
+            typeof event.error?.message === 'string' ? event.error.message.slice(0, 1000) : 'runner_error';
+        if (event.usage) usage = event.usage;
+        if (event.item?.type === 'web_search') {
+          if (event.type === 'item.started') {
+            toolCalls++;
+            progress(
+              `Web action ${toolCalls}; search/read limits ${budget.searches}/${budget.documents}`,
+            );
+            if (toolCalls > budget.searches + budget.documents) stop('action_limit');
+          }
+          if (event.type === 'item.completed') {
+            if (event.item.action?.type === 'search') searches++;
+            else if (event.item.action?.type) reads++;
+            else unclassifiedToolCalls++;
+            if (searches > budget.searches || reads > budget.documents) stop('action_limit');
+          }
+        }
+        if (event.item?.type === 'agent_message' && event.type === 'item.completed') {
+          messages.completed++;
+          const alreadyStopped = termination.trigger !== null;
+          if (terminal.completed || terminal.failed) protocolFailure('message_after_runner_terminal');
+          if (typeof event.item.text !== 'string' || !event.item.text.isWellFormed())
+            throw new Error('invalid message');
+          final = event.item.text;
+          if (maxResponseBytes && Buffer.byteLength(final) > maxResponseBytes) {
+            oversizedResponse = final;
+            final = Buffer.from(final).subarray(0, maxResponseBytes).toString();
+            diagnostic = 'runner_response_byte_limit';
+            stop('response_byte_limit');
+          }
+          if (alreadyStopped) messages.afterStop++;
+          else if (structured) messages.schema++;
+          else if (termination.trigger) messages.limited++;
+          else {
+            // Only completed user-facing messages can become a research checkpoint.
+            const note = readNote(final);
+            if (!note) messages.unreadable++;
+            else if (note.text === notes.at(-1)) messages.duplicate++;
+            else if (notesOmitted) messages.limited++;
+            else {
+              const combined = [...notes, note.text].join('\n\n---\n\n');
+              if (combined.length <= 24000 && notes.length < 64) {
+                notes.push(note.text);
+                messages.checkpointed++;
+                readable = { format: 'markdown', text: combined };
+              } else {
+                messages.limited++;
+                notesOmitted = true;
+                const retained = notes.join('\n\n---\n\n') || note.text;
+                let end = Math.min(retained.length, 24000 - omission.length);
+                if (end > 0 && /[\uD800-\uDBFF]/u.test(retained[end - 1])) end--;
+                readable = { format: 'markdown', text: retained.slice(0, end) + omission };
+              }
+              onCheckpoint?.(readable);
+            }
+          }
+        }
+        if (event.item && ['command_execution', 'mcp_tool_call'].includes(event.item.type)) {
+          stop('forbidden_runner_tool');
+          diagnostic = 'forbidden_runner_tool';
+        }
+      } catch {
+        protocolFailure('invalid_runner_event');
+        diagnostic = 'invalid_runner_event';
+      }
+    };
     child.stdout.on('data', (chunk) => {
       bytes += chunk.length;
       wireDigest?.update(chunk);
@@ -332,75 +430,12 @@ async function runSession(lease, directory, options) {
         stop('output_byte_limit');
         return;
       }
+      try { utf8.decode(chunk, { stream: true }); }
+      catch { protocolFailure('invalid_runner_utf8'); }
       pending += decoder.write(chunk);
       const lines = pending.split('\n');
       pending = lines.pop();
-      for (const line of lines) {
-        try {
-          const event = JSON.parse(line);
-          if (event.type === 'error' || event.type === 'turn.failed')
-            diagnostic = event.message ?? event.error?.message ?? 'runner_error';
-          if (event.usage) usage = event.usage;
-          if (event.item?.type === 'web_search') {
-            if (event.type === 'item.started') {
-              toolCalls++;
-              progress(
-                `Web action ${toolCalls}; search/read limits ${budget.searches}/${budget.documents}`,
-              );
-              if (toolCalls > budget.searches + budget.documents) stop('action_limit');
-            }
-            if (event.type === 'item.completed') {
-              if (event.item.action?.type === 'search') searches++;
-              else if (event.item.action?.type) reads++;
-              else unclassifiedToolCalls++;
-              if (searches > budget.searches || reads > budget.documents) stop('action_limit');
-            }
-          }
-          if (event.item?.type === 'agent_message' && event.type === 'item.completed') {
-            messages.completed++;
-            const alreadyStopped = termination.trigger !== null;
-            final = event.item.text ?? '';
-            if (maxResponseBytes && Buffer.byteLength(final) > maxResponseBytes) {
-              oversizedResponse = final;
-              final = Buffer.from(final).subarray(0, maxResponseBytes).toString();
-              diagnostic = 'runner_response_byte_limit';
-              stop('response_byte_limit');
-            }
-            if (alreadyStopped) messages.afterStop++;
-            else if (structured) messages.schema++;
-            else if (termination.trigger) messages.limited++;
-            else {
-              // Only completed user-facing messages can become a research checkpoint.
-              const note = readNote(final);
-              if (!note) messages.unreadable++;
-              else if (note.text === notes.at(-1)) messages.duplicate++;
-              else if (notesOmitted) messages.limited++;
-              else {
-                const combined = [...notes, note.text].join('\n\n---\n\n');
-                if (combined.length <= 24000 && notes.length < 64) {
-                  notes.push(note.text);
-                  messages.checkpointed++;
-                  readable = { format: 'markdown', text: combined };
-                } else {
-                  messages.limited++;
-                  notesOmitted = true;
-                  const retained = notes.join('\n\n---\n\n') || note.text;
-                  let end = Math.min(retained.length, 24000 - omission.length);
-                  if (end > 0 && /[\uD800-\uDBFF]/u.test(retained[end - 1])) end--;
-                  readable = { format: 'markdown', text: retained.slice(0, end) + omission };
-                }
-                onCheckpoint?.(readable);
-              }
-            }
-          }
-          if (event.item && ['command_execution', 'mcp_tool_call'].includes(event.item.type)) {
-            stop('forbidden_runner_tool');
-            diagnostic = 'forbidden_runner_tool';
-          }
-        } catch {
-          diagnostic = 'invalid_runner_event';
-        }
-      }
+      for (const line of lines) consumeLine(line);
     });
     child.stderr.on('data', (chunk) => {
       if (diagnostic.length < 1000)
@@ -408,6 +443,12 @@ async function runSession(lease, directory, options) {
     });
     child.on('error', (failure) => settle(failure.message));
     child.on('close', (code, childSignal) => {
+      try { utf8.decode(); }
+      catch { protocolFailure('invalid_runner_utf8'); }
+      if (termination.trigger !== 'output_byte_limit') {
+        pending += decoder.end();
+        if (pending) consumeLine(pending);
+      }
       termination.exitCode = code;
       termination.signal = childSignal;
       clearTimeout(timer);
@@ -420,13 +461,18 @@ async function runSession(lease, directory, options) {
   });
 }
 
-/** A session is complete only after a clean zero exit with a final message and no guard. */
+/** Explicit terminal success, exact nonempty text, clean exit and no contradiction. */
 export function sessionCompleted(outcome) {
   return (
     outcome.error === undefined &&
     !outcome.aborted &&
     outcome.termination.exitCode === 0 &&
-    Boolean(outcome.final) &&
+    typeof outcome.final === 'string' && Boolean(outcome.final.trim()) &&
+    outcome.termination.signal === null &&
+    outcome.terminal?.completed === 1 &&
+    outcome.terminal.failed === 0 &&
+    outcome.terminal.protocolFailure === null &&
+    outcome.failureReason === null &&
     outcome.termination.trigger === null
   );
 }

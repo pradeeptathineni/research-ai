@@ -110,7 +110,7 @@ it('refuses a second session and preserves callback errors after draining', asyn
 
 it('preserves complete final bytes even when the prompt length target is exceeded', async () => {
   const original = '    Literal Markdown indentation\n' + 'x'.repeat(25000) + '\n\n';
-  await fixture.scenario({ events: [message(original)] });
+  await fixture.scenario({ events: [message(original), { type: 'turn.completed' }] });
   const result = await researchQuestion('Authored byte-preservation question', {
     lease: fixture.lease,
   });

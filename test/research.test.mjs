@@ -170,7 +170,7 @@ describe('researchQuestion', () => {
       join(fixture.home, '.codex/config.toml'),
       'model = "config-model"\nmodel_reasoning_effort = "low"\n',
     );
-    await fixture.scenario({ events: [message(answer)] });
+    await fixture.scenario({ events: [message(answer), { type: 'turn.completed' }] });
     const result = await researchQuestion('q', { lease: fixture.lease });
     assert.equal(result.receipt.model, 'config-model');
     assert.equal(result.receipt.effort, 'low');
@@ -211,7 +211,7 @@ describe('lease', () => {
   });
 
   it('recovers a lease whose owner and child have both exited', async () => {
-    await fixture.scenario({ events: [message(answer)] });
+    await fixture.scenario({ events: [message(answer), { type: 'turn.completed' }] });
     await mkdir(fixture.lease);
     await writeFile(
       join(fixture.lease, 'owner.json'),
@@ -222,7 +222,7 @@ describe('lease', () => {
   });
 
   it('defaults to a per-user lease under the temporary directory', async () => {
-    await fixture.scenario({ events: [message(answer)] });
+    await fixture.scenario({ events: [message(answer), { type: 'turn.completed' }] });
     const lease = join(
       fixture.tmp,
       `research-ai-${createHash('sha256').update(fixture.home).digest('hex').slice(0, 24)}.ai-lease`,
@@ -348,10 +348,20 @@ describe('pure helpers', () => {
     const base = {
       aborted: false,
       final: 'answer',
+      terminal: { completed: 1, failed: 0, protocolFailure: null },
+      failureReason: null,
       termination: { exitCode: 0, signal: null, trigger: null },
     };
     assert.equal(sessionCompleted(base), true);
     assert.equal(sessionCompleted({ ...base, final: '' }), false);
+    assert.equal(sessionCompleted({ ...base, final: ' \n' }), false);
+    assert.equal(sessionCompleted({ ...base, terminal: undefined }), false);
+    for (const terminal of [
+      { completed: 0, failed: 0, protocolFailure: null },
+      { completed: 1, failed: 1, protocolFailure: null },
+      { completed: 2, failed: 0, protocolFailure: null },
+      { completed: 1, failed: 0, protocolFailure: 'invalid_runner_event' },
+    ]) assert.equal(sessionCompleted({ ...base, terminal }), false);
     assert.equal(sessionCompleted({ ...base, aborted: true }), false);
     assert.equal(sessionCompleted({ ...base, error: 'spawn' }), false);
     assert.equal(
@@ -363,4 +373,91 @@ describe('pure helpers', () => {
       false,
     );
   });
+});
+
+describe('terminal truth', () => {
+  const text = '  Naïve café ✓ 😀\n\nExact Markdown.\n';
+  const completed = { type: 'turn.completed' };
+  for (const [name, tail] of [
+    ['failed terminal', [{ type: 'turn.failed', error: { message: 'fixture failure' } }]],
+    ['missing terminal', []],
+    ['fatal error then success', [{ type: 'error', message: 'fatal fixture' }, completed]],
+    ['failure after success', [completed, { type: 'turn.failed' }]],
+    ['duplicate terminal', [completed, completed]],
+    ['malformed JSON then success', ['{"type":', completed]],
+    ['malformed event then success', [null, completed]],
+    ['malformed terminal', [{ type: 'turn.completed', usage: 'invalid' }]],
+    ['malformed trailing JSON', [completed, '{']],
+    ['message after terminal', [completed, message(text)]],
+    ['non-string message', [message(42), completed]],
+  ]) {
+    it(`never completes ${name} with text and exit zero`, async () => {
+      await fixture.scenario({ events: [message(text), ...tail] });
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.ok(result.answer.includes(text));
+      assert.equal(typeof result.receipt.failure, 'string');
+      assert.notEqual(result.receipt.failure, 'runner_failed');
+      assert.equal(await exists(fixture.lease), false);
+    });
+  }
+  it('preserves exact Unicode/newlines with an explicit successful terminal', async () => {
+    await fixture.scenario({ events: [message(text), { type: 'future.extension' }, completed], stderr: 'harmless diagnostic' });
+    const result = await run();
+    assert.equal(result.status, 'complete');
+    assert.equal(result.answer, text);
+  });
+  it('handles split UTF-8 and a successful final record without a newline', async () => {
+    await fixture.scenario({ events: [message(text), completed], chunkBytes: 1, noFinalNewline: true });
+    const result = await run();
+    assert.equal(result.status, 'complete');
+    assert.equal(result.answer, text);
+    assert.deepEqual(result.receipt.terminal, { completed: 1, failed: 0, protocolFailure: null });
+  });
+  for (const bytes of [[0xf0, 0x9f], [0xff]]) {
+    it(`rejects invalid UTF-8 suffix ${bytes} while retaining prior text`, async () => {
+      await fixture.scenario({ events: [message(text), completed], rawSuffixBase64: Buffer.from(bytes).toString('base64') });
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, 'invalid_runner_utf8');
+    });
+  }
+  it('cannot complete whitespace-only final output', async () => {
+    await fixture.scenario({ events: [message(' \n\t'), completed] });
+    const result = await run();
+    assert.equal(result.status, 'failed');
+    assert.equal(result.receipt.failure, 'no_final_answer');
+  });
+  it('cancellation racing terminal success keeps the checkpoint and reason', async () => {
+    await fixture.scenario({ events: [message(text), completed], hang: true });
+    const controller = new AbortController();
+    const result = await run({ signal: controller.signal, onCheckpoint: () => controller.abort() });
+    assert.equal(result.status, 'partial');
+    assert.equal(result.answer, text);
+    assert.equal(result.receipt.failure, 'cancelled');
+    assert.equal(await exists(fixture.lease), false);
+  });
+  it('exposes terminal truth to a lower-level Signals-shaped consumer', async () => {
+    await fixture.scenario({ events: [message(text), { type: 'turn.failed' }] });
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-consumer-' },
+      (ws) => ws.run({ prompt: 'synthetic', live: false,
+        budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+    assert.equal(sessionCompleted(outcome), false);
+    assert.deepEqual(outcome.terminal, { completed: 0, failed: 1, protocolFailure: null });
+    assert.equal(outcome.failureReason, 'runner_turn_failed');
+    assert.equal(outcome.readable.text, text);
+  });
+
+  it('keeps a prior Unicode checkpoint when the final response exceeds its byte cap', async () => {
+    await fixture.scenario({ events: [message('Naïve ✓ 😀'), message('😀'.repeat(40)), completed] });
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-cap-' },
+      (ws) => ws.run({ prompt: 'synthetic', live: false, maxResponseBytes: 21,
+        budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+    assert.equal(sessionCompleted(outcome), false);
+    assert.equal(outcome.failureReason, 'response_byte_limit');
+    assert.equal(outcome.readable.text, 'Naïve ✓ 😀');
+    assert.equal(outcome.readable.text.isWellFormed(), true);
+  });
+
 });

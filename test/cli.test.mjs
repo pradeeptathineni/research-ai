@@ -57,7 +57,7 @@ it('reports readiness as JSON', async () => {
 
 it('prints the answer to stdout and the receipt to stderr', async () => {
   await fixture.scenario({
-    events: [message('Direct answer with [a source](https://example.org).')],
+    events: [message('Direct answer with [a source](https://example.org).'), { type: 'turn.completed' }],
   });
   const { code, stdout, stderr } = await cli('--model', 'fixture', 'portable', 'notes?');
   assert.equal(code, 0);
@@ -77,3 +77,18 @@ it('exits 2 with a partial answer', async () => {
   assert.equal(stdout, 'Provisional note.\n');
   assert.equal(JSON.parse(stderr.trim().split('\n').at(-1)).status, 'partial');
 });
+
+for (const [name, terminal] of [
+  ['failed terminal', [{ type: 'turn.failed' }]],
+  ['missing terminal', []],
+]) {
+  it(`exits 2 with readable ${name} even when the native process exits zero`, async () => {
+    await fixture.scenario({ events: [message('Naïve ✓ 😀\nPartial evidence.'), ...terminal] });
+    const { code, stdout, stderr } = await cli('q');
+    assert.equal(code, 2);
+    assert.equal(stdout, 'Naïve ✓ 😀\nPartial evidence.\n');
+    const receipt = JSON.parse(stderr.trim().split('\n').at(-1));
+    assert.equal(receipt.status, 'partial');
+    assert.equal(receipt.failure, name === 'failed terminal' ? 'runner_turn_failed' : 'missing_runner_terminal');
+  });
+}

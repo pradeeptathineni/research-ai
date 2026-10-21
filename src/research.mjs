@@ -174,10 +174,12 @@ export async function researchQuestion(question, options = {}) {
       nativeSessions: outcome.nativeSessions,
       stages: outcome.stages,
       termination: outcome.termination,
+      terminal: outcome.terminal,
       ...(complete
         ? {}
         : {
             failure:
+              outcome.failureReason ??
               outcome.error ??
               (outcome.aborted ? "cancelled" : outcome.termination.trigger) ??
               (outcome.final ? "runner_failed" : "no_final_answer"),
