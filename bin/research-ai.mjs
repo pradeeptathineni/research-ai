@@ -50,7 +50,7 @@ Options:
                          to the provider; nothing is fetched. Context is then <=8,000 chars.
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
-  --readiness            report installed/authenticated state without inference
+  --readiness            report installation/auth/profile observations without inference
   -h, --help             show this help
 
 Exit codes: 0 complete, 2 partial answer, 1 failure or usage error.
@@ -104,11 +104,11 @@ async function main() {
       return fail(`research-ai: ${failure.message}`);
     }
   }
-  // Readiness runs only version/login probes, so an unusable CLI fails before any session.
+  // Non-inference readiness probes refuse an unusable CLI before any session.
   const ready = await codexReadiness();
   if (!ready.available)
     return fail(
-      `research-ai: ${ready.installed ? "Codex CLI is not logged in" : "Codex CLI unavailable (not found or its login probe failed)"}; install it and run \`codex login\`.`,
+      `research-ai: ${ready.error}: ${ready.remedy}`,
     );
   const controller = new AbortController();
   process.once("SIGINT", () => controller.abort());

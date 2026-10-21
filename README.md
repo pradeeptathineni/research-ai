@@ -15,7 +15,7 @@ git clone https://github.com/pradeeptathineni/research-ai.git
 cd research-ai
 node bin/research-ai.mjs "Which portable note formats survive app migrations?"
 node bin/research-ai.mjs --profile wide --context "single user, offline first" "..."
-node bin/research-ai.mjs --readiness   # installed/login state; no model call
+node bin/research-ai.mjs --readiness   # installation/auth/profile observations; no model call
 ```
 
 Use Node 24.19 or later within Node 24. No package install or build is needed
@@ -32,8 +32,11 @@ When installed as a package, the same CLI is `research-ai`.
   exist), `1` failure or usage error.
 - `quick` (default) allows 8 searches, 20 reads and 240 s. `wide` allows 24
   searches, 60 reads and 600 s. These are limits, not quality guarantees.
-- Before a session it runs `codex --version` and `codex login status` only. If
-  Codex is missing or logged out, it stops without launching a session.
+- Before a CLI research session it observes `codex --version`, `codex login status`
+  and `codex exec --help`, with a 5-second limit and 64 KiB per output stream
+  for each probe. Missing,
+  logged-out, unknown authentication and unsupported execution profiles stop
+  before any session. `--readiness` performs only these observations.
 - Model and effort: `--model`/`--effort`, otherwise the `model` and
   `model_reasoning_effort` keys in `~/.codex/config.toml`, otherwise the CLI
   default. Only those model-selection keys are used from that config file;
@@ -54,6 +57,29 @@ const { status, answer, receipt } = await researchQuestion("question", {
   onCheckpoint: (note) => console.error(note.text), // bounded interim notes
 });
 ```
+
+### Readiness observations
+
+`codexReadiness()` and `--readiness` return additive schema version 1. Existing
+`installed`, `available` and `runner` fields remain. `installed` means the version
+executable ran; a failed login probe does not erase that observation. `version`
+is nullable, and `authenticated` and `supportedProfile` are independently nullable:
+null means unknown, never logged-out or unsupported. `available` requires a
+recognized version, confirmed authentication and advertised execution options.
+
+`probes` provides each command's source, UTC observation time, exit code and
+machine failure. `error` and `remedy` explain the first blocking observation.
+Known `Not logged in` output (exit 0 or 1) is distinct from other failed or
+unrecognized login output. No raw authentication text is returned or retained.
+
+The `codex-exec-json-v1` profile checks that help advertises the options this
+executor uses: config overrides, isolation flags, JSON, schema, cwd and model.
+It does not guess support from a minimum version number. An older version
+missing options is unsupported; unrecognized help leaves support unknown.
+Advertised options do not qualify native permission enforcement, JSONL behavior,
+model access, funding or research quality. The library's lower-level session API
+retains its existing caller-managed readiness policy. Signals integration and
+package version/pin coordination require separate acceptance.
 
 ### Frozen sources
 

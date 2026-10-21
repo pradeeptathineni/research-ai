@@ -10,19 +10,83 @@ const exec = promisify(execFile);
 const omission =
   '\n\nAdditional completed notes omitted by the bounded partial-output limit (24,000 UTF16 units or 64 notes).';
 
-/** Probes the installed CLI and its own login state. Never launches a model. */
-export async function codexReadiness() {
+// This profile checks advertised command options, not native protocol/permission correctness.
+const readinessProfile = 'codex-exec-json-v1';
+const profileFlags = [
+  '--ignore-user-config', '--ignore-rules', '--ephemeral', '--skip-git-repo-check',
+  '--sandbox', '--json', '--output-schema', '--cd', '--model', '--config',
+];
+const observation = (source) => ({ source, observedAt: null, exitCode: null, failure: 'not_probed' });
+
+async function readinessProbe(args) {
+  const source = `codex ${args.join(' ')}`;
   try {
-    const version = await exec('codex', ['--version'], { timeout: 5000 });
-    const auth = await exec('codex', ['login', 'status'], { timeout: 5000 });
+    const { stdout, stderr } = await exec('codex', args, { timeout: 5000, maxBuffer: 65536, killSignal: 'SIGKILL' });
+    return { stdout, stderr, observation: { source, observedAt: new Date().toISOString(), exitCode: 0, failure: null } };
+  } catch (failure) {
+    const reason = failure.code === 'ENOENT' ? 'not_found' :
+      failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ? 'output_limit' :
+      failure.killed && failure.signal ? 'timeout' :
+      typeof failure.code === 'number' ? 'process_failed' : 'start_failed';
     return {
-      installed: true,
-      available: /Logged in/.test(auth.stdout + auth.stderr),
-      runner: version.stdout.trim(),
+      stdout: failure.stdout ?? '', stderr: failure.stderr ?? '',
+      observation: { source, observedAt: new Date().toISOString(),
+        exitCode: typeof failure.code === 'number' ? failure.code : null, failure: reason },
     };
-  } catch {
-    return { installed: false, available: false, runner: 'codex' };
   }
+}
+
+/** Bounded version/login/help observations only. Never launches inference. */
+export async function codexReadiness() {
+  const versionProbe = await readinessProbe(['--version']);
+  const installed = !['not_found', 'start_failed'].includes(versionProbe.observation.failure);
+  const runner = versionProbe.stdout.trim().slice(0, 200) || 'codex';
+  const version = /^codex-cli (\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/.exec(runner)?.[1] ?? null;
+  const probes = {
+    version: versionProbe.observation,
+    authentication: observation('codex login status'),
+    profile: observation('codex exec --help'),
+  };
+  let authenticated = null, supportedProfile = null;
+  if (installed) {
+    const [auth, profile] = await Promise.all([
+      readinessProbe(['login', 'status']), readinessProbe(['exec', '--help']),
+    ]);
+    probes.authentication = auth.observation;
+    probes.profile = profile.observation;
+    const lines = `${auth.stdout}\n${auth.stderr}`.split(/\r?\n/).map(line => line.trim());
+    const loggedIn = lines.some(line => /^Logged in(?: using .+)?$/.test(line));
+    const loggedOut = lines.includes('Not logged in');
+    if (auth.observation.failure === null) {
+      if (loggedIn && !loggedOut) authenticated = true;
+      else if (loggedOut && !loggedIn) authenticated = false;
+    } else if (auth.observation.failure === 'process_failed' && auth.observation.exitCode === 1 &&
+               loggedOut && !loggedIn) authenticated = false;
+    if (profile.observation.failure === null && /^Usage:\s+codex exec\b/m.test(profile.stdout)) {
+      const flags = new Set([...profile.stdout.matchAll(/(?:^|\s)(--[a-z][a-z-]*)(?=[\s,=]|$)/g)].map(match => match[1]));
+      supportedProfile = profileFlags.every(flag => flags.has(flag));
+    }
+  }
+  const error = !installed ? (probes.version.failure === 'not_found' ? 'missing_executable' : 'version_probe_failed') :
+    probes.version.failure !== null ? 'version_probe_failed' : version === null ? 'version_unrecognized' :
+    authenticated === false ? 'not_authenticated' : authenticated === null ?
+      (probes.authentication.failure === null ? 'auth_unrecognized' : 'auth_probe_failed') :
+    supportedProfile === false ? 'unsupported_profile' : supportedProfile === null ?
+      (probes.profile.failure === null ? 'profile_unrecognized' : 'profile_probe_failed') : null;
+  const remedies = {
+    missing_executable: 'Codex CLI executable was not found; install it or correct PATH, then retry.',
+    version_probe_failed: 'Could not read the Codex CLI version; check `codex --version` and executable access, then retry.',
+    version_unrecognized: 'Unrecognized Codex CLI version output; use a compatible Codex CLI and retry.',
+    not_authenticated: 'Codex CLI is not logged in; run `codex login` and retry.',
+    auth_probe_failed: 'Could not determine Codex login state; check `codex login status` and retry.',
+    auth_unrecognized: 'Unrecognized Codex login state; check `codex login status` and retry.',
+    unsupported_profile: 'This Codex CLI does not advertise the required research execution flags; use a compatible CLI and retry.',
+    profile_unrecognized: 'Unrecognized Codex execution help; check `codex exec --help` and use a compatible CLI.',
+    profile_probe_failed: 'Could not inspect Codex execution support; check `codex exec --help` and retry.',
+  };
+  return { schemaVersion: 1, installed, available: error === null, runner, version,
+    authenticated, supportedProfile, profile: readinessProfile, error,
+    remedy: error === null ? null : remedies[error], probes };
 }
 
 /** One private exclusive lease per host user; a live or orphaned owner is never displaced. */

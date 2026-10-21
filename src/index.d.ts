@@ -3,13 +3,35 @@ export interface Readable {
   text: string;
 }
 
-export interface Readiness {
-  /** `codex --version` and `codex login status` both ran. */
-  installed: boolean;
-  /** The CLI reports a login; no model call is made. */
-  available: boolean;
-  runner: string;
+export interface ReadinessProbe {
+  source: "codex --version" | "codex login status" | "codex exec --help";
+  /** UTC ISO timestamp; null if not probed. */
+  observedAt: string | null;
+  exitCode: number | null;
+  failure: "not_probed" | "not_found" | "start_failed" | "timeout" | "output_limit" | "process_failed" | null;
 }
+
+export interface Readiness {
+  schemaVersion: 1;
+  /** The version executable ran, even if it exited nonzero/timed out. False if it could not start. */
+  installed: boolean;
+  /** Version is recognized, authentication true, and required execution options advertised. */
+  available: boolean;
+  /** Bounded version stdout, or `codex` when absent. */
+  runner: string;
+  version: string | null;
+  /** Null means unobserved/unknown; a known logged-out status may have exit code 1. */
+  authenticated: boolean | null;
+  /** Required options advertised by help; not proof of native protocol/permission behavior. */
+  supportedProfile: boolean | null;
+  profile: "codex-exec-json-v1";
+  error: "missing_executable" | "version_probe_failed" | "version_unrecognized" |
+    "not_authenticated" | "auth_probe_failed" | "auth_unrecognized" |
+    "unsupported_profile" | "profile_unrecognized" | "profile_probe_failed" | null;
+  remedy: string | null;
+  probes: { version: ReadinessProbe; authentication: ReadinessProbe; profile: ReadinessProbe };
+}
+/** Version/login/help probes only, each at most 5s and 64 KiB per output stream; no inference. */
 export function codexReadiness(): Promise<Readiness>;
 
 export interface Budget {

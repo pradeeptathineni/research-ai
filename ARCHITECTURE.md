@@ -16,6 +16,16 @@ the research is for, and what its output means.
 budget, lease name, directory prefix and note reader as inputs. It returns
 an outcome object for the caller to interpret.
 
+## Readiness
+
+`codexReadiness` separately observes bounded version, login status and execution
+help without inference. Version evidence survives login failure. Authentication
+and advertised profile support remain nullable; availability is derived only
+from known ready observations. Public probe metadata includes source, UTC time,
+exit code and machine failure, not raw auth output. The CLI uses the same error
+and remedy as its machine readiness result before starting a session. Help
+advertisement is distinct from native protocol or permission qualification.
+
 ## Session lifecycle
 
 1. Acquire the lease (`mkdir`, mode 0700). A live owner gives `runner_busy`.

@@ -98,7 +98,7 @@ describe('researchQuestion', () => {
     // The working directory and lease are removed; nothing is stored.
     assert.equal(await exists(args[args.indexOf('--cd') + 1]), false);
     assert.equal(await exists(fixture.lease), false);
-    assert.deepEqual((await readdir(fixture.home)).sort(), ['record.json', 'scenario.json']);
+    assert.deepEqual((await readdir(fixture.home)).sort(), ['probes.jsonl', 'record.json', 'scenario.json']);
   });
 
   it('returns checkpointed notes as a partial answer when the session fails', async () => {
@@ -318,17 +318,18 @@ describe('withCodexWorkspace', () => {
 });
 
 describe('codexReadiness', () => {
-  it('reports login state from version/login probes only', async () => {
-    assert.deepEqual(await codexReadiness(), {
+  it('preserves the legacy readiness fields without inference', async () => {
+    const legacy = async () => { const { installed, available, runner } = await codexReadiness(); return { installed, available, runner }; };
+    assert.deepEqual(await legacy(), {
       installed: true,
       available: true,
-      runner: 'codex-cli 0.0.0-fake',
+      runner: 'codex-cli 0.160.0',
     });
     assert.equal(await fixture.launched(), false);
     await fixture.scenario({ loggedIn: false });
     assert.equal((await codexReadiness()).available, false);
     process.env.PATH = fixture.tmp;
-    assert.deepEqual(await codexReadiness(), {
+    assert.deepEqual(await legacy(), {
       installed: false,
       available: false,
       runner: 'codex',
