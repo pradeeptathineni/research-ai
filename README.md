@@ -5,7 +5,7 @@ authenticated [Codex CLI](https://github.com/openai/codex). It returns
 **fallible** Markdown research with a receipt. It maintains no corpus or durable
 research store, and does not verify claims or score sources.
 
-`@pradeeptathineni/research-ai` 0.2.0 · MIT · Node 24 · zero runtime dependencies ·
+`@pradeeptathineni/research-ai` 0.3.0-rc.1 (local candidate) · MIT · Node 24 · zero runtime dependencies ·
 no build step (`.mjs` plus hand-written `.d.ts`).
 
 ## Run
@@ -24,7 +24,8 @@ authenticated Codex CLI; `--help` and the offline tests do not.
 
 When installed as a package, the same CLI is `research-ai`.
 
-- The answer goes to stdout; progress and one final JSON receipt go to stderr.
+- The answer goes to stdout with one added newline; progress and one final JSON
+  receipt go to stderr. The API preserves answer bytes without that CLI newline.
 - Complete API answers preserve the final message exactly. The prompt's 24,000
   character target is advisory; the captured wire has a hard byte cap. Interim
   notes have a separate bounded buffer with an explicit omission marker.
@@ -173,13 +174,33 @@ the lease/workspace for inspection; it never silently frees their ownership.
 - Tests use a synthetic stand-in for `codex`. They prove transport behaviour,
   not research quality.
 
+## Package compatibility
+
+This local candidate requires `cleanup` in both `SessionOutcome` and
+`ResearchResult.receipt`. It is a compatibility boundary for constructed typed
+outcomes and consumers of older receipts. See [migration and qualification
+limits](docs/compatibility.md) before adopting it; historical missing-cleanup
+receipts must remain unconfirmed. This version has not been published.
+
 ## Develop
 
 ```sh
-npm test        # node --test; offline, synthetic, no model
+npm ci --ignore-scripts --no-audit --no-fund  # pinned development compiler/types
+npm test                                   # serial, offline, synthetic, no model
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) and [AGENTS.md](AGENTS.md).
+Runtime use needs no install from the checkout. Development installs TypeScript
+6.0.3 and Node 24 typings only; they are not runtime dependencies or archive
+members. The package test packs and installs a local tarball into an external
+consumer with isolated offline npm configuration, then runs the installed CLI,
+package-name ESM imports and the actual compiler. An already-provisioned offline
+compiler/type closure can be selected with `RESEARCH_AI_TYPECHECK_ROOT` pointing
+to its `node_modules` directory. `RESEARCH_AI_PACKAGE_EVIDENCE` selects a new empty
+owned directory to retain that test's archive, consumer and reports. Otherwise
+they are temporary. Keep the process suites serial to avoid timing contention.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) and the repository's
+[authoring instructions](https://github.com/pradeeptathineni/research-ai/blob/main/AGENTS.md).
 
 ## Origin
 
