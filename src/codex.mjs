@@ -367,7 +367,8 @@ async function runSession(lease, directory, options) {
       oversizedResponse,
       stdoutReceipt,
       notesOmitted = false,
-      settled = false;
+      settled = false,
+      finishing = false;
     const notes = [];
     // Categories partition received completed messages, not unseen provider output.
     const messages = {
@@ -422,15 +423,36 @@ async function runSession(lease, directory, options) {
       settled = true;
       resolve(outcome(error));
     };
-    const stop = (trigger = 'runner_guard') => {
-      termination.trigger ??= trigger;
-      if (cleanup.complete) return;
-      try {
-        if (child.pid && process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL');
-        else child.kill('SIGKILL');
-      } catch {
-        /* already exited */
+    const finish = async () => {
+      if (finishing || settled) return;
+      finishing = true;
+      clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
+      child.stdin.destroy();
+      child.stdout.destroy();
+      child.stderr.destroy();
+      if (!cleanup.complete) child.unref();
+      await registered;
+      if (!cleanup.complete) {
+        termination.trigger ??= cleanup.error;
+        await writeFile(join(lease, 'owner.json'), JSON.stringify({ ...owner, cleanupRequired: true })).catch(() => {});
       }
+      settle(startError);
+    };
+    const beginCleanup = () => {
+      if (cleanupTask) return cleanupTask;
+      cleanupTask = cleanupProcessGroup(child);
+      void cleanupTask.then((result) => {
+        if (finishing || settled) return;
+        cleanup = result;
+        if (!result.complete) void finish();
+      });
+      return cleanupTask;
+    };
+    const stop = (trigger = 'runner_guard') => {
+      if (finishing || settled) return;
+      termination.trigger ??= trigger;
+      if (!cleanup.complete) beginCleanup();
     };
     const owner = { pid: process.pid, childPid: child.pid,
       ...(process.platform === 'win32' ? {} : { processGroupId: child.pid }),
@@ -444,6 +466,7 @@ async function runSession(lease, directory, options) {
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) stop('request_aborted');
     const consumeLine = (line) => {
+      if (finishing || settled) return;
       try {
         const event = JSON.parse(line);
         if (!event || typeof event !== 'object' || Array.isArray(event) ||
@@ -556,6 +579,7 @@ async function runSession(lease, directory, options) {
       }
     };
     child.stdout.on('data', (chunk) => {
+      if (finishing || settled) return;
       bytes += chunk.length;
       wireDigest?.update(chunk);
       if (bytes > (maxResponseBytes ? maxResponseBytes + 32768 : 3000000)) {
@@ -582,24 +606,20 @@ async function runSession(lease, directory, options) {
       for (const line of lines) consumeLine(line);
     });
     child.stderr.on('data', (chunk) => {
+      if (finishing || settled) return;
       if (diagnostic.length < 1000)
         diagnostic += chunk.toString().slice(0, 1000 - diagnostic.length);
     });
-    child.on('error', (failure) => { startError = failure.message; });
-    // Exit precedes close: stop descendants even if they inherited the runner's pipes.
-    child.once('exit', () => {
-      cleanupTask = cleanupProcessGroup(child);
-      void cleanupTask.then((result) => {
-        if (!result.complete) {
-          termination.trigger ??= result.error;
-          // Unconfirmed descendants can hold inherited pipes open indefinitely.
-          // Stop our observation handles, retaining ownership rather than waiting forever.
-          child.stdout.destroy();
-          child.stderr.destroy();
-        }
-      });
+    child.on('error', (failure) => { if (!finishing && !settled) startError = failure.message; });
+    // Exit precedes close; the same bounded cleanup also starts on a live-leader stop.
+    child.once('exit', (code, childSignal) => {
+      if (finishing || settled) return;
+      termination.exitCode = code;
+      termination.signal = childSignal;
+      beginCleanup();
     });
     child.on('close', async (code, childSignal) => {
+      if (finishing || settled) return;
       try { utf8.decode(); }
       catch { protocolFailure('invalid_runner_utf8'); }
       if (termination.trigger !== 'output_byte_limit') {
@@ -608,15 +628,8 @@ async function runSession(lease, directory, options) {
       }
       termination.exitCode = code;
       termination.signal = childSignal;
-      clearTimeout(timer);
-      cleanup = await (cleanupTask ?? cleanupProcessGroup(child));
-      await registered;
-      if (!cleanup.complete) {
-        termination.trigger ??= cleanup.error;
-        await writeFile(join(lease, 'owner.json'), JSON.stringify({ ...owner, cleanupRequired: true })).catch(() => {});
-      }
-      signal.removeEventListener('abort', abort);
-      settle(startError);
+      cleanup = await beginCleanup();
+      await finish();
     });
     // A child that exits before reading its prompt reports through `close`, not a host crash.
     child.stdin.on?.('error', () => {});

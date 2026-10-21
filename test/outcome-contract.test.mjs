@@ -405,3 +405,73 @@ it('returns bounded unknown cleanup when denied descendants retain inherited pip
     if (directory) await rm(directory, { recursive: true, force: true });
   }
 });
+
+for (const mode of ['abort', 'deadline', 'action_guard']) {
+  it(`settles unknown cleanup for a denied live-leader ${mode} without releasing ownership`, { timeout: 10000 }, async () => {
+    const executable = join(fixture.env.PATH, 'codex');
+    const original = await readFile(executable, 'utf8');
+    const marker = "process.stdin.on('end', () => {";
+    assert.ok(original.includes(marker));
+    await writeFile(executable, original.replace(marker, marker + `
+      writeFileSync(join(home, 'live-leader.json'), JSON.stringify({ pid: process.pid }));`));
+    await fixture.scenario({ events: [message(exact), ...(mode === 'action_guard' ? [search()] : [])], hang: true });
+    const controller = new AbortController();
+    const originalKill = process.kill;
+    let leader, directory, stoppedAt, fallback, fallbackUsed = false, ready;
+    const barrier = new Promise(resolve => { ready = resolve; });
+    try {
+      process.kill = (pid, signal) => {
+        if (pid === -leader && signal === 'SIGKILL') {
+          stoppedAt ??= performance.now();
+          throw Object.assign(new Error('synthetic owned live-leader denial'), { code: 'EPERM' });
+        }
+        return originalKill(pid, signal);
+      };
+      const pending = withCodexWorkspace({ lease: fixture.lease, prefix: 'research-live-denial-' }, async ws => {
+        directory = ws.directory;
+        return await ws.run({ prompt: 'Synthetic denied live leader', live: true,
+          budget: { searches: mode === 'action_guard' ? 0 : 1, documents: 0, seconds: mode === 'deadline' ? 2 : 5 }, signal: controller.signal,
+          onCheckpoint: () => { leader = JSON.parse(readFileSync(join(fixture.home, 'live-leader.json'), 'utf8')).pid; ready(); } });
+      });
+      await barrier;
+      fallback = setTimeout(() => {
+        fallbackUsed = true;
+        try { originalKill(-leader, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+      }, 3500);
+      if (mode === 'abort') controller.abort();
+      const outcome = await pending;
+      assert.equal(fallbackUsed, false, 'settled before the owned-test safety watchdog');
+      assert.equal(performance.now() - stoppedAt < 1500, true, 'within one-second cleanup grace plus scheduler allowance');
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.cleanup.complete, false);
+      assert.equal(outcome.cleanup.error, 'process_group_cleanup_failed');
+      assert.equal(outcome.failureReason, mode === 'abort' ? 'cancelled' : mode === 'deadline' ? 'native_deadline' : 'action_limit');
+      assert.equal(outcome.termination.exitCode, null);
+      assert.equal(outcome.termination.signal, null);
+      assert.equal(outcome.readable.text, exact);
+      assert.equal(processAlive(leader), true);
+      assert.equal(await absent(fixture.lease), false);
+      assert.equal(await absent(directory), false);
+      const snapshot = JSON.stringify(outcome);
+      const ownership = await readFile(join(fixture.lease, 'owner.json'), 'utf8');
+      assert.equal(JSON.parse(ownership).processGroupId, leader);
+      process.kill = originalKill;
+      originalKill(-leader, 'SIGKILL');
+      for (let n = 0; n < 200 && processAlive(leader); n++) await new Promise(resolve => setTimeout(resolve, 10));
+      assert.equal(processAlive(leader), false);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      assert.equal(JSON.stringify(outcome), snapshot, 'late exit cannot mutate returned evidence');
+      assert.equal(await readFile(join(fixture.lease, 'owner.json'), 'utf8'), ownership, 'late close cannot release or rewrite retained ownership');
+      assert.equal(await absent(directory), false);
+    } finally {
+      clearTimeout(fallback);
+      process.kill = originalKill;
+      controller.abort();
+      if (!leader) leader = JSON.parse(await readFile(join(fixture.home, 'live-leader.json'), 'utf8').catch(() => '{}')).pid;
+      if (leader && processAlive(leader)) originalKill(-leader, 'SIGKILL');
+      if (leader) for (let n = 0; n < 200 && processAlive(leader); n++) await new Promise(resolve => setTimeout(resolve, 10));
+      if (leader) assert.equal(processAlive(leader), false);
+      if (directory) await rm(directory, { recursive: true, force: true });
+    }
+  });
+}

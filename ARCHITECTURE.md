@@ -102,11 +102,15 @@ outside these callbacks and must not mutate received notes.
 
 Workspace callback return/throw drains pending work before release. Every owned
 leader exit, including success/nonzero exit, starts remaining-group termination.
-The supervisor uses at most one second of group-absence polling; it retains
+Abort, deadline and guards start that same bounded cleanup even if the leader
+never exits. The supervisor uses at most one second of group-absence polling; it retains
 `cleanup.complete:false` / `process_group_cleanup_failed` and ownership if absence
 cannot be confirmed. The supervisor closes its own pipe handles on unconfirmed
-cleanup so inherited descendant pipes cannot keep the API pending forever;
-unreceived output is not invented or promoted. The original exit/signal and cancellation/guard causes remain
+cleanup and unreferences the child so a denied live leader or inherited descendant
+pipes cannot keep the API pending forever;
+unreceived output is not invented or promoted. Settlement is one-time: subsequent
+data/exit/close callbacks cannot mutate the returned evidence or release retained
+ownership. If no exit was observed, exitCode/signal stay null. The original exit/signal and cancellation/guard causes remain
 separate. A retained lease records group/leader/directory and requires inspection;
 a stale live group is never displaced even if its leader is gone. Legacy detached
 runner leases are probed using their recorded child PID as the group ID. Stale lease

@@ -60,6 +60,7 @@ export interface ActionCounts {
 }
 
 export interface Termination {
+  /** Null if exit was not observed, including a bounded stop with unknown cleanup. */
   exitCode: number | null;
   signal: string | null;
   trigger: string | null;
