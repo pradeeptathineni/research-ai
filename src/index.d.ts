@@ -75,6 +75,7 @@ export interface StdoutReceipt {
   captureScope: "runner-stdout";
 }
 
+/** research-outcome-v1 options. All callbacks are synchronous; promise returns are refused. */
 export interface SessionOptions {
   /** Written to stdin; untrusted material belongs inside it as labelled data. */
   prompt: string;
@@ -82,6 +83,7 @@ export interface SessionOptions {
   live: boolean;
   budget: Budget;
   signal: AbortSignal;
+  /** Synchronous ephemeral observation; stream failure stops with progress_callback_failed. */
   progress?: ((event: string) => void) | undefined;
   /** Explicit model/effort; otherwise model keys from `~/.codex/config.toml`, else CLI default. */
   model?: string | undefined;
@@ -92,11 +94,11 @@ export interface SessionOptions {
   structured?: boolean | undefined;
   /** Integer byte cap from 1 to 3,000,000; also enables the stdout digest receipt. */
   maxResponseBytes?: number | undefined;
-  /** Calls already charged against `budget.searches` before the session. */
+  /** Calls already charged against budget.searches; integer from zero through that budget. */
   initialSearches?: number | undefined;
-  /** Reads a completed message as a checkpoint note; default preserves exact non-empty text. */
+  /** Synchronously returns nonempty well-formed Markdown or undefined; failure stops with read_note_failed. */
   readNote?: ((text: string) => Readable | undefined) | undefined;
-  /** Receives the bounded combined checkpoint after each accepted note. */
+  /** Synchronous checkpoint observation; failure stops with checkpoint_callback_failed, retaining the note. */
   onCheckpoint?: ((readable: Readable) => void) | undefined;
   /** Runs synchronously after preparation, immediately before the native process starts. */
   beforeSpawn?: (() => void) | undefined;
@@ -115,7 +117,7 @@ export interface SessionOutcome {
   /** Process start failure message; the session never ran or was not observed. */
   error?: string;
   aborted: boolean;
-  /** Last completed message, truncated to `maxResponseBytes` when capped. */
+  /** Last completed message; capped output is a whole-code-point UTF-8 prefix within maxResponseBytes. */
   final: string;
   readable?: Readable;
   /** Bounded stderr/event diagnostic (at most about 1000 characters). */
@@ -132,7 +134,7 @@ export interface SessionOutcome {
   oversizedResponse?: string;
   termination: Termination;
   terminal: TerminalEvidence;
-  /** Null only when eligible for completion; otherwise a machine-readable reason. */
+  /** Start/abort/guard, then explicit protocol/terminal cause, then exit/missing-text reason; null on success. */
   failureReason: string | null;
 }
 
@@ -158,6 +160,7 @@ export function ordinaryResearchPrompt(
 
 export type Profile = "quick" | "wide";
 
+/** research-outcome-v1: producer contract; native/consumer qualification is separate. */
 export interface ResearchResult {
   /**
    * `complete`: explicit terminal success, nonempty final text, clean exit and no contradiction.
@@ -180,11 +183,11 @@ export interface ResearchResult {
     stages: SessionOutcome["stages"];
     termination: Termination;
     terminal: TerminalEvidence;
-    /** Present only for frozen review (`sources` supplied); live receipts omit it. */
+    /** Legacy compatible mode: frozen for supplied sources; omission means live. */
     mode?: "frozen";
     /** Supplied sources as given, with the SHA-256 of each exact text. Not a verification. */
     source?: FrozenSourceReceipt[];
-    /** Present unless complete: start error, `cancelled`, guard, protocol/terminal failure or missing final answer. */
+    /** Present unless complete: start/abort/guard, then protocol/terminal cause, then exit/missing-text reason. */
     failure?: string;
     /** Bounded stderr/event diagnostic, present unless complete. */
     diagnostic?: string;
@@ -211,6 +214,7 @@ export interface FrozenSourceReceipt {
   omissions?: string[];
 }
 
+/** Observers are synchronous as in SessionOptions; async work belongs outside the callback. */
 export interface ResearchOptions {
   profile?: Profile | undefined;
   /**

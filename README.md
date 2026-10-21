@@ -147,8 +147,16 @@ schema-bound evidence review. See [`src/index.d.ts`](src/index.d.ts) for exact t
 - Search/read action limits, forbidden-tool kill (command execution, MCP),
   stdout and response byte caps, deadline and abort. Each stop SIGKILLs the
   whole process group.
-- The receipt records counts, model/effort selection, timing and termination.
+- The receipt records counts, model/effort selection, timing, termination and
+  separate terminal/protocol evidence. Unknown usage stays unknown. See the
+  [bounded outcome contract](ARCHITECTURE.md#bounded-outcome-contract-research-outcome-v1).
   An over-limit wire keeps a digest and byte counts, never its text.
+
+Progress and checkpoint callbacks are synchronous ephemeral observations. If one
+fails after spawn, research stops with a named callback trigger and preserves
+eligible partial notes. Async callback returns are refused. Workspace callback
+return/throw drains the process group before cleanup. The outcome contract keeps
+protocol cause and process exit separate, including on partial/failed answers.
 
 ## Limitations
 

@@ -55,6 +55,54 @@ failure. Known thread/turn starts or item lifecycle activity after a terminal
 set a sticky protocol failure. Unknown nonterminal extensions are ignored. A final JSONL record without
 a newline is accepted; malformed/truncated UTF-8 is never complete.
 
+## Bounded outcome contract (`research-outcome-v1`)
+
+This freezes the producer boundary consumed by direct callers and later R04/S01
+package/Signals qualification. It is an offline-qualified contract, not proof of
+native permissions, protocol compatibility, research quality or verified claims.
+Existing public field names and status enums remain; lower-level options own mode
+and schema policy. Readiness's advertised profile is a separate observation.
+
+| Surface | Meaning |
+| --- | --- |
+| `complete` | Exactly one supported successful terminal, nonempty exact final message, clean zero exit/signal, no start/abort/guard/protocol contradiction. |
+| `partial` | Completion is ineligible, but eligible completed Markdown notes remain in the bounded checkpoint buffer. |
+| `failed` | No eligible readable checkpoint remains; raw reasoning/tool text never becomes an answer. |
+| `receipt.mode` | `frozen` for caller-supplied sources; omitted means live, preserving the existing compatibility convention. The executor's `live` option controls lower-level sessions. |
+| `receipt.source` | Present only for frozen input; ordered URI, exact UTF-8 SHA-256, caller observation note/omissions. Identifies supplied bytes, not verification, currentness or independence. |
+| `model` / `effort` | Actual explicit/config selection when known; optional in SessionOutcome and `host-default` in research receipts when the CLI chose. No model is invented from usage. |
+| `usage` / `provider` | Unvalidated provider-reported usage; null means unknown, never zero or free. No billing/quota inference. |
+| `termination` | Exit code, process signal and first host guard/stop trigger stay independent from provider terminal evidence. |
+| `terminal` | Explicit success/failure counts and sticky protocol failure. Unknown nonterminal extensions remain tolerated; known post-terminal lifecycle activity contradicts completion. |
+| `failureReason` / `receipt.failure` | Start error, cancellation, then first host guard; otherwise explicit protocol/conflicting/failed terminal cause before generic bad exit or missing terminal/text. Nonzero exit and cause remain in separate fields. |
+| `actionCounts.messages` | Every received completed agent message enters exactly one category: checkpointed, unreadable, duplicate, limited, afterStop or schema. Categories sum to completed. |
+| `final` / `readable` | Complete final text is exact. Capped final is a whole-code-point UTF-8 prefix within the cap. Readable notes are separately bounded to 24,000 UTF-16 units/64 notes with an omission marker. |
+
+Frozen inputs are fully validated before lease acquisition. Failure never falls
+back to live mode or discovers source paths. Even if a frozen runner reports web
+activity despite disabled web configuration, it is stopped as a forbidden tool;
+post-terminal contradiction evidence is retained alongside that host stop. Existing
+command/MCP stops and action/byte/deadline/process-group restrictions remain.
+Precharged searches may equal their budget but may not exceed it at dispatch.
+
+Callbacks are trusted synchronous host code. `progress`/`onCheckpoint` are
+ephemeral observations, not durable process records, storage acknowledgments or
+permissions. Before spawn, a throw rejects and workspace cleanup runs. After
+spawn, observation loss stops/drains the group with `progress_callback_failed`
+or `checkpoint_callback_failed`; already accepted notes remain readable. A
+throwing/invalid note reader stops with `read_note_failed`, counts the message as
+unreadable and retains earlier notes. This is host failure, not malformed provider
+protocol. Promise-returning callbacks are refused; rejection is handled, but their
+side effects are not awaited or authorized. Callers must perform asynchronous work
+outside these callbacks and must not mutate received notes.
+
+Workspace callback return/throw drains pending work before release. A live lease
+owner or still-running orphan is never displaced. Cancellation after an observed
+final frame remains cancellation, not completion. Guards kill the POSIX process
+group, including descendants. Windows and real native enforcement remain separate
+qualification. Progress has no durable ID, resume cursor, implied heartbeat or
+K13 controller coverage; disappearing observation cannot finish a session.
+
 ## Consumers
 
 - **Signals** (first consumer) calls `codexReadiness`, `withCodexWorkspace` and

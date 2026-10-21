@@ -476,7 +476,7 @@ describe('terminal lifecycle ordering', () => {
     ['reasoning completion', { type: 'item.completed', item: { type: 'reasoning', text: 'synthetic' } }],
   ];
   const consume = () => withCodexWorkspace({ lease: fixture.lease, prefix: 'research-order-' },
-    ws => ws.run({ prompt: 'Synthetic terminal ordering', live: false,
+    ws => ws.run({ prompt: 'Synthetic terminal ordering', live: true,
       budget: { searches: 2, documents: 2, seconds: 3 }, signal: new AbortController().signal }));
   for (const [name, activity] of cases) {
     it(`retains partial evidence for ${name} after success in both public APIs`, async () => {

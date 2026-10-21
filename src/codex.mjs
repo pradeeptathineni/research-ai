@@ -182,6 +182,16 @@ const defaultNote = (text) => {
   return text.trim() ? { format: 'markdown', text } : undefined;
 };
 
+// Stream callbacks are synchronous host observations/readers, never provider events.
+function syncCallback(callback, value) {
+  const result = callback?.(value);
+  if (result && typeof result.then === 'function') {
+    void Promise.resolve(result).catch(() => {});
+    throw new TypeError('async_session_callback');
+  }
+  return result;
+}
+
 function validateSession(options) {
   if (
     !options ||
@@ -209,7 +219,8 @@ function validateSession(options) {
         options.maxResponseBytes < 1 ||
         options.maxResponseBytes > 3000000)) ||
     (options.initialSearches !== undefined &&
-      (!Number.isSafeInteger(options.initialSearches) || options.initialSearches < 0))
+      (!Number.isSafeInteger(options.initialSearches) || options.initialSearches < 0 ||
+        options.initialSearches > budget.searches))
   )
     throw new TypeError('invalid_session_limit');
   for (const key of ['progress', 'readNote', 'onCheckpoint', 'beforeSpawn'])
@@ -285,10 +296,10 @@ async function runSession(lease, directory, options) {
   if (schemaPath) await writeFile(schemaPath, JSON.stringify(outputSchema));
   const selected = await selection(options.model, options.effort);
   const args = codexArgs({ directory, live, schemaPath, ...selected });
-  progress(
+  syncCallback(progress,
     `Runner: Codex; model ${selected.model ?? 'CLI default'}; effort ${selected.effort ?? 'CLI default'}; ${live ? 'live search' : 'frozen evidence review'}; no shell/hooks/plugins/delegation.`,
   );
-  beforeSpawn?.();
+  syncCallback(beforeSpawn);
   if (signal.aborted) throw new DOMException('Research cancelled before dispatch', 'AbortError');
   const sessionStarted = Date.now();
   const sessionMonotonic = performance.now();
@@ -356,11 +367,11 @@ async function runSession(lease, directory, options) {
       terminal: { ...terminal },
       failureReason:
         error ?? (signal.aborted ? 'cancelled' : null) ?? termination.trigger ??
-        (termination.exitCode !== 0 || termination.signal !== null
-          ? (final ? 'runner_failed' : 'no_final_answer') : null) ??
         terminal.protocolFailure ??
         (terminal.completed + terminal.failed > 1 ? 'conflicting_runner_terminal' : null) ??
         (terminal.failed ? 'runner_turn_failed' : null) ??
+        (termination.exitCode !== 0 || termination.signal !== null
+          ? (final ? 'runner_failed' : 'no_final_answer') : null) ??
         (terminal.completed !== 1 ? 'missing_runner_terminal' : null) ??
         (!final.trim() ? 'no_final_answer' : null),
     });
@@ -416,11 +427,17 @@ async function runSession(lease, directory, options) {
             typeof event.error?.message === 'string' ? event.error.message.slice(0, 1000) : 'runner_error';
         if (event.usage) usage = event.usage;
         if (event.item?.type === 'web_search') {
+          if (!live) {
+            stop('forbidden_runner_tool');
+            diagnostic = 'forbidden_runner_tool';
+          }
           if (event.type === 'item.started') {
             toolCalls++;
-            progress(
-              `Web action ${toolCalls}; search/read limits ${budget.searches}/${budget.documents}`,
-            );
+            try {
+              syncCallback(progress, `Web action ${toolCalls}; search/read limits ${budget.searches}/${budget.documents}`);
+            } catch {
+              stop('progress_callback_failed');
+            }
             if (toolCalls > budget.searches + budget.documents) stop('action_limit');
           }
           if (event.type === 'item.completed') {
@@ -442,7 +459,7 @@ async function runSession(lease, directory, options) {
           final = event.item.text;
           if (maxResponseBytes && Buffer.byteLength(final) > maxResponseBytes) {
             oversizedResponse = final;
-            final = Buffer.from(final).subarray(0, maxResponseBytes).toString();
+            final = new StringDecoder('utf8').write(Buffer.from(final).subarray(0, maxResponseBytes));
             diagnostic = 'runner_response_byte_limit';
             stop('response_byte_limit');
           }
@@ -451,7 +468,17 @@ async function runSession(lease, directory, options) {
           else if (termination.trigger) messages.limited++;
           else {
             // Only completed user-facing messages can become a research checkpoint.
-            const note = readNote(final);
+            let note;
+            try {
+              note = syncCallback(readNote, final);
+              if (note !== undefined && (!note || note.format !== 'markdown' ||
+                  typeof note.text !== 'string' || !note.text.trim() || !note.text.isWellFormed()))
+                throw new TypeError('invalid_readable_note');
+            } catch {
+              messages.unreadable++;
+              stop('read_note_failed');
+              return;
+            }
             if (!note) messages.unreadable++;
             else if (note.text === notes.at(-1)) messages.duplicate++;
             else if (notesOmitted) messages.limited++;
@@ -469,7 +496,11 @@ async function runSession(lease, directory, options) {
                 if (end > 0 && /[\uD800-\uDBFF]/u.test(retained[end - 1])) end--;
                 readable = { format: 'markdown', text: retained.slice(0, end) + omission };
               }
-              onCheckpoint?.(readable);
+              try {
+                syncCallback(onCheckpoint, readable);
+              } catch {
+                stop('checkpoint_callback_failed');
+              }
             }
           }
         }
