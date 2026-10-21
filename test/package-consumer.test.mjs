@@ -6,6 +6,7 @@ import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } 
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 import { fakeCodex } from './fake-codex.mjs';
 
 const source = fileURLToPath(new URL('../', import.meta.url));
@@ -54,7 +55,13 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     report.pack = metadata;
     const archive = join(archiveDir, metadata.filename);
     report.archive = { path: archive, sha256: digest(await readFile(archive)) };
-    const listed = await command('tar-list', '/usr/bin/tar', ['-tzf', archive]);
+    // GNU tar otherwise spawns gzip through PATH, which intentionally contains only
+    // the fake provider and Node. Decompress with Node without widening that PATH.
+    assert.equal(spawnSync('gzip', ['--version'], { env }).error?.code, 'ENOENT');
+    const tarArchive = join(archiveDir, 'package.tar');
+    await writeFile(tarArchive, gunzipSync(await readFile(archive)));
+    report.archiveInspection = { path: tarArchive, decompressor: 'node:zlib gunzipSync', gzipOnPath: false };
+    const listed = await command('tar-list', '/usr/bin/tar', ['-tf', tarArchive]);
     assert.equal(listed.status, 0, listed.stderr);
     const members = listed.stdout.trim().split('\n').sort();
     report.members = members;
@@ -68,12 +75,12 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
       const file = metadata.files.find(file => file.path === name);
       assert.ok(file, name);
       assert.equal(file.mode & 0o777, name.startsWith('bin/') ? 0o755 : 0o644, name);
-      const entry = await command(`member-${name.replaceAll('/', '-')}`, '/usr/bin/tar', ['-xOzf', archive, `package/${name}`]);
+      const entry = await command(`member-${name.replaceAll('/', '-')}`, '/usr/bin/tar', ['-xOf', tarArchive, `package/${name}`]);
       assert.equal(entry.status, 0);
       assert.doesNotMatch(entry.stdout, /\/Users\/|\/home\/[a-zA-Z0-9_-]+\/|[A-Z]:\\Users\\|execution\/worktrees/);
       report.memberEvidence.push({ path: name, mode: file.mode, size: file.size, sha256: digest(entry.stdout) });
     }
-    const verbose = await command('tar-modes', '/usr/bin/tar', ['-tvzf', archive]);
+    const verbose = await command('tar-modes', '/usr/bin/tar', ['-tvf', tarArchive]);
     assert.equal(verbose.status, 0);
     const modeLines = verbose.stdout.trim().split('\n');
     assert.equal(modeLines.every(line => line.startsWith('-')), true, 'archive contains only regular files, no links');
@@ -82,7 +89,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
       assert.ok(line, member);
       assert.equal(line.slice(0, 10), member.startsWith('package/bin/') ? '-rwxr-xr-x' : '-rw-r--r--', member);
     }
-    const manifest = JSON.parse((await command('manifest', '/usr/bin/tar', ['-xOzf', archive, 'package/package.json'])).stdout);
+    const manifest = JSON.parse((await command('manifest', '/usr/bin/tar', ['-xOf', tarArchive, 'package/package.json'])).stdout);
     assert.equal(manifest.version, '0.3.0-rc.1');
     assert.equal(manifest.engines.node, '>=24.19.0 <25');
     assert.deepEqual(manifest.dependencies ?? {}, {});
