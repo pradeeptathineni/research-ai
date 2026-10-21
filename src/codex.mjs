@@ -332,7 +332,11 @@ async function runSession(lease, directory, options) {
         if (!event || typeof event !== 'object' || Array.isArray(event) ||
             typeof event.type !== 'string' || !event.type)
           throw new Error('invalid event');
-        if (['item.started', 'item.updated', 'item.completed'].includes(event.type) &&
+        const itemLifecycle = ['item.started', 'item.updated', 'item.completed'].includes(event.type);
+        if ((terminal.completed || terminal.failed) &&
+            (event.type === 'thread.started' || event.type === 'turn.started' || itemLifecycle))
+          protocolFailure('activity_after_runner_terminal');
+        if (itemLifecycle &&
             (!event.item || typeof event.item !== 'object' || Array.isArray(event.item) ||
              typeof event.item.type !== 'string')) throw new Error('invalid item');
         if (event.type === 'turn.completed') {
@@ -365,7 +369,6 @@ async function runSession(lease, directory, options) {
         if (event.item?.type === 'agent_message' && event.type === 'item.completed') {
           messages.completed++;
           const alreadyStopped = termination.trigger !== null;
-          if (terminal.completed || terminal.failed) protocolFailure('message_after_runner_terminal');
           if (typeof event.item.text !== 'string' || !event.item.text.isWellFormed())
             throw new Error('invalid message');
           final = event.item.text;

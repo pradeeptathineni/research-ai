@@ -461,3 +461,62 @@ describe('terminal truth', () => {
   });
 
 });
+
+describe('terminal lifecycle ordering', () => {
+  const text = '  Naïve café ✓ 😀\n\nRetained evidence.\n';
+  const completed = { type: 'turn.completed' };
+  const extensions = [{ type: 'future.extension', detail: 'harmless' }];
+  const cases = [
+    ['new turn', { type: 'turn.started' }],
+    ['new thread', { type: 'thread.started', thread_id: 'synthetic' }],
+    ['tool start', { type: 'item.started', item: { type: 'web_search' } }],
+    ['tool update', { type: 'item.updated', item: { type: 'web_search' } }],
+    ['tool completion', search()],
+    ['reasoning completion', { type: 'item.completed', item: { type: 'reasoning', text: 'synthetic' } }],
+  ];
+  const consume = () => withCodexWorkspace({ lease: fixture.lease, prefix: 'research-order-' },
+    ws => ws.run({ prompt: 'Synthetic terminal ordering', live: false,
+      budget: { searches: 2, documents: 2, seconds: 3 }, signal: new AbortController().signal }));
+  for (const [name, activity] of cases) {
+    it(`retains partial evidence for ${name} after success in both public APIs`, async () => {
+      await fixture.scenario({ events: [message(text), completed, activity, ...extensions], noFinalNewline: true });
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, 'activity_after_runner_terminal');
+      assert.equal(result.receipt.terminal.protocolFailure, 'activity_after_runner_terminal');
+      const outcome = await consume();
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.failureReason, 'activity_after_runner_terminal');
+      assert.equal(outcome.readable.text, text);
+      assert.equal(outcome.termination.exitCode, 0);
+      assert.equal(await exists(fixture.lease), false);
+    });
+  }
+  it('keeps post-terminal activity failure sticky across a later terminal', async () => {
+    await fixture.scenario({ events: [message(text), { type: 'turn.failed' },
+      { type: 'turn.started' }, ...extensions, completed] });
+    const result = await run();
+    assert.equal(result.status, 'partial');
+    assert.equal(result.answer, text);
+    assert.equal(result.receipt.failure, 'activity_after_runner_terminal');
+    assert.deepEqual(result.receipt.terminal, {
+      completed: 1, failed: 1, protocolFailure: 'activity_after_runner_terminal',
+    });
+  });
+  for (const [name, tail] of [['clean success', []], ['harmless post-terminal extension', extensions]]) {
+    it(`preserves ${name} and exact text in both public APIs`, async () => {
+      await fixture.scenario({ events: [{ type: 'thread.started', thread_id: 'synthetic' },
+        { type: 'turn.started' }, message(text), completed, ...tail], stderr: 'diagnostic only' });
+      const result = await run();
+      assert.equal(result.status, 'complete');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, undefined);
+      const outcome = await consume();
+      assert.equal(sessionCompleted(outcome), true);
+      assert.equal(outcome.final, text);
+      assert.equal(outcome.failureReason, null);
+      assert.equal(outcome.terminal.protocolFailure, null);
+    });
+  }
+});

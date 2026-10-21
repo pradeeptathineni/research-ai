@@ -80,7 +80,9 @@ export interface SessionOptions {
   beforeSpawn?: (() => void) | undefined;
 }
 
-/** Explicit terminal counts and sticky protocol failure; stderr alone is diagnostic. */
+/** Explicit terminal counts and sticky protocol failure; stderr alone is diagnostic.
+ * Known thread/turn/item activity after a terminal invalidates completion.
+ */
 export interface TerminalEvidence {
   completed: number;
   failed: number;

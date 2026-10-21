@@ -41,7 +41,8 @@ fatal/malformed protocol event, a clean zero exit, nonempty final text, no abort
 no start error and no guard trigger. `terminal` preserves explicit event counts
 and a sticky protocol reason; `failureReason` explains ineligibility separately
 from stderr diagnostics. Readable completed notes remain partial evidence on
-failure. Unknown nonterminal extensions are ignored. A final JSONL record without
+failure. Known thread/turn starts or item lifecycle activity after a terminal
+set a sticky protocol failure. Unknown nonterminal extensions are ignored. A final JSONL record without
 a newline is accepted; malformed/truncated UTF-8 is never complete.
 
 ## Consumers
