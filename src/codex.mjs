@@ -27,7 +27,7 @@ async function readinessProbe(args) {
     const reason = failure.code === 'ENOENT' ? 'not_found' :
       failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ? 'output_limit' :
       failure.killed && failure.signal ? 'timeout' :
-      typeof failure.code === 'number' ? 'process_failed' : 'start_failed';
+      typeof failure.code === 'number' || failure.signal ? 'process_failed' : 'start_failed';
     return {
       stdout: failure.stdout ?? '', stderr: failure.stderr ?? '',
       observation: { source, observedAt: new Date().toISOString(),

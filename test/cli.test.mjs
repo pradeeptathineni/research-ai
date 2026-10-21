@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { chmod } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codexReadiness } from '../src/index.mjs';
 import { fakeCodex, message } from './fake-codex.mjs';
@@ -196,4 +198,56 @@ describe('independent readiness observations', () => {
     assert.equal(await fixture.launched(), false);
   });
 
+});
+
+describe('signaled readiness probes', () => {
+  for (const [name, scenario, probe, authenticated, supportedProfile, error] of [
+    ['version', { versionSignal: 'SIGTERM' }, 'version', true, true, 'version_probe_failed'],
+    ['version without stdout', { versionSignal: 'SIGTERM', versionStdout: '' }, 'version', true, true, 'version_probe_failed'],
+    ['authentication', { authSignal: 'SIGTERM' }, 'authentication', null, true, 'auth_probe_failed'],
+    ['profile', { profileSignal: 'SIGTERM' }, 'profile', true, null, 'profile_probe_failed'],
+  ]) {
+    it(`preserves execution evidence while refusing a signaled ${name} probe`, async () => {
+      await fixture.scenario(scenario);
+      assert.equal(process.env.PATH, fixture.env.PATH);
+      assert.equal(process.env.HOME, fixture.home);
+      assert.equal(process.env.CODEX_HOME, undefined);
+      const state = await codexReadiness();
+      assert.equal(state.installed, true);
+      assert.equal(state.available, false);
+      assert.equal(state.version, scenario.versionStdout === '' ? null : '0.160.0');
+      assert.equal(state.authenticated, authenticated);
+      assert.equal(state.supportedProfile, supportedProfile);
+      assert.equal(state.error, error);
+      assert.equal(state.probes[probe].failure, 'process_failed');
+      assert.equal(state.probes[probe].exitCode, null);
+      const machine = await cli('--readiness');
+      assert.equal(machine.code, 1);
+      const observed = JSON.parse(machine.stdout);
+      for (const key of ['installed', 'available', 'version', 'authenticated', 'supportedProfile', 'error'])
+        assert.equal(observed[key], state[key]);
+      const human = await cli('Synthetic signal refusal');
+      assert.equal(human.code, 1);
+      assert.equal(human.stdout, '');
+      assert.ok(human.stderr.includes(state.remedy));
+      assert.equal(await fixture.launched(), false);
+      assert.ok((await fixture.probes()).every(args =>
+        ['--version', 'login status', 'exec --help'].includes(args.join(' '))));
+    });
+  }
+  for (const [name, setup, installed, available, failure] of [
+    ['ready', async () => {}, true, true, null],
+    ['ordinary nonzero exit', () => fixture.scenario({ versionExitCode: 2 }), true, false, 'process_failed'],
+    ['missing executable', async () => { process.env.PATH = fixture.tmp; }, false, false, 'not_found'],
+    ['unexecutable file', () => chmod(join(fixture.env.PATH, 'codex'), 0o644), false, false, 'start_failed'],
+  ]) {
+    it(`preserves the ${name} control`, async () => {
+      await setup();
+      const state = await codexReadiness();
+      assert.equal(state.installed, installed);
+      assert.equal(state.available, available);
+      assert.equal(state.probes.version.failure, failure);
+      assert.equal(await fixture.launched(), false);
+    });
+  }
 });

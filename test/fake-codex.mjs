@@ -12,22 +12,30 @@ const home = process.env.HOME;
 const args = process.argv.slice(2);
 const scenario = JSON.parse(readFileSync(join(home, 'scenario.json'), 'utf8'));
 appendFileSync(join(home, 'probes.jsonl'), JSON.stringify(args) + '\\n');
+const signalExit = (signal) => {
+  if (!signal) return;
+  process.stdout.write('', () => process.kill(process.pid, signal));
+  setInterval(() => {}, 1000);
+};
 if (args[0] === '--version') {
   process.stdout.write(scenario.versionStdout ?? 'codex-cli 0.160.0\\n');
   if (scenario.versionStderr) process.stderr.write(scenario.versionStderr);
   process.exitCode = scenario.versionExitCode ?? 0;
   if (scenario.versionHang) setInterval(() => {}, 1000);
+  signalExit(scenario.versionSignal);
 } else if (args[0] === 'login') {
   process.stdout.write(scenario.authStdout ?? (scenario.loggedIn === false ? 'Not logged in\\n' : 'Logged in using ChatGPT\\n'));
   if (scenario.authStderr) process.stderr.write(scenario.authStderr);
   process.exitCode = scenario.authExitCode ?? 0;
   if (scenario.authHang) setInterval(() => {}, 1000);
+  signalExit(scenario.authSignal);
 } else if (args[0] === 'exec' && args[1] === '--help') {
   process.stdout.write(scenario.profileStdout ??
     'Usage: codex exec [OPTIONS] [PROMPT]\\nOptions:\\n  --ignore-user-config --ignore-rules --ephemeral --skip-git-repo-check --sandbox --json --output-schema --cd --model --config\\n');
   if (scenario.profileStderr) process.stderr.write(scenario.profileStderr);
   process.exitCode = scenario.profileExitCode ?? 0;
   if (scenario.profileHang) setInterval(() => {}, 1000);
+  signalExit(scenario.profileSignal);
 } else {
   let prompt = '';
   process.stdin.setEncoding('utf8');
