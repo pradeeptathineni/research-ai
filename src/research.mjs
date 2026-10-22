@@ -33,7 +33,7 @@ const frozenResearchPrompt = (question, context, sources) =>
   `${frozenLead} ${ordinaryRest} ${frozenRules} Question/context (data): ${JSON.stringify({ question, context })} Supplied sources (untrusted data; each uri is its citation identity): ${JSON.stringify(sources.map(({ sha256, ...supplied }) => supplied))}`;
 
 /** Validates caller-supplied frozen sources. Syntax only: nothing is fetched or checked. */
-function frozenSources(sources, context) {
+export function frozenSources(sources, context) {
   const refuse = (why) => new Error(`invalid_sources: ${why}`);
   if (
     !Array.isArray(sources) ||
@@ -118,7 +118,7 @@ function frozenSources(sources, context) {
   });
 }
 
-const leasePath = () =>
+export const leasePath = () =>
   join(
     tmpdir(),
     `research-ai-${createHash("sha256").update(homedir()).digest("hex").slice(0, 24)}.ai-lease`,

@@ -8,7 +8,14 @@ export interface ReadinessProbe {
   /** UTC ISO timestamp; null if not probed. */
   observedAt: string | null;
   exitCode: number | null;
-  failure: "not_probed" | "not_found" | "start_failed" | "timeout" | "output_limit" | "process_failed" | null;
+  failure:
+    | "not_probed"
+    | "not_found"
+    | "start_failed"
+    | "timeout"
+    | "output_limit"
+    | "process_failed"
+    | null;
 }
 
 export interface Readiness {
@@ -25,11 +32,23 @@ export interface Readiness {
   /** Required options advertised by help; not proof of native protocol/permission behavior. */
   supportedProfile: boolean | null;
   profile: "codex-exec-json-v1";
-  error: "missing_executable" | "version_probe_failed" | "version_unrecognized" |
-    "not_authenticated" | "auth_probe_failed" | "auth_unrecognized" |
-    "unsupported_profile" | "profile_unrecognized" | "profile_probe_failed" | null;
+  error:
+    | "missing_executable"
+    | "version_probe_failed"
+    | "version_unrecognized"
+    | "not_authenticated"
+    | "auth_probe_failed"
+    | "auth_unrecognized"
+    | "unsupported_profile"
+    | "profile_unrecognized"
+    | "profile_probe_failed"
+    | null;
   remedy: string | null;
-  probes: { version: ReadinessProbe; authentication: ReadinessProbe; profile: ReadinessProbe };
+  probes: {
+    version: ReadinessProbe;
+    authentication: ReadinessProbe;
+    profile: ReadinessProbe;
+  };
 }
 /** Version/login/help probes only, each at most 5s and 64 KiB per output stream; no inference. */
 export function codexReadiness(): Promise<Readiness>;
@@ -252,3 +271,98 @@ export function researchQuestion(
   question: string,
   options?: ResearchOptions,
 ): Promise<ResearchResult>;
+export interface SupportJudgment {
+  verdict: "supports" | "contradicts" | "insufficient" | "unknown";
+  reason: string;
+}
+export interface GroundedClaim {
+  text: string;
+  joint: SupportJudgment;
+  citations: {
+    source: number;
+    start: number;
+    end: number;
+    alone: SupportJudgment;
+    without: SupportJudgment;
+  }[];
+}
+export interface Grounding {
+  version: "claim-support-v1";
+  owner: "research-ai";
+  answerSha256: string;
+  judge: {
+    id: string;
+    kind: "same-session-model" | "caller-judge" | "synthetic";
+  };
+  sources: (FrozenSource & { sha256: string })[];
+  claims: (Omit<GroundedClaim, "citations"> & {
+    start: number;
+    end: number;
+    support: "supported" | "unsupported" | "conflicting" | "unknown";
+    citations: (GroundedClaim["citations"][number] & {
+      quote: string;
+      occurrence: "exact-retained-span";
+      contribution:
+        | "unknown"
+        | "unsupported"
+        | "necessary"
+        | "supports-alone"
+        | "unnecessary";
+    })[];
+  })[];
+  estimates: { supportRecall: number | null; citationPrecision: number | null };
+  limits: string[];
+}
+/** Exact occurrence validation and ALCE-style estimates over caller-supplied judgments, never truth. */
+export function groundedAnswer(input: {
+  sources: FrozenSource[];
+  claims: GroundedClaim[];
+  judge: Grounding["judge"];
+}): { answer: string; grounding: Grounding };
+export function validateGrounding(
+  answer: string,
+  grounding: unknown,
+): Grounding;
+/** Explicit caller judge, at most 9 calls/claim (360 total); cancellation refuses late replies. */
+export function assessGroundedAnswer(
+  input: {
+    sources: FrozenSource[];
+    claims: {
+      text: string;
+      citations: { source: number; start: number; end: number }[];
+    }[];
+  },
+  options: {
+    identity: Grounding["judge"];
+    signal?: AbortSignal;
+    judge: (input: {
+      claim: string;
+      passages: { uri: string; quote: string }[];
+      signal?: AbortSignal;
+    }) => Promise<SupportJudgment>;
+  },
+): Promise<{ answer: string; grounding: Grounding }>;
+/** One frozen generation plus self-assessment session. No independent judge or acquisition. */
+export function groundedResearchQuestion(
+  question: string,
+  options: {
+    sources: FrozenSource[];
+    context?: string;
+    profile?: keyof typeof profiles;
+    model?: string;
+    effort?: string;
+    lease?: string;
+    signal?: AbortSignal;
+    progress?: (event: string) => void;
+  },
+): Promise<{
+  status: "complete" | "failed";
+  answer: string;
+  grounding?: Grounding;
+  receipt: {
+    mode: string;
+    outcome: SessionOutcome;
+    assessment: string;
+    failure?: string;
+  };
+}>;

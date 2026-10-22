@@ -1,4 +1,11 @@
-# 0.3.0-rc.1 local candidate compatibility
+# 0.4.0-rc.1 local candidate compatibility
+
+The additive grounded API/CLI emits `claim-support-v1`. It requires explicit
+frozen sources and does not change ordinary answers or execution restrictions.
+Consumers must preserve and validate the entire closure, including source text;
+missing historical annotations mean unavailable, never unsupported or verified.
+Self-assessment is labeled separately from a caller-selected judge. This local
+candidate is unpublished. The cleanup boundary below remains unchanged.
 
 This is a local pre-1 candidate, not a published release or a registry reservation.
 The preceding package version was 0.2.0. The accepted producer checkpoint is

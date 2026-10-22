@@ -1,4 +1,4 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer } from '@pradeeptathineni/research-ai';
 import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource } from '@pradeeptathineni/research-ai';
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
@@ -9,6 +9,10 @@ const result: ResearchResult = { status: 'complete', answer: outcome.final, rece
   termination: outcome.termination, terminal: outcome.terminal, cleanup,
 } };
 const sources: FrozenSource[] = [{ uri: 'https://example.org', text: 'Captured text' }];
+const grounded = groundedAnswer({ sources, judge: { id: 'typed', kind: 'synthetic' }, claims: [{ text: 'Unknown.', citations: [], joint: { verdict: 'insufficient', reason: 'No evidence.' } }] });
+validateGrounding(grounded.answer, grounded.grounding);
+void groundedResearchQuestion;
+void assessGroundedAnswer({ sources, claims: [] }, { identity: grounded.grounding.judge, judge: async () => ({ verdict: 'unknown', reason: 'No judgment.' }) });
 async function consumer() {
   const ready = await codexReadiness();
   const direct = await withCodexWorkspace({ lease: '/tmp/typed-example', prefix: 'typed-' }, ws => ws.run({

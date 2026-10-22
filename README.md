@@ -5,7 +5,7 @@ authenticated [Codex CLI](https://github.com/openai/codex). It returns
 **fallible** Markdown research with a receipt. It maintains no corpus or durable
 research store, and does not verify claims or score sources.
 
-`@pradeeptathineni/research-ai` 0.3.0-rc.1 (local candidate) · MIT · Node 24 · zero runtime dependencies ·
+`@pradeeptathineni/research-ai` 0.4.0-rc.1 (local candidate) · MIT · Node 24 · zero runtime dependencies ·
 no build step (`.mjs` plus hand-written `.d.ts`).
 
 ## Run
@@ -136,6 +136,37 @@ and reads each, 3,600 seconds, and an optional response cap of 1–3,000,000 byt
 Signals uses it for live research and frozen,
 schema-bound evidence review. See [`src/index.d.ts`](src/index.d.ts) for exact types.
 
+### Claim support from retained sources
+
+`groundedResearchQuestion(question, { sources, ...options })` returns a
+`claim-support-v1` closure alongside its answer. It uses one frozen schema-bound
+session: ordered claim paragraphs, exact source spans, and same-session support
+judgments. Each whole claim is supported, unsupported, conflicting or unknown;
+each citation records its judgment alone and with that citation removed. Source
+text, SHA256, URI, original caller notes and UTF16 offsets stay in the closure.
+No source is fetched. Invalid bindings fail the result without accepting a partial
+structured answer. Ordinary `researchQuestion` retains its existing behavior.
+
+```sh
+node bin/research-ai.mjs --grounded --sources captured.json "What do these sources establish?" > grounded.json
+```
+
+`groundedAnswer({ sources, claims, judge })` validates caller-produced judgments
+and creates the same closure without inference. `assessGroundedAnswer` instead
+accepts an explicit caller-selected judge callback; it sends only the selected
+spans, performs at most nine calls per claim and checks cancellation before and
+after each reply. That callback owns its cost, deadline and provider permission;
+no alternate model is installed or selected. `validateGrounding(answer, closure)`
+replays bindings and derived labels offline before retention or reopening.
+
+The ALCE joint/alone/leave-one-out method is reproduced with explicit claim units
+instead of automatic sentence splitting. Unknown/conflicting judgments suppress
+aggregate estimates. A citation that supports a claim alone earns contribution
+credit even if another also supports it, matching ALCE's definition. These are
+support estimates, not truth scores. Exact occurrence proves only that the text
+is in the supplied capture. Self-assessment is especially fallible and is labeled
+as such; fixtures establish mechanics only. See [source reuse](THIRD-PARTY-NOTICES.md).
+
 ## What each session enforces
 
 - `codex exec --ephemeral --sandbox read-only --ignore-user-config --ignore-rules`
@@ -206,4 +237,4 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and the repository's
 
 Extracted from the native Codex runner in the MIT-licensed first-party Signals
 project. [LICENSE](LICENSE) keeps the original notice. No third-party code is
-included.
+included apart from the reproduced citation-support method credited above.

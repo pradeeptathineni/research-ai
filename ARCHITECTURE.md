@@ -5,6 +5,13 @@ the research is for, and what its output means.
 
 ## Modules
 
+`src/grounding.mjs` owns the additive `claim-support-v1` frozen-answer contract.
+It checks exact span occurrence and derives qualified support/contribution labels
+from explicit judgments; it does not verify source truth. Consumers retain its
+self-contained closure and replay `validateGrounding` without model calls.
+Native creation uses one bounded, schema-bound frozen session; stopped or invalid
+structured output is failed, never promoted from interim narrative.
+
 | File                  | Owns                                                                                                                                                                                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/codex.mjs`       | Codex readiness probes, the exclusive lease, the ephemeral working directory, model/effort selection, the hardened argument vector, the minimal environment, JSONL stream supervision, checkpoints, limits, deadline/abort and process-group kill |
