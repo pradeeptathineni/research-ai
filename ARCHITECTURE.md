@@ -1,7 +1,8 @@
 # Architecture
 
-research-ai owns reusable, bounded research **execution**. Consumers own what
-the research is for, and what its output means.
+research-ai owns reusable, bounded research execution and opt-in retained-source
+claim/support methods. Consumers own acquisition policy, storage and purpose-specific
+assessments. A support estimate does not become a consumer confidence score.
 
 ## Modules
 

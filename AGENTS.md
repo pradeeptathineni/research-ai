@@ -3,8 +3,10 @@
 Read [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
 [.meta/context/README.md](.meta/context/README.md) before changing behaviour.
 
-research-ai owns bounded research execution. It does not own storage, scoring,
-entities, source acquisition policy or any consumer's records. Keep
+research-ai owns bounded research execution and retained-source claim/support
+methods. It does not own storage, consumer ranking/confidence scores, entities,
+source acquisition policy or any consumer's records. Support estimates remain
+fallible research judgments, separate from consumer assessments. Keep
 `src/codex.mjs` free of consumer imports and vocabulary. Consumers pass in
 prompts, schemas, budgets, lease names and note readers.
 
