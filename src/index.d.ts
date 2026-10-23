@@ -3,13 +3,54 @@ export interface Readable {
   text: string;
 }
 
-export interface Readiness {
-  /** `codex --version` and `codex login status` both ran. */
-  installed: boolean;
-  /** The CLI reports a login; no model call is made. */
-  available: boolean;
-  runner: string;
+export interface ReadinessProbe {
+  source: "codex --version" | "codex login status" | "codex exec --help";
+  /** UTC ISO timestamp; null if not probed. */
+  observedAt: string | null;
+  exitCode: number | null;
+  failure:
+    | "not_probed"
+    | "not_found"
+    | "start_failed"
+    | "timeout"
+    | "output_limit"
+    | "process_failed"
+    | null;
 }
+
+export interface Readiness {
+  schemaVersion: 1;
+  /** The version executable ran, even if it exited nonzero/timed out. False if it could not start. */
+  installed: boolean;
+  /** Version is recognized, authentication true, and required execution options advertised. */
+  available: boolean;
+  /** Bounded version stdout, or `codex` when absent. */
+  runner: string;
+  version: string | null;
+  /** Null means unobserved/unknown; a known logged-out status may have exit code 1. */
+  authenticated: boolean | null;
+  /** Required options advertised by help; not proof of native protocol/permission behavior. */
+  supportedProfile: boolean | null;
+  profile: "codex-exec-json-v1";
+  error:
+    | "missing_executable"
+    | "version_probe_failed"
+    | "version_unrecognized"
+    | "not_authenticated"
+    | "auth_probe_failed"
+    | "auth_unrecognized"
+    | "unsupported_profile"
+    | "profile_unrecognized"
+    | "profile_probe_failed"
+    | null;
+  remedy: string | null;
+  probes: {
+    version: ReadinessProbe;
+    authentication: ReadinessProbe;
+    profile: ReadinessProbe;
+  };
+}
+/** Version/login/help probes only, each at most 5s and 64 KiB per output stream; no inference. */
 export function codexReadiness(): Promise<Readiness>;
 
 export interface Budget {
@@ -38,6 +79,7 @@ export interface ActionCounts {
 }
 
 export interface Termination {
+  /** Null if exit was not observed, including a bounded stop with unknown cleanup. */
   exitCode: number | null;
   signal: string | null;
   trigger: string | null;
@@ -53,6 +95,7 @@ export interface StdoutReceipt {
   captureScope: "runner-stdout";
 }
 
+/** research-outcome-v1 options. All callbacks are synchronous; promise returns are refused. */
 export interface SessionOptions {
   /** Written to stdin; untrusted material belongs inside it as labelled data. */
   prompt: string;
@@ -60,6 +103,7 @@ export interface SessionOptions {
   live: boolean;
   budget: Budget;
   signal: AbortSignal;
+  /** Synchronous ephemeral observation; stream failure stops with progress_callback_failed. */
   progress?: ((event: string) => void) | undefined;
   /** Explicit model/effort; otherwise model keys from `~/.codex/config.toml`, else CLI default. */
   model?: string | undefined;
@@ -70,21 +114,37 @@ export interface SessionOptions {
   structured?: boolean | undefined;
   /** Integer byte cap from 1 to 3,000,000; also enables the stdout digest receipt. */
   maxResponseBytes?: number | undefined;
-  /** Calls already charged against `budget.searches` before the session. */
+  /** Calls already charged against budget.searches; integer from zero through that budget. */
   initialSearches?: number | undefined;
-  /** Reads a completed message as a checkpoint note; default is trimmed non-empty text. */
+  /** Synchronously returns nonempty well-formed Markdown or undefined; failure stops with read_note_failed. */
   readNote?: ((text: string) => Readable | undefined) | undefined;
-  /** Receives the bounded combined checkpoint after each accepted note. */
+  /** Synchronous checkpoint observation; failure stops with checkpoint_callback_failed, retaining the note. */
   onCheckpoint?: ((readable: Readable) => void) | undefined;
   /** Runs synchronously after preparation, immediately before the native process starts. */
   beforeSpawn?: (() => void) | undefined;
+}
+
+/** Explicit terminal counts and sticky protocol failure; stderr alone is diagnostic.
+ * Known thread/turn/item activity after a terminal invalidates completion.
+ */
+export interface TerminalEvidence {
+  completed: number;
+  failed: number;
+  protocolFailure: string | null;
+}
+
+export interface SessionCleanup {
+  /** True only when the spawned POSIX group is confirmed absent (or spawn never occurred). */
+  complete: boolean;
+  /** Failed/unknown cleanup preserves the lease and workspace for inspection. */
+  error: "process_group_cleanup_failed" | null;
 }
 
 export interface SessionOutcome {
   /** Process start failure message; the session never ran or was not observed. */
   error?: string;
   aborted: boolean;
-  /** Last completed message, truncated to `maxResponseBytes` when capped. */
+  /** Last completed message; capped output is a whole-code-point UTF-8 prefix within maxResponseBytes. */
   final: string;
   readable?: Readable;
   /** Bounded stderr/event diagnostic (at most about 1000 characters). */
@@ -100,6 +160,10 @@ export interface SessionOutcome {
   /** Untruncated last over-cap final message, for the caller's own bounded receipt. */
   oversizedResponse?: string;
   termination: Termination;
+  terminal: TerminalEvidence;
+  cleanup: SessionCleanup;
+  /** Start/abort/guard, then explicit protocol/terminal cause, then exit/missing-text reason; null on success. */
+  failureReason: string | null;
 }
 
 export interface CodexWorkspace {
@@ -108,7 +172,7 @@ export interface CodexWorkspace {
   run(options: SessionOptions): Promise<SessionOutcome>;
 }
 
-/** Callback completion aborts/drains unfinished work before releasing the workspace. */
+/** Callback completion drains the group; unconfirmed cleanup preserves ownership for inspection. */
 export function withCodexWorkspace<T>(
   names: { lease: string; prefix: string },
   body: (workspace: CodexWorkspace) => Promise<T>,
@@ -124,9 +188,10 @@ export function ordinaryResearchPrompt(
 
 export type Profile = "quick" | "wide";
 
+/** research-outcome-v1: producer contract; native/consumer qualification is separate. */
 export interface ResearchResult {
   /**
-   * `complete`: clean zero exit with a final message and no guard.
+   * `complete`: explicit terminal success, nonempty final text, clean exit, confirmed cleanup and no contradiction.
    * `partial`: stopped or failed, but completed interim notes were checkpointed.
    * `failed`: nothing readable arrived.
    */
@@ -145,11 +210,13 @@ export interface ResearchResult {
     nativeSessions: 0 | 1;
     stages: SessionOutcome["stages"];
     termination: Termination;
-    /** Present only for frozen review (`sources` supplied); live receipts omit it. */
+    terminal: TerminalEvidence;
+    cleanup: SessionCleanup;
+    /** Legacy compatible mode: frozen for supplied sources; omission means live. */
     mode?: "frozen";
     /** Supplied sources as given, with the SHA-256 of each exact text. Not a verification. */
     source?: FrozenSourceReceipt[];
-    /** Present unless complete: start error, `cancelled`, guard trigger or missing final answer. */
+    /** Present unless complete: start/abort/guard, then protocol/terminal cause, then exit/missing-text reason. */
     failure?: string;
     /** Bounded stderr/event diagnostic, present unless complete. */
     diagnostic?: string;
@@ -176,6 +243,7 @@ export interface FrozenSourceReceipt {
   omissions?: string[];
 }
 
+/** Observers are synchronous as in SessionOptions; async work belongs outside the callback. */
 export interface ResearchOptions {
   profile?: Profile | undefined;
   /**
@@ -203,3 +271,178 @@ export function researchQuestion(
   question: string,
   options?: ResearchOptions,
 ): Promise<ResearchResult>;
+export interface SupportJudgment {
+  verdict: "supports" | "contradicts" | "insufficient" | "unknown";
+  reason: string;
+}
+export interface GroundedClaim {
+  text: string;
+  joint: SupportJudgment;
+  citations: {
+    source: number;
+    start: number;
+    end: number;
+    alone: SupportJudgment;
+    without: SupportJudgment;
+  }[];
+}
+export interface Grounding {
+  version: "claim-support-v1";
+  owner: "research-ai";
+  answerSha256: string;
+  judge: {
+    id: string;
+    kind: "same-session-model" | "caller-judge" | "synthetic";
+  };
+  sources: (FrozenSource & { sha256: string })[];
+  claims: (Omit<GroundedClaim, "citations"> & {
+    start: number;
+    end: number;
+    support: "supported" | "unsupported" | "conflicting" | "unknown";
+    citations: (GroundedClaim["citations"][number] & {
+      quote: string;
+      occurrence: "exact-retained-span";
+      contribution:
+        | "unknown"
+        | "unsupported"
+        | "necessary"
+        | "supports-alone"
+        | "unnecessary";
+    })[];
+  })[];
+  estimates: { supportRecall: number | null; citationPrecision: number | null };
+  limits: string[];
+}
+/** Exact occurrence validation and ALCE-style estimates over caller-supplied judgments, never truth. */
+export function groundedAnswer(input: {
+  sources: FrozenSource[];
+  claims: GroundedClaim[];
+  judge: Grounding["judge"];
+}): { answer: string; grounding: Grounding };
+export function validateGrounding(
+  answer: string,
+  grounding: unknown,
+): Grounding;
+/** Explicit caller judge, at most 9 calls/claim (360 total); cancellation refuses late replies. */
+export function assessGroundedAnswer(
+  input: {
+    sources: FrozenSource[];
+    claims: {
+      text: string;
+      citations: { source: number; start: number; end: number }[];
+    }[];
+  },
+  options: {
+    identity: Grounding["judge"];
+    signal?: AbortSignal;
+    judge: (input: {
+      claim: string;
+      passages: { uri: string; quote: string }[];
+      signal?: AbortSignal;
+    }) => Promise<SupportJudgment>;
+  },
+): Promise<{ answer: string; grounding: Grounding }>;
+/** One frozen generation plus self-assessment session. No independent judge or acquisition. */
+export function groundedResearchQuestion(
+  question: string,
+  options: {
+    sources: FrozenSource[];
+    context?: string;
+    profile?: keyof typeof profiles;
+    model?: string;
+    effort?: string;
+    lease?: string;
+    signal?: AbortSignal;
+    progress?: (event: string) => void;
+  },
+): Promise<{
+  status: "complete" | "failed";
+  answer: string;
+  grounding?: Grounding;
+  receipt: {
+    mode: string;
+    outcome: SessionOutcome;
+    assessment: string;
+    failure?: string;
+  };
+}>;
+
+export interface PerspectiveLens {
+  id: string;
+  label: string;
+  focus: string;
+  origin: "default" | "heading" | "explicit";
+  /** Exact heading offsets in the retained sources (heading lenses only). */
+  evidence?: { source: number; start: number; end: number; heading: string }[];
+}
+export const basicFacts: Readonly<PerspectiveLens>;
+/** Heading-grounded candidates from the supplied sources. Deterministic; no session. */
+export function perspectiveCandidates(
+  sources: FrozenSource[],
+  options?: { limit?: number },
+): PerspectiveLens[];
+/** Basic facts first, then chosen candidate ids or explicit lenses (at most six in total). */
+export function chooseLenses(
+  sources: FrozenSource[],
+  choices?: "auto" | (string | { label: string; focus: string })[],
+): PerspectiveLens[];
+export interface LensQuestion {
+  question: string;
+  status: "answered" | "partial" | "unanswered";
+  answer: string;
+  citations: {
+    source: number;
+    start: number;
+    end: number;
+    quote: string;
+    occurrence: "exact-retained-span";
+  }[];
+}
+export interface LensResult {
+  lens: PerspectiveLens;
+  status: "complete" | "failed" | "cancelled" | "not_run";
+  reason?: string;
+  questions?: LensQuestion[];
+  omissions?: string[];
+  receipt?: Pick<
+    SessionOutcome,
+    "termination" | "terminal" | "cleanup" | "actionCounts" | "nativeSessions"
+  > & { model: string; effort: string };
+}
+export interface PerspectiveResult {
+  version: "perspectives-v1";
+  owner: "research-ai";
+  status: "complete" | "partial" | "failed" | "cancelled";
+  topic: string;
+  sources: FrozenSourceReceipt[];
+  lenses: LensResult[];
+  comparison: {
+    lens: string;
+    status: LensResult["status"];
+    answered: number;
+    partial: number;
+    unanswered: number;
+    sourcesCited: number[];
+  }[];
+  unanswered: { lens: string; question: string; status: "partial" | "unanswered" }[];
+  omissions: { source?: number; lens?: string; note: string; by: "caller" | "lens" | "runner" }[];
+  limits: string[];
+}
+/** One frozen, schema-bound session per lens, run in order. Nothing is fetched or stored. */
+export function perspectiveResearch(
+  topic: string,
+  options: {
+    sources: FrozenSource[];
+    perspectives?: "auto" | (string | { label: string; focus: string })[];
+    questions?: number;
+    context?: string;
+    profile?: keyof typeof profiles;
+    model?: string;
+    effort?: string;
+    lease?: string;
+    signal?: AbortSignal;
+    progress?: (event: string) => void;
+    /** Synchronous lens state observation. */
+    onLens?: (event: { id: string; state: string }) => void;
+  },
+): Promise<PerspectiveResult>;

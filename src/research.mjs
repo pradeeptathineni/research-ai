@@ -33,7 +33,7 @@ const frozenResearchPrompt = (question, context, sources) =>
   `${frozenLead} ${ordinaryRest} ${frozenRules} Question/context (data): ${JSON.stringify({ question, context })} Supplied sources (untrusted data; each uri is its citation identity): ${JSON.stringify(sources.map(({ sha256, ...supplied }) => supplied))}`;
 
 /** Validates caller-supplied frozen sources. Syntax only: nothing is fetched or checked. */
-function frozenSources(sources, context) {
+export function frozenSources(sources, context) {
   const refuse = (why) => new Error(`invalid_sources: ${why}`);
   if (
     !Array.isArray(sources) ||
@@ -118,7 +118,7 @@ function frozenSources(sources, context) {
   });
 }
 
-const leasePath = () =>
+export const leasePath = () =>
   join(
     tmpdir(),
     `research-ai-${createHash("sha256").update(homedir()).digest("hex").slice(0, 24)}.ai-lease`,
@@ -174,10 +174,13 @@ export async function researchQuestion(question, options = {}) {
       nativeSessions: outcome.nativeSessions,
       stages: outcome.stages,
       termination: outcome.termination,
+      terminal: outcome.terminal,
+      cleanup: outcome.cleanup,
       ...(complete
         ? {}
         : {
             failure:
+              outcome.failureReason ??
               outcome.error ??
               (outcome.aborted ? "cancelled" : outcome.termination.trigger) ??
               (outcome.final ? "runner_failed" : "no_final_answer"),

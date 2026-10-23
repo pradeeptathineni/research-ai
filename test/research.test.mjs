@@ -98,7 +98,7 @@ describe('researchQuestion', () => {
     // The working directory and lease are removed; nothing is stored.
     assert.equal(await exists(args[args.indexOf('--cd') + 1]), false);
     assert.equal(await exists(fixture.lease), false);
-    assert.deepEqual((await readdir(fixture.home)).sort(), ['record.json', 'scenario.json']);
+    assert.deepEqual((await readdir(fixture.home)).sort(), ['probes.jsonl', 'record.json', 'scenario.json']);
   });
 
   it('returns checkpointed notes as a partial answer when the session fails', async () => {
@@ -170,7 +170,7 @@ describe('researchQuestion', () => {
       join(fixture.home, '.codex/config.toml'),
       'model = "config-model"\nmodel_reasoning_effort = "low"\n',
     );
-    await fixture.scenario({ events: [message(answer)] });
+    await fixture.scenario({ events: [message(answer), { type: 'turn.completed' }] });
     const result = await researchQuestion('q', { lease: fixture.lease });
     assert.equal(result.receipt.model, 'config-model');
     assert.equal(result.receipt.effort, 'low');
@@ -211,7 +211,7 @@ describe('lease', () => {
   });
 
   it('recovers a lease whose owner and child have both exited', async () => {
-    await fixture.scenario({ events: [message(answer)] });
+    await fixture.scenario({ events: [message(answer), { type: 'turn.completed' }] });
     await mkdir(fixture.lease);
     await writeFile(
       join(fixture.lease, 'owner.json'),
@@ -222,7 +222,7 @@ describe('lease', () => {
   });
 
   it('defaults to a per-user lease under the temporary directory', async () => {
-    await fixture.scenario({ events: [message(answer)] });
+    await fixture.scenario({ events: [message(answer), { type: 'turn.completed' }] });
     const lease = join(
       fixture.tmp,
       `research-ai-${createHash('sha256').update(fixture.home).digest('hex').slice(0, 24)}.ai-lease`,
@@ -318,17 +318,18 @@ describe('withCodexWorkspace', () => {
 });
 
 describe('codexReadiness', () => {
-  it('reports login state from version/login probes only', async () => {
-    assert.deepEqual(await codexReadiness(), {
+  it('preserves the legacy readiness fields without inference', async () => {
+    const legacy = async () => { const { installed, available, runner } = await codexReadiness(); return { installed, available, runner }; };
+    assert.deepEqual(await legacy(), {
       installed: true,
       available: true,
-      runner: 'codex-cli 0.0.0-fake',
+      runner: 'codex-cli 0.160.0',
     });
     assert.equal(await fixture.launched(), false);
     await fixture.scenario({ loggedIn: false });
     assert.equal((await codexReadiness()).available, false);
     process.env.PATH = fixture.tmp;
-    assert.deepEqual(await codexReadiness(), {
+    assert.deepEqual(await legacy(), {
       installed: false,
       available: false,
       runner: 'codex',
@@ -348,10 +349,23 @@ describe('pure helpers', () => {
     const base = {
       aborted: false,
       final: 'answer',
+      terminal: { completed: 1, failed: 0, protocolFailure: null },
+      failureReason: null,
+      cleanup: { complete: true, error: null },
       termination: { exitCode: 0, signal: null, trigger: null },
     };
     assert.equal(sessionCompleted(base), true);
+    assert.equal(sessionCompleted({ ...base, cleanup: undefined }), false);
+    assert.equal(sessionCompleted({ ...base, cleanup: { complete: false, error: 'process_group_cleanup_failed' } }), false);
     assert.equal(sessionCompleted({ ...base, final: '' }), false);
+    assert.equal(sessionCompleted({ ...base, final: ' \n' }), false);
+    assert.equal(sessionCompleted({ ...base, terminal: undefined }), false);
+    for (const terminal of [
+      { completed: 0, failed: 0, protocolFailure: null },
+      { completed: 1, failed: 1, protocolFailure: null },
+      { completed: 2, failed: 0, protocolFailure: null },
+      { completed: 1, failed: 0, protocolFailure: 'invalid_runner_event' },
+    ]) assert.equal(sessionCompleted({ ...base, terminal }), false);
     assert.equal(sessionCompleted({ ...base, aborted: true }), false);
     assert.equal(sessionCompleted({ ...base, error: 'spawn' }), false);
     assert.equal(
@@ -363,4 +377,195 @@ describe('pure helpers', () => {
       false,
     );
   });
+});
+
+describe('terminal truth', () => {
+  const text = '  Naïve café ✓ 😀\n\nExact Markdown.\n';
+  const completed = { type: 'turn.completed' };
+  for (const [name, tail] of [
+    ['failed terminal', [{ type: 'turn.failed', error: { message: 'fixture failure' } }]],
+    ['missing terminal', []],
+    ['fatal error then success', [{ type: 'error', message: 'fatal fixture' }, completed]],
+    ['failure after success', [completed, { type: 'turn.failed' }]],
+    ['duplicate terminal', [completed, completed]],
+    ['malformed JSON then success', ['{"type":', completed]],
+    ['malformed event then success', [null, completed]],
+    ['malformed terminal', [{ type: 'turn.completed', usage: 'invalid' }]],
+    ['malformed trailing JSON', [completed, '{']],
+    ['message after terminal', [completed, message(text)]],
+    ['non-string message', [message(42), completed]],
+  ]) {
+    it(`never completes ${name} with text and exit zero`, async () => {
+      await fixture.scenario({ events: [message(text), ...tail] });
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.ok(result.answer.includes(text));
+      assert.equal(typeof result.receipt.failure, 'string');
+      assert.notEqual(result.receipt.failure, 'runner_failed');
+      assert.equal(await exists(fixture.lease), false);
+    });
+  }
+  it('preserves exact Unicode/newlines with an explicit successful terminal', async () => {
+    await fixture.scenario({ events: [message(text), { type: 'future.extension' }, completed], stderr: 'harmless diagnostic' });
+    const result = await run();
+    assert.equal(result.status, 'complete');
+    assert.equal(result.answer, text);
+  });
+  it('handles split UTF-8 and a successful final record without a newline', async () => {
+    await fixture.scenario({ events: [message(text), completed], chunkBytes: 1, noFinalNewline: true });
+    const result = await run();
+    assert.equal(result.status, 'complete');
+    assert.equal(result.answer, text);
+    assert.deepEqual(result.receipt.terminal, { completed: 1, failed: 0, protocolFailure: null });
+  });
+  for (const bytes of [[0xf0, 0x9f], [0xff]]) {
+    it(`rejects invalid UTF-8 suffix ${bytes} while retaining prior text`, async () => {
+      await fixture.scenario({ events: [message(text), completed], rawSuffixBase64: Buffer.from(bytes).toString('base64') });
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, 'invalid_runner_utf8');
+    });
+  }
+  it('cannot complete whitespace-only final output', async () => {
+    await fixture.scenario({ events: [message(' \n\t'), completed] });
+    const result = await run();
+    assert.equal(result.status, 'failed');
+    assert.equal(result.receipt.failure, 'no_final_answer');
+  });
+  it('cancellation racing terminal success keeps the checkpoint and reason', async () => {
+    await fixture.scenario({ events: [message(text), completed], hang: true });
+    const controller = new AbortController();
+    const result = await run({ signal: controller.signal, onCheckpoint: () => controller.abort() });
+    assert.equal(result.status, 'partial');
+    assert.equal(result.answer, text);
+    assert.equal(result.receipt.failure, 'cancelled');
+    assert.equal(await exists(fixture.lease), false);
+  });
+  it('exposes terminal truth to a lower-level Signals-shaped consumer', async () => {
+    await fixture.scenario({ events: [message(text), { type: 'turn.failed' }] });
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-consumer-' },
+      (ws) => ws.run({ prompt: 'synthetic', live: false,
+        budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+    assert.equal(sessionCompleted(outcome), false);
+    assert.deepEqual(outcome.terminal, { completed: 0, failed: 1, protocolFailure: null });
+    assert.equal(outcome.failureReason, 'runner_turn_failed');
+    assert.equal(outcome.readable.text, text);
+  });
+
+  it('keeps a prior Unicode checkpoint when the final response exceeds its byte cap', async () => {
+    await fixture.scenario({ events: [message('Naïve ✓ 😀'), message('😀'.repeat(40)), completed] });
+    const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-cap-' },
+      (ws) => ws.run({ prompt: 'synthetic', live: false, maxResponseBytes: 21,
+        budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+    assert.equal(sessionCompleted(outcome), false);
+    assert.equal(outcome.failureReason, 'response_byte_limit');
+    assert.equal(outcome.readable.text, 'Naïve ✓ 😀');
+    assert.equal(outcome.readable.text.isWellFormed(), true);
+  });
+
+});
+
+describe('terminal lifecycle ordering', () => {
+  const text = '  Naïve café ✓ 😀\n\nRetained evidence.\n';
+  const completed = { type: 'turn.completed' };
+  const extensions = [{ type: 'future.extension', detail: 'harmless' }];
+  const cases = [
+    ['new turn', { type: 'turn.started' }],
+    ['new thread', { type: 'thread.started', thread_id: 'synthetic' }],
+    ['tool start', { type: 'item.started', item: { type: 'web_search' } }],
+    ['tool update', { type: 'item.updated', item: { type: 'web_search' } }],
+    ['tool completion', search()],
+    ['reasoning completion', { type: 'item.completed', item: { type: 'reasoning', text: 'synthetic' } }],
+  ];
+  const consume = () => withCodexWorkspace({ lease: fixture.lease, prefix: 'research-order-' },
+    ws => ws.run({ prompt: 'Synthetic terminal ordering', live: true,
+      budget: { searches: 2, documents: 2, seconds: 3 }, signal: new AbortController().signal }));
+  for (const [name, activity] of cases) {
+    it(`retains partial evidence for ${name} after success in both public APIs`, async () => {
+      await fixture.scenario({ events: [message(text), completed, activity, ...extensions], noFinalNewline: true });
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, 'activity_after_runner_terminal');
+      assert.equal(result.receipt.terminal.protocolFailure, 'activity_after_runner_terminal');
+      const outcome = await consume();
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.failureReason, 'activity_after_runner_terminal');
+      assert.equal(outcome.readable.text, text);
+      assert.equal(outcome.termination.exitCode, 0);
+      assert.equal(await exists(fixture.lease), false);
+    });
+  }
+  it('keeps post-terminal activity failure sticky across a later terminal', async () => {
+    await fixture.scenario({ events: [message(text), { type: 'turn.failed' },
+      { type: 'turn.started' }, ...extensions, completed] });
+    const result = await run();
+    assert.equal(result.status, 'partial');
+    assert.equal(result.answer, text);
+    assert.equal(result.receipt.failure, 'activity_after_runner_terminal');
+    assert.deepEqual(result.receipt.terminal, {
+      completed: 1, failed: 1, protocolFailure: 'activity_after_runner_terminal',
+    });
+  });
+  for (const [name, tail] of [['clean success', []], ['harmless post-terminal extension', extensions]]) {
+    it(`preserves ${name} and exact text in both public APIs`, async () => {
+      await fixture.scenario({ events: [{ type: 'thread.started', thread_id: 'synthetic' },
+        { type: 'turn.started' }, message(text), completed, ...tail], stderr: 'diagnostic only' });
+      const result = await run();
+      assert.equal(result.status, 'complete');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, undefined);
+      const outcome = await consume();
+      assert.equal(sessionCompleted(outcome), true);
+      assert.equal(outcome.final, text);
+      assert.equal(outcome.failureReason, null);
+      assert.equal(outcome.terminal.protocolFailure, null);
+    });
+  }
+});
+
+describe('malformed completed-message partition', () => {
+  const text = '  Café 😀\nExact partial.\n';
+  const partition = (counts) => {
+    assert.equal(counts.completed, counts.checkpointed + counts.unreadable +
+      counts.duplicate + counts.limited + counts.afterStop + counts.schema);
+  };
+  for (const [name, invalid] of [['numeric text', 42], ['lone surrogate', '\uD800']]) {
+    it(`categorizes ${name} as unreadable and preserves prior text in both APIs`, async () => {
+      await fixture.scenario({ events: [message(text), message(invalid), { type: 'turn.completed' }] });
+      assert.equal(process.env.PATH, fixture.env.PATH);
+      assert.equal(process.env.HOME, fixture.home);
+      const expected = { completed: 2, checkpointed: 1, unreadable: 1,
+        duplicate: 0, limited: 0, afterStop: 0, schema: 0 };
+      const result = await run();
+      assert.equal(result.status, 'partial');
+      assert.equal(result.answer, text);
+      assert.equal(result.receipt.failure, 'invalid_runner_event');
+      assert.deepEqual(result.receipt.actionCounts.messages, expected);
+      partition(result.receipt.actionCounts.messages);
+      const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-partition-' },
+        ws => ws.run({ prompt: 'Synthetic malformed message accounting', live: false,
+          budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.failureReason, 'invalid_runner_event');
+      assert.equal(outcome.readable.text, text);
+      assert.equal(outcome.final, text);
+      assert.deepEqual(outcome.actionCounts.messages, expected);
+      partition(outcome.actionCounts.messages);
+    });
+    it(`keeps schema-category precedence for ${name}`, async () => {
+      await fixture.scenario({ events: [message(text), message(invalid), { type: 'turn.completed' }] });
+      const outcome = await withCodexWorkspace({ lease: fixture.lease, prefix: 'research-partition-schema-' },
+        ws => ws.run({ prompt: 'Synthetic schema message accounting', live: false, structured: true,
+          budget: { searches: 0, documents: 0, seconds: 3 }, signal: new AbortController().signal }));
+      assert.equal(sessionCompleted(outcome), false);
+      assert.equal(outcome.failureReason, 'invalid_runner_event');
+      assert.equal(outcome.readable, undefined);
+      assert.equal(outcome.final, text);
+      assert.deepEqual(outcome.actionCounts.messages, { completed: 2, checkpointed: 0,
+        unreadable: 0, duplicate: 0, limited: 0, afterStop: 0, schema: 2 });
+      partition(outcome.actionCounts.messages);
+    });
+  }
 });

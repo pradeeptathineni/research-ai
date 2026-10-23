@@ -1,0 +1,260 @@
+// Copied to an external installed consumer by package-consumer.test.mjs.
+// Imports the product only by package name; provider fixtures remain separate.
+import * as api from '@pradeeptathineni/research-ai';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { access, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { fakeCodex, message } from './fake-codex.mjs';
+
+const exact = '  Café ✓ 😀\n\nFallible evidence.\n';
+const success = { type: 'turn.completed' };
+const sources = [{ uri: 'https://example.org/frozen', text: 'Naïve ✓ 😀\nCaptured text.\n', observedAt: 'caller note', omissions: ['coverage unknown'] }];
+const expectedExports = ['assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'researchQuestion', 'sessionCompleted', 'validateGrounding', 'withCodexWorkspace'];
+assert.deepEqual(Object.keys(api).sort(), expectedExports);
+assert.equal(api.profiles.quick.searches, 8);
+assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);
+const grounded = api.groundedAnswer({ sources, judge: { id: 'installed-fixture', kind: 'synthetic' }, claims: [{ text: 'Unresolved claim.', citations: [], joint: { verdict: 'insufficient', reason: 'No cited span.' } }] });
+assert.equal(api.validateGrounding(grounded.answer, grounded.grounding).claims[0].support, 'unsupported');
+const results = { resolved: fileURLToPath(import.meta.resolve('@pradeeptathineni/research-ai')), exports: Object.keys(api).sort(), cases: [] };
+const absent = path => access(path).then(() => false, () => true);
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
+const hash = text => createHash('sha256').update(text).digest('hex');
+const partition = counts => assert.equal(counts.completed, Object.entries(counts).filter(([key]) => key !== 'completed').reduce((n, [, value]) => n + value, 0));
+async function probe(name, scenario, body) {
+  const fixture = await fakeCodex(scenario);
+  await mkdir(join(fixture.home, 'codex-home'));
+  process.env.CODEX_HOME = join(fixture.home, 'codex-home');
+  await symlink(process.execPath, join(fixture.env.PATH, 'node'));
+  const evidence = { name, scenario, environment: Object.fromEntries(['PATH', 'HOME', 'CODEX_HOME', 'TMPDIR'].map(key => [key, process.env[key]])) };
+  try { evidence.result = await body(fixture); }
+  finally {
+    evidence.probes = await fixture.probes();
+    evidence.invocation = await fixture.record().catch(() => null);
+    if (evidence.invocation) {
+      // macOS may inject its text-encoding variable below the spawn environment.
+      const observedKeys = Object.keys(evidence.invocation.env).filter(key => !(process.platform === 'darwin' && key === '__CF_USER_TEXT_ENCODING'));
+      assert.deepEqual(observedKeys.sort(), ['CODEX_HOME', 'HOME', 'PATH', 'TMPDIR']);
+      assert.equal(evidence.invocation.env.RESEARCH_AI_TEST_SECRET, undefined);
+      assert.equal(evidence.invocation.env.PATH, fixture.env.PATH);
+      assert.equal(evidence.invocation.env.CODEX_HOME, process.env.CODEX_HOME);
+    }
+    results.cases.push(evidence);
+    await writeFile('consumer-results.json', JSON.stringify(results, null, 2) + '\n');
+    await fixture.cleanup();
+  }
+}
+const run = (fixture, options = {}) => api.researchQuestion('Synthetic packed research', { lease: fixture.lease, model: 'fixture-model', effort: 'high', ...options });
+const lower = (fixture, body) => api.withCodexWorkspace({ lease: fixture.lease, prefix: 'packed-outcome-' }, body);
+const options = { prompt: 'Synthetic packed lower-level session', live: false, budget: { searches: 0, documents: 0, seconds: 5 }, signal: new AbortController().signal };
+const bin = fileURLToPath(new URL('./node_modules/.bin/research-ai', import.meta.url));
+const cli = args => {
+  const result = spawnSync(bin, args, { encoding: 'utf8', timeout: 10000, env: process.env });
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  return { args, status: result.status, stdout: result.stdout, stderr: result.stderr };
+};
+await probe('cli-help', {}, async fixture => {
+  const result = cli(['--help']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Exit codes: 0 complete, 2 partial answer, 1 failure/);
+  assert.deepEqual(await fixture.probes(), []);
+  return result;
+});
+await probe('cli-readiness', {}, async fixture => {
+  const result = cli(['--readiness']);
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).available, true);
+  assert.equal(await fixture.launched(), false);
+  assert.deepEqual((await fixture.probes()).map(args => JSON.stringify(args)).sort(),
+    [['--version'], ['login', 'status'], ['exec', '--help']].map(args => JSON.stringify(args)).sort());
+  return result;
+});
+for (const [name, events, exitCode, expectedStatus, failure] of [
+  ['complete', [message(exact), success], 0, 'complete', undefined],
+  ['partial', [message(exact), { type: 'turn.failed' }], 7, 'partial', 'runner_turn_failed'],
+  ['failed', [{ type: 'error', message: 'Synthetic fatal failure' }], 3, 'failed', 'runner_protocol_error'],
+]) {
+  await probe(`cli-${name}`, { events, exitCode }, async fixture => {
+    const result = cli(['--model', 'fixture-model', '--effort', 'high', 'Synthetic CLI question']);
+    assert.equal(result.status, { complete: 0, partial: 2, failed: 1 }[expectedStatus]);
+    assert.equal(result.stdout, expectedStatus === 'failed' ? '' : exact + '\n');
+    const receipt = JSON.parse(result.stderr.trim().split('\n').at(-1));
+    assert.equal(receipt.status, expectedStatus);
+    assert.equal(receipt.failure, failure);
+    assert.equal(receipt.termination.exitCode, exitCode);
+    assert.deepEqual(receipt.cleanup, { complete: true, error: null });
+    assert.equal(receipt.provider, null);
+    assert.equal(receipt.model, 'fixture-model');
+    assert.equal(receipt.effort, 'high');
+    partition(receipt.actionCounts.messages);
+    assert.equal((await fixture.probes()).length, 4);
+    return { ...result, receipt };
+  });
+}
+await probe('esm-readiness', {}, async fixture => {
+  const readiness = await api.codexReadiness();
+  assert.equal(readiness.available, true);
+  assert.equal(await fixture.launched(), false);
+  return readiness;
+});
+for (const [name, tail, code, status, failure] of [
+  ['complete', [success], 0, 'complete', undefined],
+  ['partial', [{ type: 'turn.failed' }], 2, 'partial', 'runner_turn_failed'],
+  ['fatal', [{ type: 'error', message: 'Synthetic fatal' }], 3, 'partial', 'runner_protocol_error'],
+  ['nonzero', [success], 7, 'partial', 'runner_failed'],
+]) {
+  await probe(`esm-frozen-${name}`, { events: [message(exact), ...tail], exitCode: code }, async fixture => {
+    const result = await run(fixture, { sources });
+    assert.equal(result.status, status);
+    assert.equal(result.answer, exact);
+    assert.equal(result.receipt.failure, failure);
+    assert.equal(result.receipt.termination.exitCode, code);
+    assert.equal(result.receipt.termination.signal, null);
+    assert.equal(result.receipt.provider, null);
+    assert.equal(result.receipt.model, 'fixture-model');
+    assert.equal(result.receipt.effort, 'high');
+    assert.equal(result.receipt.nativeSessions, 1);
+    assert.deepEqual(result.receipt.cleanup, { complete: true, error: null });
+    assert.equal(result.receipt.mode, 'frozen');
+    assert.deepEqual(result.receipt.source, sources.map(({ text, ...metadata }) => ({ ...metadata, sha256: hash(text) })));
+    partition(result.receipt.actionCounts.messages);
+    assert.equal(result.receipt.actionCounts.messages.checkpointed, 1);
+    assert.equal(await absent(fixture.lease), true);
+    assert.ok((await fixture.record()).args.includes('web_search="disabled"'));
+    return result;
+  });
+}
+await probe('esm-cancelled', { events: [message(exact), success], hang: true }, async fixture => {
+  const controller = new AbortController();
+  const result = await run(fixture, { signal: controller.signal, onCheckpoint: () => { setTimeout(() => controller.abort(), 20); } });
+  assert.equal(result.status, 'partial');
+  assert.equal(result.answer, exact);
+  assert.equal(result.receipt.failure, 'cancelled');
+  assert.equal(result.receipt.termination.trigger, 'request_aborted');
+  assert.equal(result.receipt.termination.signal, 'SIGKILL');
+  assert.deepEqual(result.receipt.cleanup, { complete: true, error: null });
+  return result;
+});
+await probe('invalid-frozen', {}, async fixture => {
+  await assert.rejects(run(fixture, { sources: [] }), /invalid_sources/);
+  assert.equal(await fixture.launched(), false);
+  assert.deepEqual(await fixture.probes(), []);
+  assert.equal(await absent(fixture.lease), true);
+  return { rejectedBeforeLeaseAndSpawn: true };
+});
+await probe('legacy-missing-cleanup', { events: [message(exact), success] }, async fixture => {
+  const outcome = await lower(fixture, ws => ws.run(options));
+  assert.equal(api.sessionCompleted(outcome), true);
+  const legacy = structuredClone(outcome);
+  delete legacy.cleanup;
+  const historical = JSON.stringify(legacy);
+  assert.equal(api.sessionCompleted(legacy), false);
+  assert.equal(JSON.stringify(legacy), historical);
+  assert.equal('cleanup' in legacy, false);
+  // A synthetic historical saved receipt remains readable without inventing cleanup.
+  const saved = JSON.stringify({ status: 'complete', answer: exact, receipt: {
+    profile: 'quick', model: 'historical', effort: 'historical', provider: null,
+    termination: outcome.termination, terminal: outcome.terminal,
+  } }) + '\n';
+  await writeFile('historical-receipt.json', saved);
+  const historicalResult = JSON.parse(await readFile('historical-receipt.json', 'utf8'));
+  assert.equal('cleanup' in historicalResult.receipt, false);
+  assert.equal(api.sessionCompleted({ ...outcome, cleanup: historicalResult.receipt.cleanup }), false);
+  assert.equal(await readFile('historical-receipt.json', 'utf8'), saved);
+  return { legacy, unchangedHistoricalBytes: historical, completed: api.sessionCompleted(legacy),
+    historicalReceipt: historicalResult, historicalCleanup: 'unconfirmed', savedReceiptSha256: hash(saved) };
+});
+async function inject(fixture, text) {
+  const executable = join(fixture.env.PATH, 'codex');
+  const original = await readFile(executable, 'utf8');
+  const marker = "process.stdin.on('end', () => {";
+  assert.ok(original.includes(marker));
+  await writeFile(executable, original.replace(marker, marker + text));
+}
+for (const exitCode of [0, 7]) {
+  await probe(`descendant-exit-${exitCode}`, { events: [message(exact), success], exitCode }, async fixture => {
+    await inject(fixture, `
+      const descendant = require('node:child_process').spawn(process.execPath,
+        ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+      descendant.unref();
+      writeFileSync(join(home, 'owned.json'), JSON.stringify({ pid: descendant.pid, leader: process.pid }));`);
+    let owned;
+    try {
+      let boundary;
+      const outcome = await lower(fixture, async ws => {
+        const outcome = await ws.run(options);
+        owned = JSON.parse(await readFile(join(fixture.home, 'owned.json'), 'utf8'));
+        boundary = { leasePresent: !await absent(fixture.lease), descendantAlive: alive(owned.pid), cleanup: outcome.cleanup, owned };
+        assert.equal(boundary.leasePresent, true);
+        assert.equal(boundary.descendantAlive, false);
+        assert.deepEqual(outcome.cleanup, { complete: true, error: null });
+        return outcome;
+      });
+      assert.equal(outcome.termination.exitCode, exitCode);
+      assert.equal(api.sessionCompleted(outcome), exitCode === 0);
+      assert.equal(outcome.readable.text, exact);
+      assert.equal(await absent(fixture.lease), true);
+      return { outcome, boundary, leaseRemovedAfterCallback: true };
+    } finally {
+      owned ??= JSON.parse(await readFile(join(fixture.home, 'owned.json'), 'utf8').catch(() => '{}'));
+      if (owned.pid && alive(owned.pid)) process.kill(-owned.leader, 'SIGKILL');
+      if (owned.pid) for (let i = 0; i < 200 && alive(owned.pid); i++) await new Promise(resolve => setTimeout(resolve, 10));
+      if (owned.pid) assert.equal(alive(owned.pid), false);
+    }
+  });
+}
+await probe('denied-live-leader', { events: [message(exact)], hang: true }, async fixture => {
+  await inject(fixture, `writeFileSync(join(home, 'owned.json'), JSON.stringify({ pid: process.pid }));`);
+  const originalKill = process.kill, controller = new AbortController();
+  let leader, directory, safety, fallbackUsed = false, ready;
+  const barrier = new Promise(resolve => { ready = resolve; });
+  try {
+    process.kill = (pid, signal) => {
+      if (pid === -leader && signal === 'SIGKILL') throw Object.assign(new Error('synthetic owned-group denial'), { code: 'EPERM' });
+      return originalKill(pid, signal);
+    };
+    const pending = lower(fixture, async ws => {
+      directory = ws.directory;
+      return ws.run({ ...options, signal: controller.signal,
+        onCheckpoint: () => { leader = JSON.parse(readFileSync(join(fixture.home, 'owned.json'), 'utf8')).pid; ready(); } });
+    });
+    await barrier;
+    safety = setTimeout(() => { fallbackUsed = true; try { originalKill(-leader, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }, 3500);
+    controller.abort();
+    const outcome = await pending;
+    assert.equal(fallbackUsed, false);
+    assert.equal(api.sessionCompleted(outcome), false);
+    assert.equal(outcome.failureReason, 'cancelled');
+    assert.equal(outcome.readable.text, exact);
+    assert.deepEqual(outcome.cleanup, { complete: false, error: 'process_group_cleanup_failed' });
+    assert.equal(outcome.termination.exitCode, null);
+    assert.equal(outcome.termination.signal, null);
+    assert.equal(alive(leader), true);
+    assert.equal(await absent(fixture.lease), false);
+    assert.equal(await absent(directory), false);
+    const ownership = await readFile(join(fixture.lease, 'owner.json'), 'utf8');
+    assert.equal(JSON.parse(ownership).processGroupId, leader);
+    const snapshot = JSON.stringify(outcome);
+    process.kill = originalKill;
+    originalKill(-leader, 'SIGKILL');
+    for (let i = 0; i < 200 && alive(leader); i++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(alive(leader), false);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal(JSON.stringify(outcome), snapshot);
+    assert.equal(await readFile(join(fixture.lease, 'owner.json'), 'utf8'), ownership);
+    return { outcome, retainedOwnership: JSON.parse(ownership), leaseRetainedAfterLateExit: true, fallbackUsed };
+  } finally {
+    clearTimeout(safety);
+    process.kill = originalKill;
+    controller.abort();
+    leader ??= JSON.parse(await readFile(join(fixture.home, 'owned.json'), 'utf8').catch(() => '{}')).pid;
+    if (leader && alive(leader)) originalKill(-leader, 'SIGKILL');
+    if (leader) for (let i = 0; i < 200 && alive(leader); i++) await new Promise(resolve => setTimeout(resolve, 10));
+    if (leader) assert.equal(alive(leader), false);
+    if (directory) await rm(directory, { recursive: true, force: true });
+  }
+});

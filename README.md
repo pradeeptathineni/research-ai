@@ -5,7 +5,7 @@ authenticated [Codex CLI](https://github.com/openai/codex). It returns
 **fallible** Markdown research with a receipt. It maintains no corpus or durable
 research store, and does not verify claims or score sources.
 
-`@pradeeptathineni/research-ai` 0.2.0 · MIT · Node 24 · zero runtime dependencies ·
+`@pradeeptathineni/research-ai` 0.4.0-rc.1 (local candidate) · MIT · Node 24 · zero runtime dependencies ·
 no build step (`.mjs` plus hand-written `.d.ts`).
 
 ## Run
@@ -15,7 +15,7 @@ git clone https://github.com/pradeeptathineni/research-ai.git
 cd research-ai
 node bin/research-ai.mjs "Which portable note formats survive app migrations?"
 node bin/research-ai.mjs --profile wide --context "single user, offline first" "..."
-node bin/research-ai.mjs --readiness   # installed/login state; no model call
+node bin/research-ai.mjs --readiness   # installation/auth/profile observations; no model call
 ```
 
 Use Node 24.19 or later within Node 24. No package install or build is needed
@@ -24,7 +24,8 @@ authenticated Codex CLI; `--help` and the offline tests do not.
 
 When installed as a package, the same CLI is `research-ai`.
 
-- The answer goes to stdout; progress and one final JSON receipt go to stderr.
+- The answer goes to stdout with one added newline; progress and one final JSON
+  receipt go to stderr. The API preserves answer bytes without that CLI newline.
 - Complete API answers preserve the final message exactly. The prompt's 24,000
   character target is advisory; the captured wire has a hard byte cap. Interim
   notes have a separate bounded buffer with an explicit omission marker.
@@ -32,8 +33,11 @@ When installed as a package, the same CLI is `research-ai`.
   exist), `1` failure or usage error.
 - `quick` (default) allows 8 searches, 20 reads and 240 s. `wide` allows 24
   searches, 60 reads and 600 s. These are limits, not quality guarantees.
-- Before a session it runs `codex --version` and `codex login status` only. If
-  Codex is missing or logged out, it stops without launching a session.
+- Before a CLI research session it observes `codex --version`, `codex login status`
+  and `codex exec --help`, with a 5-second limit and 64 KiB per output stream
+  for each probe. Missing,
+  logged-out, unknown authentication and unsupported execution profiles stop
+  before any session. `--readiness` performs only these observations.
 - Model and effort: `--model`/`--effort`, otherwise the `model` and
   `model_reasoning_effort` keys in `~/.codex/config.toml`, otherwise the CLI
   default. Only those model-selection keys are used from that config file;
@@ -54,6 +58,29 @@ const { status, answer, receipt } = await researchQuestion("question", {
   onCheckpoint: (note) => console.error(note.text), // bounded interim notes
 });
 ```
+
+### Readiness observations
+
+`codexReadiness()` and `--readiness` return additive schema version 1. Existing
+`installed`, `available` and `runner` fields remain. `installed` means the version
+executable ran; a failed login probe does not erase that observation. `version`
+is nullable, and `authenticated` and `supportedProfile` are independently nullable:
+null means unknown, never logged-out or unsupported. `available` requires a
+recognized version, confirmed authentication and advertised execution options.
+
+`probes` provides each command's source, UTC observation time, exit code and
+machine failure. `error` and `remedy` explain the first blocking observation.
+Known `Not logged in` output (exit 0 or 1) is distinct from other failed or
+unrecognized login output. No raw authentication text is returned or retained.
+
+The `codex-exec-json-v1` profile checks that help advertises the options this
+executor uses: config overrides, isolation flags, JSON, schema, cwd and model.
+It does not guess support from a minimum version number. An older version
+missing options is unsupported; unrecognized help leaves support unknown.
+Advertised options do not qualify native permission enforcement, JSONL behavior,
+model access, funding or research quality. The library's lower-level session API
+retains its existing caller-managed readiness policy. Signals integration and
+package version/pin coordination require separate acceptance.
 
 ### Frozen sources
 
@@ -102,12 +129,69 @@ budget, optional JSON output schema, response byte cap, checkpoint reader and
 their own absolute lease path and a simple temporary-directory prefix. Those
 paths and callbacks are trusted host configuration, never model/source input.
 Each workspace allows one session. Returning or throwing
-from its callback aborts and drains unfinished work before releasing the lease;
+from its callback drains the owned group before releasing the lease;
 later or additional calls are refused. Invalid options and cancelled requests
 fail before native dispatch. Budget limits are finite: at most 10,000 searches
 and reads each, 3,600 seconds, and an optional response cap of 1–3,000,000 bytes.
 Signals uses it for live research and frozen,
 schema-bound evidence review. See [`src/index.d.ts`](src/index.d.ts) for exact types.
+
+### Claim support from retained sources
+
+`groundedResearchQuestion(question, { sources, ...options })` returns a
+`claim-support-v1` closure alongside its answer. It uses one frozen schema-bound
+session: ordered claim paragraphs, exact source spans, and same-session support
+judgments. Each whole claim is supported, unsupported, conflicting or unknown;
+each citation records its judgment alone and with that citation removed. Source
+text, SHA256, URI, original caller notes and UTF16 offsets stay in the closure.
+No source is fetched. Invalid bindings fail the result without accepting a partial
+structured answer. Ordinary `researchQuestion` retains its existing behavior.
+
+```sh
+node bin/research-ai.mjs --grounded --sources captured.json "What do these sources establish?" > grounded.json
+```
+
+`groundedAnswer({ sources, claims, judge })` validates caller-produced judgments
+and creates the same closure without inference. `assessGroundedAnswer` instead
+accepts an explicit caller-selected judge callback; it sends only the selected
+spans, performs at most nine calls per claim and checks cancellation before and
+after each reply. That callback owns its cost, deadline and provider permission;
+no alternate model is installed or selected. `validateGrounding(answer, closure)`
+replays bindings and derived labels offline before retention or reopening.
+
+The ALCE joint/alone/leave-one-out method is reproduced with explicit claim units
+instead of automatic sentence splitting. Unknown/conflicting judgments suppress
+aggregate estimates. A citation that supports a claim alone earns contribution
+credit even if another also supports it, matching ALCE's definition. These are
+support estimates, not truth scores. Exact occurrence proves only that the text
+is in the supplied capture. Self-assessment is especially fallible and is labeled
+as such; fixtures establish mechanics only. See [source reuse](THIRD-PARTY-NOTICES.md).
+
+### Perspectives from retained sources
+
+`perspectiveResearch(topic, { sources, perspectives, questions })` looks at one
+topic through several question lenses, using only the sources you supply. A
+neutral **Basic facts** lens always runs first. Other lenses come from headings
+in your sources (`perspectiveCandidates(sources)` lists them with exact offsets;
+`"auto"` takes the first three) or from your own `{ label, focus }`, at most six
+in total. Each lens runs as its own frozen, schema-bound session, one after
+another, so no lens sees another's answers. It asks up to `questions` (1–4,
+default 3) questions, answers each from exact source spans or marks it partial
+or unanswered, and lists what it would need that the sources lack.
+
+```sh
+node bin/research-ai.mjs --sources captured.json --list-perspectives      # no session
+node bin/research-ai.mjs --sources captured.json --perspectives auto "Home battery storage" > lenses.json
+```
+
+The `perspectives-v1` result keeps each lens's status (`complete`, `failed`,
+`cancelled` or `not_run`), questions, exact quotes, omissions and receipt, plus a
+comparison row per lens, the unanswered questions and all omissions. Overall
+status is `complete`, `partial`, `failed` or `cancelled`; completed lenses survive
+a later failure or cancellation. A reply with any bad span fails that lens whole.
+Lenses steer questions; they are not people or expertise, and a perspective
+missing from your headings stays missing. Nothing is fetched or stored. The
+method adapts STORM's persona step; see [notices](THIRD-PARTY-NOTICES.md).
 
 ## What each session enforces
 
@@ -121,8 +205,19 @@ schema-bound evidence review. See [`src/index.d.ts`](src/index.d.ts) for exact t
 - Search/read action limits, forbidden-tool kill (command execution, MCP),
   stdout and response byte caps, deadline and abort. Each stop SIGKILLs the
   whole process group.
-- The receipt records counts, model/effort selection, timing and termination.
+- The receipt records counts, model/effort selection, timing, termination and
+  separate terminal/protocol evidence. Unknown usage stays unknown. See the
+  [bounded outcome contract](ARCHITECTURE.md#bounded-outcome-contract-research-outcome-v1).
   An over-limit wire keeps a digest and byte counts, never its text.
+
+Progress and checkpoint callbacks are synchronous ephemeral observations. If one
+fails after spawn, research stops with a named callback trigger and preserves
+eligible partial notes. Async callback returns are refused. Workspace callback
+return/throw drains the process group before cleanup. The outcome contract keeps
+protocol cause and process exit separate, including on partial/failed answers.
+`cleanup` confirms whether the owned POSIX group is absent, including descendants
+after a normal leader exit. Failed/unknown cleanup prevents completion and retains
+the lease/workspace for inspection; it never silently frees their ownership.
 
 ## Limitations
 
@@ -136,16 +231,36 @@ schema-bound evidence review. See [`src/index.d.ts`](src/index.d.ts) for exact t
 - Tests use a synthetic stand-in for `codex`. They prove transport behaviour,
   not research quality.
 
+## Package compatibility
+
+This local candidate requires `cleanup` in both `SessionOutcome` and
+`ResearchResult.receipt`. It is a compatibility boundary for constructed typed
+outcomes and consumers of older receipts. See [migration and qualification
+limits](docs/compatibility.md) before adopting it; historical missing-cleanup
+receipts must remain unconfirmed. This version has not been published.
+
 ## Develop
 
 ```sh
-npm test        # node --test; offline, synthetic, no model
+npm ci --ignore-scripts --no-audit --no-fund  # pinned development compiler/types
+npm test                                   # serial, offline, synthetic, no model
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) and [AGENTS.md](AGENTS.md).
+Runtime use needs no install from the checkout. Development installs TypeScript
+6.0.3 and Node 24 typings only; they are not runtime dependencies or archive
+members. The package test packs and installs a local tarball into an external
+consumer with isolated offline npm configuration, then runs the installed CLI,
+package-name ESM imports and the actual compiler. An already-provisioned offline
+compiler/type closure can be selected with `RESEARCH_AI_TYPECHECK_ROOT` pointing
+to its `node_modules` directory. `RESEARCH_AI_PACKAGE_EVIDENCE` selects a new empty
+owned directory to retain that test's archive, consumer and reports. Otherwise
+they are temporary. Keep the process suites serial to avoid timing contention.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) and the repository's
+[authoring instructions](https://github.com/pradeeptathineni/research-ai/blob/main/AGENTS.md).
 
 ## Origin
 
 Extracted from the native Codex runner in the MIT-licensed first-party Signals
 project. [LICENSE](LICENSE) keeps the original notice. No third-party code is
-included.
+included apart from the reproduced citation-support method credited above.

@@ -6,26 +6,71 @@ import { join } from 'node:path';
 
 const script = `#!${process.execPath}
 'use strict';
-const { readFileSync, writeFileSync } = require('node:fs');
+const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 const home = process.env.HOME;
 const args = process.argv.slice(2);
-const scenario = JSON.parse(readFileSync(join(home, 'scenario.json'), 'utf8'));
+const authored = JSON.parse(readFileSync(join(home, 'scenario.json'), 'utf8'));
+let scenario = authored;
+appendFileSync(join(home, 'probes.jsonl'), JSON.stringify(args) + '\\n');
+const signalExit = (signal) => {
+  if (!signal) return;
+  process.stdout.write('', () => process.kill(process.pid, signal));
+  setInterval(() => {}, 1000);
+};
 if (args[0] === '--version') {
-  process.stdout.write('codex-cli 0.0.0-fake\\n');
+  process.stdout.write(scenario.versionStdout ?? 'codex-cli 0.160.0\\n');
+  if (scenario.versionStderr) process.stderr.write(scenario.versionStderr);
+  process.exitCode = scenario.versionExitCode ?? 0;
+  if (scenario.versionHang) setInterval(() => {}, 1000);
+  signalExit(scenario.versionSignal);
 } else if (args[0] === 'login') {
-  process.stdout.write(scenario.loggedIn === false ? 'Not logged in\\n' : 'Logged in (fake)\\n');
+  process.stdout.write(scenario.authStdout ?? (scenario.loggedIn === false ? 'Not logged in\\n' : 'Logged in using ChatGPT\\n'));
+  if (scenario.authStderr) process.stderr.write(scenario.authStderr);
+  process.exitCode = scenario.authExitCode ?? 0;
+  if (scenario.authHang) setInterval(() => {}, 1000);
+  signalExit(scenario.authSignal);
+} else if (args[0] === 'exec' && args[1] === '--help') {
+  process.stdout.write(scenario.profileStdout ??
+    'Usage: codex exec [OPTIONS] [PROMPT]\\nOptions:\\n  --ignore-user-config --ignore-rules --ephemeral --skip-git-repo-check --sandbox --json --output-schema --cd --model --config\\n');
+  if (scenario.profileStderr) process.stderr.write(scenario.profileStderr);
+  process.exitCode = scenario.profileExitCode ?? 0;
+  if (scenario.profileHang) setInterval(() => {}, 1000);
+  signalExit(scenario.profileSignal);
 } else {
+  // Optional per-session overrides, in exec order, for multi-session callers
+  let count = 0;
+  if (authored.sessions) {
+    try { count = Number(readFileSync(join(home, 'exec-count'), 'utf8')); } catch {}
+    writeFileSync(join(home, 'exec-count'), String(count + 1));
+    scenario = { ...authored, ...authored.sessions[Math.min(count, authored.sessions.length - 1)] };
+  }
   let prompt = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => (prompt += chunk));
   process.stdin.on('end', () => {
     writeFileSync(join(home, 'record.json'), JSON.stringify({ args, env: process.env, prompt }));
-    for (const event of scenario.events ?? [])
-      process.stdout.write((typeof event === 'string' ? event : JSON.stringify(event)) + '\\n');
-    if (scenario.stderr) process.stderr.write(scenario.stderr);
-    if (scenario.hang) setInterval(() => {}, 1000);
-    else process.exitCode = scenario.exitCode ?? 0;
+    if (authored.sessions) writeFileSync(join(home, 'record-' + count + '.json'), JSON.stringify({ args, prompt }));
+    const lines = (scenario.events ?? []).map((event) =>
+      typeof event === 'string' ? event : JSON.stringify(event));
+    const wire = Buffer.concat([
+      Buffer.from(lines.join('\\n') + (lines.length && !scenario.noFinalNewline ? '\\n' : '')),
+      Buffer.from(scenario.rawSuffixBase64 ?? '', 'base64'),
+    ]);
+    let offset = 0;
+    const emit = () => {
+      if (offset < wire.length) {
+        const end = Math.min(wire.length, offset + (scenario.chunkBytes ?? wire.length));
+        process.stdout.write(wire.subarray(offset, end));
+        offset = end;
+        setImmediate(emit);
+      } else {
+        if (scenario.stderr) process.stderr.write(scenario.stderr);
+        if (scenario.hang) setInterval(() => {}, 1000);
+        else process.exitCode = scenario.exitCode ?? 0;
+      }
+    };
+    emit();
   });
 }
 `;
@@ -63,6 +108,9 @@ export async function fakeCodex(scenario = {}) {
     lease: join(root, 'lease'),
     scenario: (next) => writeFile(join(home, 'scenario.json'), JSON.stringify(next)),
     record: async () => JSON.parse(await readFile(join(home, 'record.json'), 'utf8')),
+    session: async (n) => JSON.parse(await readFile(join(home, `record-${n}.json`), 'utf8')),
+    probes: async () => (await readFile(join(home, 'probes.jsonl'), 'utf8').catch(() => ''))
+      .trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)),
     launched: () =>
       readFile(join(home, 'record.json')).then(
         () => true,

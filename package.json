@@ -1,6 +1,6 @@
 {
   "name": "@pradeeptathineni/research-ai",
-  "version": "0.2.0",
+  "version": "0.4.0-rc.1",
   "description": "Bounded, read-only, ephemeral Codex research sessions: a small CLI and API returning fallible research with receipts.",
   "license": "MIT",
   "repository": {
@@ -25,10 +25,17 @@
     "bin",
     "src",
     "LICENSE",
-    "README.md"
+    "THIRD-PARTY-NOTICES.md",
+    "README.md",
+    "ARCHITECTURE.md",
+    "docs/compatibility.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",
-    "test": "node --test"
+    "test": "node --test --test-concurrency=1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "typescript": "6.0.3"
   }
 }

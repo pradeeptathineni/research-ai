@@ -1,0 +1,4 @@
+import type { SessionOutcome } from '@pradeeptathineni/research-ai';
+import { legacy } from './shape.mjs';
+const oldOutcome: SessionOutcome = legacy;
+void oldOutcome;

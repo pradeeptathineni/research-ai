@@ -1,0 +1,30 @@
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts } from '@pradeeptathineni/research-ai';
+import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult } from '@pradeeptathineni/research-ai';
+import { legacy } from './shape.mjs';
+const cleanup: SessionCleanup = { complete: true, error: null };
+const outcome: SessionOutcome = { ...legacy, cleanup };
+const result: ResearchResult = { status: 'complete', answer: outcome.final, receipt: {
+  profile: 'quick', model: 'fixture', effort: 'high', provider: null, searches: 0,
+  actionCounts: outcome.actionCounts, nativeSessions: 1, stages: outcome.stages,
+  termination: outcome.termination, terminal: outcome.terminal, cleanup,
+} };
+const sources: FrozenSource[] = [{ uri: 'https://example.org', text: 'Captured text' }];
+const grounded = groundedAnswer({ sources, judge: { id: 'typed', kind: 'synthetic' }, claims: [{ text: 'Unknown.', citations: [], joint: { verdict: 'insufficient', reason: 'No evidence.' } }] });
+validateGrounding(grounded.answer, grounded.grounding);
+void groundedResearchQuestion;
+void assessGroundedAnswer({ sources, claims: [] }, { identity: grounded.grounding.judge, judge: async () => ({ verdict: 'unknown', reason: 'No judgment.' }) });
+async function consumer() {
+  const ready = await codexReadiness();
+  const direct = await withCodexWorkspace({ lease: '/tmp/typed-example', prefix: 'typed-' }, ws => ws.run({
+    prompt: ordinaryResearchPrompt('Question'), live: false, budget: profiles.quick, signal: new AbortController().signal,
+  }));
+  const research = await researchQuestion('Question', { sources, model: result.receipt.model });
+  return [ready.available, sessionCompleted(outcome), direct.cleanup.complete, research.receipt.cleanup.error];
+}
+void consumer;
+const lenses = chooseLenses(sources, [perspectiveCandidates(sources)[0]?.id ?? basicFacts.id, { label: 'Renter', focus: 'Costs without building changes' }]);
+async function perspectives(): Promise<PerspectiveResult['status']> {
+  const viewed = await perspectiveResearch('Topic', { sources, perspectives: 'auto', questions: 2, onLens: ({ id, state }) => void [id, state] });
+  return viewed.lenses[0]?.questions?.[0]?.citations[0]?.occurrence === 'exact-retained-span' ? viewed.status : 'failed';
+}
+void [lenses, perspectives];

@@ -12,7 +12,7 @@ const bin = fileURLToPath(new URL("../bin/research-ai.mjs", import.meta.url));
 let fixture;
 beforeEach(async () => {
   fixture = await fakeCodex({
-    events: [message("Frozen answer. Coverage unknown.")],
+    events: [message("Frozen answer. Coverage unknown."), { type: "turn.completed" }],
   });
 });
 afterEach(async () => {

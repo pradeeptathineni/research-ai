@@ -1,0 +1,9 @@
+import type { SessionOutcome } from '@pradeeptathineni/research-ai';
+export const legacy: Omit<SessionOutcome, 'cleanup'> = {
+  aborted: false, final: 'Historical note', diagnostic: '', usage: null,
+  searches: 0, actionCounts: { toolCalls: 0, reads: 0, unclassifiedToolCalls: 0,
+    messages: { completed: 1, checkpointed: 1, unreadable: 0, duplicate: 0, limited: 0, afterStop: 0, schema: 0 } },
+  nativeSessions: 1, stages: { nativeSessionMs: 1, nativeSessionMonotonicMs: 1 },
+  termination: { exitCode: 0, signal: null, trigger: null },
+  terminal: { completed: 1, failed: 0, protocolFailure: null }, failureReason: null,
+};
