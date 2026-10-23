@@ -366,3 +366,83 @@ export function groundedResearchQuestion(
     failure?: string;
   };
 }>;
+
+export interface PerspectiveLens {
+  id: string;
+  label: string;
+  focus: string;
+  origin: "default" | "heading" | "explicit";
+  /** Exact heading offsets in the retained sources (heading lenses only). */
+  evidence?: { source: number; start: number; end: number; heading: string }[];
+}
+export const basicFacts: Readonly<PerspectiveLens>;
+/** Heading-grounded candidates from the supplied sources. Deterministic; no session. */
+export function perspectiveCandidates(
+  sources: FrozenSource[],
+  options?: { limit?: number },
+): PerspectiveLens[];
+/** Basic facts first, then chosen candidate ids or explicit lenses (at most six in total). */
+export function chooseLenses(
+  sources: FrozenSource[],
+  choices?: "auto" | (string | { label: string; focus: string })[],
+): PerspectiveLens[];
+export interface LensQuestion {
+  question: string;
+  status: "answered" | "partial" | "unanswered";
+  answer: string;
+  citations: {
+    source: number;
+    start: number;
+    end: number;
+    quote: string;
+    occurrence: "exact-retained-span";
+  }[];
+}
+export interface LensResult {
+  lens: PerspectiveLens;
+  status: "complete" | "failed" | "cancelled" | "not_run";
+  reason?: string;
+  questions?: LensQuestion[];
+  omissions?: string[];
+  receipt?: Pick<
+    SessionOutcome,
+    "termination" | "terminal" | "cleanup" | "actionCounts" | "nativeSessions"
+  > & { model: string; effort: string };
+}
+export interface PerspectiveResult {
+  version: "perspectives-v1";
+  owner: "research-ai";
+  status: "complete" | "partial" | "failed" | "cancelled";
+  topic: string;
+  sources: FrozenSourceReceipt[];
+  lenses: LensResult[];
+  comparison: {
+    lens: string;
+    status: LensResult["status"];
+    answered: number;
+    partial: number;
+    unanswered: number;
+    sourcesCited: number[];
+  }[];
+  unanswered: { lens: string; question: string; status: "partial" | "unanswered" }[];
+  omissions: { source?: number; lens?: string; note: string; by: "caller" | "lens" | "runner" }[];
+  limits: string[];
+}
+/** One frozen, schema-bound session per lens, run in order. Nothing is fetched or stored. */
+export function perspectiveResearch(
+  topic: string,
+  options: {
+    sources: FrozenSource[];
+    perspectives?: "auto" | (string | { label: string; focus: string })[];
+    questions?: number;
+    context?: string;
+    profile?: keyof typeof profiles;
+    model?: string;
+    effort?: string;
+    lease?: string;
+    signal?: AbortSignal;
+    progress?: (event: string) => void;
+    /** Synchronous lens state observation. */
+    onLens?: (event: { id: string; state: string }) => void;
+  },
+): Promise<PerspectiveResult>;

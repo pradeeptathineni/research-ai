@@ -6,6 +6,8 @@ import {
   profiles,
   researchQuestion,
   groundedResearchQuestion,
+  perspectiveCandidates,
+  perspectiveResearch,
 } from "../src/index.mjs";
 
 const sourcesFileLimit = 256 * 1024;
@@ -55,6 +57,14 @@ Options:
                          to the provider; nothing is fetched. Context is then <=8,000 chars.
   --grounded             with --sources, print a claim-support-v1 JSON result instead
                          of Markdown (same-session judgments, not verification)
+  --perspectives auto|FILE
+                         with --sources, treat the question as a topic and print a
+                         perspectives-v1 JSON result: a basic-facts lens plus heading
+                         lenses (auto) or a JSON array of heading ids/{label,focus};
+                         one frozen session per lens, run in order; partial or
+                         cancelled lenses exit 2
+  --questions N          questions per lens, 1-4 (default 3)
+  --list-perspectives    with --sources, print heading lens candidates; no session
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installation/auth/profile observations without inference
@@ -79,6 +89,9 @@ async function main() {
         context: { type: "string" },
         sources: { type: "string" },
         grounded: { type: "boolean" },
+        perspectives: { type: "string" },
+        questions: { type: "string" },
+        "list-perspectives": { type: "boolean" },
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
@@ -98,8 +111,36 @@ async function main() {
     process.stdout.write(`${JSON.stringify(state)}\n`);
     return state.available ? 0 : 1;
   }
+  if (values["list-perspectives"]) {
+    if (!values.sources) return fail("--list-perspectives requires --sources");
+    try {
+      const candidates = perspectiveCandidates(
+        await readSourcesFile(values.sources),
+      );
+      process.stdout.write(`${JSON.stringify(candidates)}\n`);
+      return 0;
+    } catch (failure) {
+      return fail(`research-ai: ${failure.message}`);
+    }
+  }
   const question = positionals.join(" ").trim();
   if (!question) return fail(usage);
+  if (values.perspectives !== undefined && !values.sources)
+    return fail("--perspectives requires --sources");
+  if (values.perspectives !== undefined && values.grounded)
+    return fail("choose --grounded or --perspectives");
+  const questions =
+    values.questions === undefined ? undefined : Number(values.questions);
+  let perspectives;
+  if (values.perspectives !== undefined && values.perspectives !== "auto") {
+    try {
+      perspectives = await readSourcesFile(values.perspectives);
+    } catch (failure) {
+      return fail(
+        `research-ai: ${failure.message.replace("--sources", "--perspectives")}`,
+      );
+    }
+  }
   if (values.profile !== undefined && !Object.hasOwn(profiles, values.profile))
     return fail(
       `research-ai: unknown profile ${JSON.stringify(values.profile)}`,
@@ -121,6 +162,27 @@ async function main() {
   const controller = new AbortController();
   process.once("SIGINT", () => controller.abort());
   try {
+    if (values.perspectives !== undefined) {
+      const result = await perspectiveResearch(question, {
+        sources,
+        perspectives: perspectives ?? "auto",
+        questions,
+        profile: values.profile,
+        context: values.context,
+        model: values.model,
+        effort: values.effort,
+        signal: controller.signal,
+        progress: (event) => process.stderr.write(`${event}\n`),
+        onLens: ({ id, state }) =>
+          process.stderr.write(`Lens ${id}: ${state}\n`),
+      });
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return result.status === "complete"
+        ? 0
+        : result.status === "failed"
+          ? 1
+          : 2;
+    }
     const result = await (
       values.grounded ? groundedResearchQuestion : researchQuestion
     )(question, {

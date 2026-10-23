@@ -1,5 +1,5 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer } from '@pradeeptathineni/research-ai';
-import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts } from '@pradeeptathineni/research-ai';
+import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult } from '@pradeeptathineni/research-ai';
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };
@@ -22,3 +22,9 @@ async function consumer() {
   return [ready.available, sessionCompleted(outcome), direct.cleanup.complete, research.receipt.cleanup.error];
 }
 void consumer;
+const lenses = chooseLenses(sources, [perspectiveCandidates(sources)[0]?.id ?? basicFacts.id, { label: 'Renter', focus: 'Costs without building changes' }]);
+async function perspectives(): Promise<PerspectiveResult['status']> {
+  const viewed = await perspectiveResearch('Topic', { sources, perspectives: 'auto', questions: 2, onLens: ({ id, state }) => void [id, state] });
+  return viewed.lenses[0]?.questions?.[0]?.citations[0]?.occurrence === 'exact-retained-span' ? viewed.status : 'failed';
+}
+void [lenses, perspectives];

@@ -167,6 +167,32 @@ support estimates, not truth scores. Exact occurrence proves only that the text
 is in the supplied capture. Self-assessment is especially fallible and is labeled
 as such; fixtures establish mechanics only. See [source reuse](THIRD-PARTY-NOTICES.md).
 
+### Perspectives from retained sources
+
+`perspectiveResearch(topic, { sources, perspectives, questions })` looks at one
+topic through several question lenses, using only the sources you supply. A
+neutral **Basic facts** lens always runs first. Other lenses come from headings
+in your sources (`perspectiveCandidates(sources)` lists them with exact offsets;
+`"auto"` takes the first three) or from your own `{ label, focus }`, at most six
+in total. Each lens runs as its own frozen, schema-bound session, one after
+another, so no lens sees another's answers. It asks up to `questions` (1–4,
+default 3) questions, answers each from exact source spans or marks it partial
+or unanswered, and lists what it would need that the sources lack.
+
+```sh
+node bin/research-ai.mjs --sources captured.json --list-perspectives      # no session
+node bin/research-ai.mjs --sources captured.json --perspectives auto "Home battery storage" > lenses.json
+```
+
+The `perspectives-v1` result keeps each lens's status (`complete`, `failed`,
+`cancelled` or `not_run`), questions, exact quotes, omissions and receipt, plus a
+comparison row per lens, the unanswered questions and all omissions. Overall
+status is `complete`, `partial`, `failed` or `cancelled`; completed lenses survive
+a later failure or cancellation. A reply with any bad span fails that lens whole.
+Lenses steer questions; they are not people or expertise, and a perspective
+missing from your headings stays missing. Nothing is fetched or stored. The
+method adapts STORM's persona step; see [notices](THIRD-PARTY-NOTICES.md).
+
 ## What each session enforces
 
 - `codex exec --ephemeral --sandbox read-only --ignore-user-config --ignore-rules`

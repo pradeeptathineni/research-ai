@@ -10,7 +10,8 @@ const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 const home = process.env.HOME;
 const args = process.argv.slice(2);
-const scenario = JSON.parse(readFileSync(join(home, 'scenario.json'), 'utf8'));
+const authored = JSON.parse(readFileSync(join(home, 'scenario.json'), 'utf8'));
+let scenario = authored;
 appendFileSync(join(home, 'probes.jsonl'), JSON.stringify(args) + '\\n');
 const signalExit = (signal) => {
   if (!signal) return;
@@ -37,11 +38,19 @@ if (args[0] === '--version') {
   if (scenario.profileHang) setInterval(() => {}, 1000);
   signalExit(scenario.profileSignal);
 } else {
+  // Optional per-session overrides, in exec order, for multi-session callers
+  let count = 0;
+  if (authored.sessions) {
+    try { count = Number(readFileSync(join(home, 'exec-count'), 'utf8')); } catch {}
+    writeFileSync(join(home, 'exec-count'), String(count + 1));
+    scenario = { ...authored, ...authored.sessions[Math.min(count, authored.sessions.length - 1)] };
+  }
   let prompt = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => (prompt += chunk));
   process.stdin.on('end', () => {
     writeFileSync(join(home, 'record.json'), JSON.stringify({ args, env: process.env, prompt }));
+    if (authored.sessions) writeFileSync(join(home, 'record-' + count + '.json'), JSON.stringify({ args, prompt }));
     const lines = (scenario.events ?? []).map((event) =>
       typeof event === 'string' ? event : JSON.stringify(event));
     const wire = Buffer.concat([
@@ -99,6 +108,7 @@ export async function fakeCodex(scenario = {}) {
     lease: join(root, 'lease'),
     scenario: (next) => writeFile(join(home, 'scenario.json'), JSON.stringify(next)),
     record: async () => JSON.parse(await readFile(join(home, 'record.json'), 'utf8')),
+    session: async (n) => JSON.parse(await readFile(join(home, `record-${n}.json`), 'utf8')),
     probes: async () => (await readFile(join(home, 'probes.jsonl'), 'utf8').catch(() => ''))
       .trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)),
     launched: () =>

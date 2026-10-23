@@ -61,7 +61,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     // First assertion deliberately catches the accepted base's broken documentation closure.
     assert.ok(members.includes('package/ARCHITECTURE.md'), 'packed README outcome link must resolve to ARCHITECTURE.md');
     const expected = ['ARCHITECTURE.md', 'LICENSE', 'README.md', 'bin/research-ai.mjs', 'docs/compatibility.md',
-      'package.json', 'src/codex.mjs', 'src/index.d.ts', 'src/index.mjs', 'src/research.mjs', 'src/grounding.mjs', 'THIRD-PARTY-NOTICES.md'];
+      'package.json', 'src/codex.mjs', 'src/index.d.ts', 'src/index.mjs', 'src/research.mjs', 'src/grounding.mjs', 'src/perspectives.mjs', 'THIRD-PARTY-NOTICES.md'];
     assert.deepEqual(members, expected.map(name => `package/${name}`).sort());
     report.memberEvidence = [];
     for (const name of expected) {
