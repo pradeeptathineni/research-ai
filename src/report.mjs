@@ -10,6 +10,9 @@ const maxSections = 8;
 const maxVersions = 16;
 const maxAttempts = 64;
 const maxReportUnits = 24000;
+// A section can retain at most 24,000 UTF-16 units of rendered citation/prose material.
+// Reserve 180 KiB for its JSON-encoded version plus the bounded compact attempt receipt.
+const maxDraftReserveBytes = 180 * 1024;
 const digest = /^[a-f0-9]{64}$/;
 const fail = (why) => { throw new Error(`invalid_report: ${why}`); };
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -98,6 +101,11 @@ function validate(value) {
     if (!exactKeys(attempt, ['id', 'sectionId', 'requestSha256', 'status', 'reason', 'receipt', 'versionId']) || attempt.id !== `a${index + 1}` || !sectionIds.has(attempt.sectionId) || attemptIds.has(attempt.id) || !digest.test(attempt.requestSha256) || !['complete', 'failed', 'cancelled', 'not_run'].includes(attempt.status) || !(attempt.reason === null || good(attempt.reason, 300)) || !(attempt.versionId === null || good(attempt.versionId, 80))) fail(`invalid attempt ${index}`);
     attemptIds.add(attempt.id);
     if (attempt.receipt !== null && (!attempt.receipt || typeof attempt.receipt !== 'object' || typeof attempt.receipt.cleanup?.complete !== 'boolean' || !Number.isFinite(attempt.receipt.searches) || !Number.isFinite(attempt.receipt.actionCounts?.reads) || !Number.isFinite(attempt.receipt.stages?.nativeSessionMonotonicMs) || ![0, 1].includes(attempt.receipt.nativeSessions))) fail(`invalid receipt ${index}`);
+    if (attempt.receipt?.reportPayloads !== undefined) {
+      const payloads = attempt.receipt.reportPayloads;
+      const payloadNames = ['final', 'readable', 'oversizedResponse', 'providerUsage'];
+      if (!payloads || typeof payloads !== 'object' || Array.isArray(payloads) || Object.keys(payloads).some((key) => !payloadNames.includes(key)) || !payloads.final || Object.values(payloads).some((payload) => !exactKeys(payload, ['sha256', 'utf8Bytes']) || !digest.test(payload.sha256) || !Number.isSafeInteger(payload.utf8Bytes) || payload.utf8Bytes < 0) || Buffer.byteLength(JSON.stringify(attempt.receipt)) > 8192) fail(`invalid compact receipt ${index}`);
+    }
     if (attempt.status === 'complete' && (!attempt.receipt || !sessionCompleted(attempt.receipt) || !attempt.versionId)) fail(`complete attempt ${index} lacks a completed session and version`);
     if (attempt.status !== 'complete' && attempt.versionId !== null) fail(`failed attempt ${index} cannot promote a version`);
     return { ...attempt };
@@ -167,6 +175,41 @@ function blockedAttempt(state, sectionId, requestSha256, reason) {
   return validate(next);
 }
 
+function receiptPayload(value) {
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+  const text = serialized ?? '';
+  return { sha256: createHash('sha256').update(text).digest('hex'), utf8Bytes: Buffer.byteLength(text) };
+}
+
+// Keep native accounting and terminal/cleanup evidence, while avoiding a second copy of
+// arbitrarily large runner payloads in caller-owned report state.
+function reportReceipt(outcome) {
+  return {
+    ...(outcome.error === undefined ? {} : { error: String(outcome.error).slice(0, 300) }),
+    aborted: outcome.aborted,
+    final: outcome.final ? '[final payload retained by digest only]' : '',
+    diagnostic: String(outcome.diagnostic ?? '').slice(0, 1000),
+    usage: null,
+    ...(outcome.model === undefined ? {} : { model: String(outcome.model).slice(0, 200) }),
+    ...(outcome.effort === undefined ? {} : { effort: String(outcome.effort).slice(0, 80) }),
+    searches: outcome.searches,
+    actionCounts: outcome.actionCounts,
+    nativeSessions: outcome.nativeSessions,
+    stages: outcome.stages,
+    ...(outcome.stdoutReceipt === undefined ? {} : { stdoutReceipt: outcome.stdoutReceipt }),
+    termination: outcome.termination,
+    terminal: outcome.terminal,
+    cleanup: outcome.cleanup,
+    failureReason: typeof outcome.failureReason === 'string' ? outcome.failureReason.slice(0, 300) : null,
+    reportPayloads: {
+      final: receiptPayload(outcome.final),
+      ...(outcome.readable === undefined ? {} : { readable: receiptPayload(outcome.readable) }),
+      ...(outcome.oversizedResponse === undefined ? {} : { oversizedResponse: receiptPayload(outcome.oversizedResponse) }),
+      ...(outcome.usage === null || outcome.usage === undefined ? {} : { providerUsage: receiptPayload(outcome.usage) }),
+    },
+  };
+}
+
 const hasUncertainCleanup = (report) => report.attempts.some((attempt) => attempt.status !== 'not_run' && (!attempt.receipt || attempt.receipt.cleanup?.complete !== true));
 
 /** Drafts exactly one chosen section in one frozen session, preserving earlier prose on failure. */
@@ -184,6 +227,7 @@ export async function draftReportSection(report, options = {}) {
   const requestSha256 = hash({ prompt, profile, model: options.model ?? null, effort: options.effort ?? null });
   if (hasUncertainCleanup(original)) return blockedAttempt(original, section.id, requestSha256, 'prior_cleanup_unconfirmed');
   if (options.signal?.aborted) return blockedAttempt(original, section.id, requestSha256, 'cancelled_before_dispatch');
+  if (Buffer.byteLength(JSON.stringify(original)) + maxDraftReserveBytes > maxStateBytes) return blockedAttempt(original, section.id, requestSha256, 'state_capacity');
 
   // Admit and record the immutable request before the executor can acquire a lease or spawn.
   const state = structuredClone(original);
@@ -206,7 +250,7 @@ export async function draftReportSection(report, options = {}) {
     attempt.reason = String(error?.message ?? error).slice(0, 300) || 'native_attempt_failed';
     return validate(state);
   }
-  attempt.receipt = outcome;
+  attempt.receipt = reportReceipt(outcome);
   state.usage.nativeSessions += outcome.nativeSessions;
   state.usage.searches += outcome.searches;
   state.usage.reads += outcome.actionCounts.reads;

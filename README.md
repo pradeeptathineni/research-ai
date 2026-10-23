@@ -261,9 +261,13 @@ node bin/research-ai.mjs --report-input reviewed-report.json --report-format mar
 Each native action drafts one section only. Failed, cancelled or malformed
 attempts keep their receipt without replacing valid prose. Report state keeps
 up to 16 versions per section and 64 explicit attempts; assembly refuses the
-whole report if it exceeds 24,000 UTF-16 units. Source quotes establish
-occurrence, not entailment or truth. No provider call occurs on create, edit,
-reopen or export.
+whole report if it exceeds 24,000 UTF-16 units. Before dispatch, the producer
+reserves room for the largest schema-valid section version; a report too near
+the 1 MiB state cap gets a `not_run` capacity attempt and no native call. Large
+runner payloads in retained receipts are represented by SHA-256 and byte count,
+while terminal, cleanup, and usage accounting remain available. Source quotes
+establish occurrence, not entailment or truth. No provider call occurs on
+create, edit, reopen or export.
 
 ## What each session enforces
 

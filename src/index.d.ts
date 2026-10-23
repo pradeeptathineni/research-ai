@@ -500,10 +500,16 @@ export function evidenceTableResearch(question: string, options: {
 export interface ReportParagraph { text: string; citations: EvidenceTableCitation[] }
 export interface ReportSectionVersion { id: string; origin: "model-generated" | "user-modified"; paragraphs: ReportParagraph[]; gaps: string[]; attemptId: string | null; contentSha256: string }
 export interface ReportSection { id: string; title: string; currentVersion: number | null; versions: ReportSectionVersion[] }
+export interface ReportPayloadDigest { sha256: string; utf8Bytes: number }
+/** Bounded retained receipt; payloads are represented by digests and byte counts in report state. */
+export type ReportSessionReceipt = Omit<SessionOutcome, "final" | "readable" | "oversizedResponse" | "usage"> & {
+  final: string; usage: null;
+  reportPayloads: { final: ReportPayloadDigest; readable?: ReportPayloadDigest; oversizedResponse?: ReportPayloadDigest; providerUsage?: ReportPayloadDigest };
+};
 export interface ReportAttempt {
   id: string; sectionId: string; requestSha256: string;
   status: "complete" | "failed" | "cancelled" | "not_run";
-  reason: string | null; receipt: SessionOutcome | null; versionId: string | null;
+  reason: string | null; receipt: ReportSessionReceipt | null; versionId: string | null;
 }
 export interface ResearchReport {
   version: "research-report-v1"; owner: "research-ai"; topic: string;

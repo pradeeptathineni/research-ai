@@ -6,6 +6,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEvidenceTable, reviseEvidenceTable } from '../src/index.mjs';
+import { validateOutline } from '../src/index.mjs';
 import { createReport, draftReportSection, renderReport, reviseReport, validateReport } from '../src/index.mjs';
 import { fakeCodex, message } from './fake-codex.mjs';
 
@@ -126,6 +127,82 @@ test('failed malformed and cancelled sessions keep receipts and prior section pr
     assert.equal(blocked.attempts[1].reason, 'prior_cleanup_unconfirmed');
     assert.deepEqual(await cancelledFixture.probes(), before);
   } finally { await cancelledFixture.cleanup(); }
+});
+
+test('near-limit retained history refuses before native dispatch and preserves state for malformed or valid outcomes', async () => {
+  const text = 'x'.repeat(48000);
+  const basis = validateOutline({
+    version: 'research-outline-v1', topic: 'Near-limit retained report',
+    sources: [{ uri: 'https://example.org/large', text, sha256: createHash('sha256').update(text).digest('hex') }],
+    sections: Array.from({ length: 8 }, (_, index) => ({ id: `s${index + 1}`, title: `Section ${index + 1}`, points: [], gaps: [] })),
+    origin: { type: 'caller-authored' }, limits: [],
+  });
+  const para = (length, count = 4) => ({
+    text: 'Retained human note.',
+    citations: Array.from({ length: count }, () => ({ source: 0, start: 0, end: length, quote: text.slice(0, length) })),
+  });
+  const edit = (sectionId, length, count = 4) => ({ sectionId, paragraphs: [para(length, count)] });
+  const stateBytes = (value) => Buffer.byteLength(JSON.stringify(value));
+  let report = createReport(basis);
+  const target = 1_020_000;
+  let tuneSection = null;
+  for (let sectionIndex = 0; sectionIndex < 7 && !tuneSection; sectionIndex++) {
+    const sectionId = `s${sectionIndex + 1}`;
+    for (let version = 0; version < 14; version++) {
+      const candidate = reviseReport(report, edit(sectionId, 4000));
+      if (stateBytes(candidate) >= target - 500) { tuneSection = sectionId; break; }
+      report = candidate;
+    }
+    if (!tuneSection) report = reviseReport(report, edit(sectionId, 1, 1));
+  }
+  assert.ok(tuneSection, 'large retained history reached the tuning range');
+  while (stateBytes(report) < target - 500) {
+    const currentSize = stateBytes(report);
+    const oneChar = reviseReport(report, edit(tuneSection, 1));
+    const overhead = stateBytes(oneChar) - currentSize - 4;
+    const length = Math.min(4000, Math.max(1, Math.floor((target - currentSize - overhead) / 4)));
+    const candidate = reviseReport(report, edit(tuneSection, length));
+    if (stateBytes(candidate) >= target - 500) { report = candidate; break; }
+    report = candidate;
+  }
+  const beforeBytes = stateBytes(report);
+  assert.ok(beforeBytes >= target - 500, `expected state within 500 bytes of the target, got ${beforeBytes}`);
+  assert.ok(beforeBytes > 1_000_000 && beforeBytes < 1_048_576, `expected a near-limit state, got ${beforeBytes}`);
+
+  for (const eventsForProvider of [events('malformed '.repeat(17000)), events(makeOutput(quote, 'A valid short cited paragraph.', '7 days'))]) {
+    const fixture = await fakeCodex({ events: eventsForProvider });
+    try {
+      const result = await draftReportSection(report, { sectionId: 's8', lease: fixture.lease });
+      assert.equal(result.attempts.length, report.attempts.length + 1);
+      assert.equal(result.attempts.at(-1).status, 'not_run');
+      assert.equal(result.attempts.at(-1).reason, 'state_capacity');
+      assert.equal(result.usage.calls, report.usage.calls);
+      assert.equal(result.usage.nativeSessions, report.usage.nativeSessions);
+      assert.equal(result.sections[7].versions.length, 0);
+      assert.equal(result.basis.sources[0].text, text);
+      assert.equal(result.sections[0].versions.length, report.sections[0].versions.length);
+      assert.ok(stateBytes(result) <= 1_048_576);
+      assert.deepEqual(await fixture.probes(), []);
+      assert.equal(await fixture.launched(), false);
+    } finally { await fixture.cleanup(); }
+  }
+});
+
+test('large malformed provider final is compacted while its native accounting and digest remain', async () => {
+  const hugeFinal = 'malformed '.repeat(17000);
+  const fixture = await fakeCodex({ events: events(hugeFinal) });
+  try {
+    const result = await draftReportSection(createReport(table()), { sectionId: 'retention', lease: fixture.lease });
+    const attempt = result.attempts[0];
+    assert.equal(attempt.status, 'failed');
+    assert.equal(attempt.reason, 'invalid_report_section_output');
+    assert.equal(attempt.receipt.cleanup.complete, true);
+    assert.ok(attempt.receipt.reportPayloads.final.utf8Bytes >= Buffer.byteLength(hugeFinal));
+    assert.match(attempt.receipt.reportPayloads.final.sha256, /^[a-f0-9]{64}$/);
+    assert.equal(result.usage.calls, 1);
+    assert.equal(result.usage.nativeSessions, 1);
+    assert.ok(Buffer.byteLength(JSON.stringify(result)) < 100_000);
+  } finally { await fixture.cleanup(); }
 });
 
 test('outline input stays reusable; edits are copy-on-write and table conversion refuses lossy bounds', () => {
