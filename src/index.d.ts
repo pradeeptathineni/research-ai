@@ -446,3 +446,26 @@ export function perspectiveResearch(
     onLens?: (event: { id: string; state: string }) => void;
   },
 ): Promise<PerspectiveResult>;
+
+export interface OutlineCitation { source: number; start: number; end: number; quote: string }
+export interface OutlinePoint { text: string; citations: OutlineCitation[] }
+export interface OutlineSection { id: string; title: string; points: OutlinePoint[]; gaps: string[] }
+export interface ResearchOutline {
+  version: "research-outline-v1";
+  topic: string;
+  sources: (FrozenSource & { sha256: string })[];
+  sections: OutlineSection[];
+  origin: { type: "model-generated" | "user-modified" | "caller-authored"; model?: string; receipt?: { mode: "frozen"; profile: keyof typeof profiles; model: string; effort: string; nativeSessions: 1; contentSha256: string } };
+  limits: string[];
+}
+/** Validates closed shapes, exact source digests, and UTF-16 quote spans without judging entailment. */
+export function validateOutline(value: unknown): ResearchOutline;
+/** Applies topic/section edits and returns a validated user-modified draft. */
+export function reviseOutline(value: ResearchOutline, edits?: { topic?: string; sections?: OutlineSection[] }): ResearchOutline;
+/** Renders a validated draft; arbitrary URIs are shown as text, never links. */
+export function renderOutline(value: ResearchOutline, options?: { format?: "markdown" | "json" }): string;
+/** One frozen, schema-bound session creates an editable, source-bound outline. */
+export function outlineResearch(topic: string, options: {
+  sources: FrozenSource[]; maxSections?: number; profile?: keyof typeof profiles;
+  model?: string; effort?: string; lease?: string; signal?: AbortSignal; progress?: (event: string) => void;
+}): Promise<{ status: "complete" | "failed" | "cancelled"; draft: ResearchOutline | null; receipt: { mode: "frozen"; profile: keyof typeof profiles; outcome: SessionOutcome; failure?: string } }>;

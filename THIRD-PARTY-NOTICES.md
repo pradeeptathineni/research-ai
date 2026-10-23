@@ -31,6 +31,42 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+# Outline refinement method
+
+`src/outline.mjs` adapts the evidence-driven organization and refinement
+approach from STORM's `StormOutlineGenerationModule` / `WriteOutline`,
+`knowledge_storm/storm_wiki/modules/outline_generation.py`, revision
+`fb951af7744dab086e34962e9bc6fe878e145f83` (Stanford OVAL), inspected with its
+MIT license. STORM consumes curated conversation and can first draft from
+parametric knowledge. This adaptation instead uses only caller-supplied frozen
+captures, binds citations to exact UTF-16 spans, puts missing material in gaps,
+and supports validated user edits. No STORM code, DSPy, Wikipedia fetching, or
+unconstrained initial outline is included.
+
+Source: https://github.com/stanford-oval/storm/blob/fb951af7744dab086e34962e9bc6fe878e145f83/knowledge_storm/storm_wiki/modules/outline_generation.py
+
+MIT License
+
+Copyright (c) 2024 Stanford Open Virtual Assistant Lab
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 # Perspective lens method
 
 `src/perspectives.mjs` adapts STORM's persona step,

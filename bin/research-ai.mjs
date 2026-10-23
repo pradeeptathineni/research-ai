@@ -8,6 +8,8 @@ import {
   groundedResearchQuestion,
   perspectiveCandidates,
   perspectiveResearch,
+  outlineResearch,
+  renderOutline,
 } from "../src/index.mjs";
 
 const sourcesFileLimit = 256 * 1024;
@@ -65,6 +67,10 @@ Options:
                          cancelled lenses exit 2
   --questions N          questions per lens, 1-4 (default 3)
   --list-perspectives    with --sources, print heading lens candidates; no session
+  --outline              with --sources, create a cited research-outline-v1 JSON draft
+  --max-sections N       outline section limit, 1-8 (default 6)
+  --outline-input FILE   validate and format an existing outline draft without a session
+  --outline-format FMT   markdown|json (default markdown)
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installation/auth/profile observations without inference
@@ -92,6 +98,10 @@ async function main() {
         perspectives: { type: "string" },
         questions: { type: "string" },
         "list-perspectives": { type: "boolean" },
+        outline: { type: "boolean" },
+        "max-sections": { type: "string" },
+        "outline-input": { type: "string" },
+        "outline-format": { type: "string" },
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
@@ -106,11 +116,30 @@ async function main() {
     process.stdout.write(`${usage}\n`);
     return 0;
   }
+  if (values.readiness && (values["outline-input"] !== undefined || values.outline || values.sources || values.grounded || values.perspectives !== undefined || values["list-perspectives"] || positionals.length)) return fail("--readiness cannot be combined with a research mode");
   if (values.readiness) {
     const state = await codexReadiness();
     process.stdout.write(`${JSON.stringify(state)}\n`);
     return state.available ? 0 : 1;
   }
+  if (values["outline-input"] !== undefined) {
+    if (values.outline || values.sources || values.grounded || values.perspectives !== undefined || values["list-perspectives"] || positionals.length || values.model || values.effort || values.context || values["max-sections"] || values.readiness)
+      return fail("--outline-input cannot be combined with research/session options");
+    try {
+      const file = await readSourcesFile(values["outline-input"]);
+      process.stdout.write(renderOutline(file, { format: values["outline-format"] ?? "markdown" }));
+      return 0;
+    } catch (failure) {
+      return fail(`research-ai: ${failure.message}`);
+    }
+  }
+  if (values["outline-format"] !== undefined && !["markdown", "json"].includes(values["outline-format"])) return fail("--outline-format must be markdown or json");
+  if (values["outline-format"] !== undefined && values["outline-input"] === undefined) return fail("--outline-format requires --outline-input");
+  if (values.outline && (values.grounded || values.perspectives !== undefined || values["list-perspectives"])) return fail("choose --outline, --grounded or --perspectives");
+  if (values.outline && values.context !== undefined) return fail("--outline uses only supplied frozen sources; --context is unsupported");
+  if (values.outline && !values.sources) return fail("--outline requires --sources");
+  if (values["max-sections"] !== undefined && (!/^[1-8]$/.test(values["max-sections"]))) return fail("--max-sections must be an integer from 1 to 8");
+  if (values["max-sections"] !== undefined && !values.outline) return fail("--max-sections requires --outline");
   if (values["list-perspectives"]) {
     if (!values.sources) return fail("--list-perspectives requires --sources");
     try {
@@ -162,6 +191,15 @@ async function main() {
   const controller = new AbortController();
   process.once("SIGINT", () => controller.abort());
   try {
+    if (values.outline) {
+      const result = await outlineResearch(question, {
+        sources, maxSections: values["max-sections"] === undefined ? undefined : Number(values["max-sections"]),
+        profile: values.profile, model: values.model, effort: values.effort,
+        signal: controller.signal, progress: (event) => process.stderr.write(`${event}\n`),
+      });
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return result.status === "complete" ? 0 : 1;
+    }
     if (values.perspectives !== undefined) {
       const result = await perspectiveResearch(question, {
         sources,
