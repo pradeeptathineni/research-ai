@@ -1,5 +1,5 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation } from '@pradeeptathineni/research-ai';
-import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch } from '@pradeeptathineni/research-ai';
+import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn } from '@pradeeptathineni/research-ai';
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };
@@ -35,3 +35,7 @@ const revisedInvestigation = reviseInvestigation(validateInvestigation(investiga
 void [renderInvestigation(revisedInvestigation), advanceInvestigation];
 const outline: ResearchOutline | null = null;
 void [outline, outlineResearch, validateOutline, reviseOutline, renderOutline];
+const tableColumns: EvidenceTableColumn[] = [{ id: 'retention', title: 'Retention', question: 'How long?' }];
+const table: ResearchEvidenceTable = createEvidenceTable('Compare', { sources, columns: tableColumns });
+const editedTable = reviseEvidenceTable(validateEvidenceTable(table), { question: 'Compare captured values' });
+void [renderEvidenceTable(editedTable), evidenceTableResearch];

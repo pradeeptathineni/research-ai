@@ -470,6 +470,33 @@ export function outlineResearch(topic: string, options: {
   model?: string; effort?: string; lease?: string; signal?: AbortSignal; progress?: (event: string) => void;
 }): Promise<{ status: "complete" | "failed" | "cancelled"; draft: ResearchOutline | null; receipt: { mode: "frozen"; profile: keyof typeof profiles; outcome: SessionOutcome; failure?: string } }>;
 
+export interface EvidenceTableColumn { id: string; title: string; question: string }
+export interface EvidenceTableCitation { source: number; start: number; end: number; quote: string }
+export interface EvidenceTableCell { columnId: string; text: string; citations: EvidenceTableCitation[]; gap: string }
+export interface EvidenceTableRow { source: number; cells: EvidenceTableCell[] }
+export interface ResearchEvidenceTable {
+  version: "research-evidence-table-v1";
+  question: string;
+  sources: (FrozenSource & { sha256: string })[];
+  columns: EvidenceTableColumn[];
+  rows: EvidenceTableRow[];
+  origin: { type: "caller-authored" | "model-generated" | "user-modified"; model?: string; receipt?: { mode: "frozen"; profile: Profile; model: string; effort: string; nativeSessions: 1; contentSha256: string } };
+  limits: string[];
+}
+/** Creates a bounded caller-authored table with every cell explicitly unassessed. */
+export function createEvidenceTable(question: string, input: { sources: FrozenSource[]; columns: EvidenceTableColumn[] }): ResearchEvidenceTable;
+/** Validates source digests, closed shape and row-local exact UTF-16 citation spans. */
+export function validateEvidenceTable(value: unknown): ResearchEvidenceTable;
+/** Applies question/column/row edits while preserving the entire frozen source identity. */
+export function reviseEvidenceTable(value: ResearchEvidenceTable, edits?: { question?: string; columns?: EvidenceTableColumn[]; rows?: EvidenceTableRow[] }): ResearchEvidenceTable;
+/** Renders a validated table as safe Markdown or JSON. */
+export function renderEvidenceTable(value: ResearchEvidenceTable, options?: { format?: "markdown" | "json" }): string;
+/** One frozen schema-bound draft. Incomplete or invalid sessions never promote a partial table. */
+export function evidenceTableResearch(question: string, options: {
+  sources: FrozenSource[]; columns: EvidenceTableColumn[]; profile?: Profile;
+  model?: string; effort?: string; lease?: string; signal?: AbortSignal; progress?: (event: string) => void;
+}): Promise<{ status: "complete" | "failed" | "cancelled"; draft: ResearchEvidenceTable | null; receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string } }>;
+
 export type InvestigationBudget = Budget & { calls: number };
 export interface InvestigationQuestion { id: string; parentId: string | null; question: string }
 export interface InvestigationEdit { topic?: string; goal?: string; scope?: string; questions?: InvestigationQuestion[]; sources?: FrozenSource[] | null; budget?: InvestigationBudget }

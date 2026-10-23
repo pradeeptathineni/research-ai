@@ -221,6 +221,26 @@ curated-conversation outline refinement to frozen caller text and user edits;
 it omits STORM's unconstrained parametric draft and Wikipedia fetching. See
 [notices](THIRD-PARTY-NOTICES.md).
 
+### Comparative evidence tables
+
+`createEvidenceTable` starts a caller-owned comparison from 1–8 frozen captures
+and 1–8 question columns. `evidenceTableResearch` can fill cells in one frozen,
+schema-bound session. Each answer must cite an exact span in its own source row;
+unanswered cells keep an explicit gap. `reviseEvidenceTable` applies human edits,
+and `renderEvidenceTable` validates before exporting Markdown or JSON. The table
+shows what each capture says without choosing which source is correct.
+
+```sh
+node bin/research-ai.mjs --evidence-create --sources captures.json --evidence-columns columns.json "Compare retention policies" > table.json
+node bin/research-ai.mjs --evidence-input table.json --evidence-format markdown
+node bin/research-ai.mjs --evidence-draft --sources captures.json --evidence-columns columns.json "Compare retention policies" > draft-result.json
+```
+
+The columns file is a JSON array of `{ "id", "title", "question" }`. Offline
+create/edit/export opens only the named JSON files; native drafting is explicit.
+Reopening checks exact source hashes and row-local UTF-16 quote bindings. Quotes
+prove occurrence only, not entailment, currentness, independence or truth.
+
 ## What each session enforces
 
 - `codex exec --ephemeral --sandbox read-only --ignore-user-config --ignore-rules`
