@@ -469,3 +469,16 @@ export function outlineResearch(topic: string, options: {
   sources: FrozenSource[]; maxSections?: number; profile?: keyof typeof profiles;
   model?: string; effort?: string; lease?: string; signal?: AbortSignal; progress?: (event: string) => void;
 }): Promise<{ status: "complete" | "failed" | "cancelled"; draft: ResearchOutline | null; receipt: { mode: "frozen"; profile: keyof typeof profiles; outcome: SessionOutcome; failure?: string } }>;
+
+export type InvestigationBudget = Budget & { calls: number };
+export interface InvestigationQuestion { id: string; parentId: string | null; question: string }
+export interface InvestigationEdit { topic?: string; goal?: string; scope?: string; questions?: InvestigationQuestion[]; sources?: FrozenSource[] | null; budget?: InvestigationBudget }
+export type InvestigationAction = "clarify" | "expand" | "investigate" | "synthesize";
+export type InvestigationBranchStatus = "complete" | "partial" | "failed" | "cancelled" | "not_run";
+export interface InvestigationAttempt { id: string; identity: string; /** Compatibility hash for unchanged topic/scope/source/budget context; historical identity is retained. */ contextIdentity: string; revision: number; action: InvestigationAction; branchId: string | null; question: string | null; status: InvestigationBranchStatus; findings: string[]; gaps: string[]; sources: { uri: string; sha256?: string }[]; answer: string; reason: string | null; receipt: SessionOutcome | null }
+export interface Investigation { version: "guided-investigation-v1"; owner: "research-ai"; topic: string; goal: string; scope: string; revision: number; identity: string; questions: InvestigationQuestion[]; sources: (FrozenSource & { sha256: string })[] | null; budget: InvestigationBudget; used: { searches: number; documents: number; seconds: number; calls: number }; history: InvestigationAttempt[]; clarifications: string[]; report: { identity: string; markdown: string; attemptId: string } | null }
+export function createInvestigation(topic: string, options?: Omit<InvestigationEdit, "topic">): Investigation;
+export function reviseInvestigation(state: Investigation, edit: InvestigationEdit): Investigation;
+export function validateInvestigation(value: unknown): Investigation;
+export function advanceInvestigation(state: Investigation, options: { action: InvestigationAction; branchIds?: string[]; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<Investigation>;
+export function renderInvestigation(state: Investigation, options?: { format?: "markdown" | "json" }): string;

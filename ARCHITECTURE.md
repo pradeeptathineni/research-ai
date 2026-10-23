@@ -6,6 +6,14 @@ assessments. A support estimate does not become a consumer confidence score.
 
 ## Modules
 
+`src/investigation.mjs` owns guided investigation state, identity validation,
+editable bounded question trees, explicit clarify/expand/investigate/synthesize
+actions and offline rendering. Callers retain and resume JSON state. It runs
+selected branches sequentially through `withCodexWorkspace`, charging native
+searches, reads, monotonic duration and calls cumulatively. Historical attempts
+retain their original identity; edits invalidate the current report without
+rewriting prior findings. Output remains fallible research.
+
 `src/grounding.mjs` owns the additive `claim-support-v1` frozen-answer contract.
 It checks exact span occurrence and derives qualified support/contribution labels
 from explicit judgments; it does not verify source truth. Consumers retain its

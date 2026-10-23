@@ -292,3 +292,38 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and the repository's
 Extracted from the native Codex runner in the MIT-licensed first-party Signals
 project. [LICENSE](LICENSE) keeps the original notice. No third-party code is
 included apart from the reproduced citation-support method credited above.
+
+## Guided investigations
+
+`createInvestigation` makes a local, editable question tree without inference.
+`advanceInvestigation` explicitly clarifies scope, proposes more questions,
+investigates only caller-selected branches, or synthesizes retained findings.
+The returned JSON is caller-owned state: save it where you choose, reload it,
+and pass it to the next explicit action. Every native run uses the existing
+read-only ephemeral Codex workspace, and cumulative search, read, time and call
+limits remain charged across saved continuations. Reports show coverage and
+gaps; citations identify supplied or model-reported URIs and do not verify them.
+
+```js
+const study = createInvestigation("Portable capture formats", {
+  goal: "Compare export options", scope: "One offline-first user",
+});
+const clarified = await advanceInvestigation(study, { action: "clarify" });
+const reportState = await advanceInvestigation(clarified, { action: "synthesize" });
+```
+
+CLI state forms use explicit files and write each state to stdout for caller-
+managed redirection: `--investigation-create`, `--investigation-input`,
+`--investigation-edit`, `--investigation-action`, `--branches`, and
+`--investigation-format`. Reading, editing and rendering are offline; only an
+explicit action performs readiness checks and sends supplied scope/source
+content to the selected provider. State files are regular UTF-8 JSON files up
+to 1 MiB. The API refuses state/history beyond its caps (32 questions, depth 4,
+64 attempts) rather than trimming caller data. Append-only expansion can reuse
+an unchanged branch only while its exact question and full topic, scope, budget,
+and frozen source capture/qualification context still match. Changed questions
+or source notes remain historical and stay out of the next synthesis.
+
+The question-frontier, continuation from retained findings/gaps, explicit
+clarification and cited synthesis adapt methods in dzhng/deep-research. The
+package's recursive crawler, provider framework and dependencies are not used.

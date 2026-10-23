@@ -10,6 +10,7 @@ import {
   perspectiveResearch,
   outlineResearch,
   renderOutline,
+  createInvestigation, reviseInvestigation, advanceInvestigation, validateInvestigation, renderInvestigation,
 } from "../src/index.mjs";
 
 const sourcesFileLimit = 256 * 1024;
@@ -43,6 +44,18 @@ async function readSourcesFile(path) {
   } finally {
     await handle?.close();
   }
+}
+
+async function readInvestigationFile(path) {
+  const regular = info => info.isFile() && info.size <= 1024 * 1024;
+  let handle;
+  try {
+    if (!regular(await stat(path))) throw new Error("must be a regular file of at most 1 MiB");
+    handle=await open(path,"r"); if(!regular(await handle.stat()))throw new Error("must be a regular file of at most 1 MiB");
+    const buffer=Buffer.alloc(1024*1024+1),{bytesRead}=await handle.read(buffer,0,buffer.length,0);
+    if(bytesRead>1024*1024)throw new Error("file grew beyond 1 MiB");
+    return JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(buffer.subarray(0,bytesRead)));
+  } finally { await handle?.close(); }
 }
 
 const usage = `Usage: research-ai [options] <question>
@@ -105,6 +118,14 @@ async function main() {
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
+        "investigation-create": { type: "boolean" },
+        "investigation-input": { type: "string" },
+        "investigation-edit": { type: "string" },
+        "investigation-action": { type: "string" },
+        branches: { type: "string" },
+        goal: { type: "string" },
+        scope: { type: "string" },
+        "investigation-format": { type: "string" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -115,6 +136,34 @@ async function main() {
   if (values.help) {
     process.stdout.write(`${usage}\n`);
     return 0;
+  }
+  const investigation = values["investigation-create"] || values["investigation-input"] !== undefined || values["investigation-action"] !== undefined || values["investigation-format"] !== undefined;
+  if (investigation) {
+    const forbidden = values.readiness || values.grounded || values.perspectives !== undefined || values["list-perspectives"] || values.outline || values["outline-input"] !== undefined || values["max-sections"] !== undefined || values.context !== undefined || values.questions !== undefined;
+    if (forbidden || (values["investigation-create"] && values["investigation-input"] !== undefined) || (!values["investigation-create"] && values["investigation-input"] === undefined) || (values["investigation-edit"] !== undefined && (values["investigation-create"] || values["investigation-action"] !== undefined)) || (values.branches !== undefined && values["investigation-action"] !== "investigate") || (values["investigation-format"] !== undefined && (values["investigation-action"] !== undefined || values.model || values.effort)) || (!values["investigation-create"] && (values.profile !== undefined || values.sources !== undefined)) || (values["investigation-action"] === undefined && (values.model !== undefined || values.effort !== undefined))) return fail("invalid or mixed investigation options");
+    try {
+      let state;
+      if(values["investigation-create"]) {
+        if(positionals.length!==1 || values["investigation-action"] || values["investigation-format"] || values["investigation-edit"]) return fail("--investigation-create requires one topic and no action");
+        let sources; if(values.sources) sources=await readSourcesFile(values.sources);
+        if(values.profile!==undefined && !Object.hasOwn(profiles,values.profile))return fail(`unknown profile ${values.profile}`);
+        state=createInvestigation(positionals[0],{goal:values.goal,scope:values.scope,sources,budget:values.profile?{...profiles[values.profile],calls:12}:undefined});
+      } else {
+        if(positionals.length || values.goal!==undefined || values.scope!==undefined || values.sources!==undefined || values.profile!==undefined && values["investigation-action"]===undefined) return fail("invalid investigation input options");
+        state=validateInvestigation(await readInvestigationFile(values["investigation-input"]));
+        if(values["investigation-edit"]!==undefined) state=reviseInvestigation(state,await readInvestigationFile(values["investigation-edit"]));
+      }
+      if(values["investigation-format"]!==undefined) { if(!["markdown","json"].includes(values["investigation-format"]))return fail("--investigation-format must be markdown or json"); process.stdout.write(renderInvestigation(state,{format:values["investigation-format"]})); return 0; }
+      if(values["investigation-action"]!==undefined) {
+        const ready=await codexReadiness(); if(!ready.available)return fail(`research-ai: ${ready.error}: ${ready.remedy}`);
+        const controller=new AbortController(); process.once("SIGINT",()=>controller.abort());
+        state=await advanceInvestigation(state,{action:values["investigation-action"],branchIds:values.branches?.split(","),signal:controller.signal,model:values.model,effort:values.effort,progress:event=>process.stderr.write(`${event}\n`)});
+      }
+      process.stdout.write(`${JSON.stringify(state)}\n`);
+      if(values["investigation-action"]===undefined)return 0;
+      const relevant=state.history.slice(- (values.branches?.split(",").length ?? 1));
+      return relevant.length && relevant.every(a=>a.status==="complete") ? 0 : relevant.some(a=>a.status==="failed") && relevant.every(a=>a.status==="failed") ? 1 : 2;
+    } catch(error) { return fail(`research-ai: ${error.message}`); }
   }
   if (values.readiness && (values["outline-input"] !== undefined || values.outline || values.sources || values.grounded || values.perspectives !== undefined || values["list-perspectives"] || positionals.length)) return fail("--readiness cannot be combined with a research mode");
   if (values.readiness) {
