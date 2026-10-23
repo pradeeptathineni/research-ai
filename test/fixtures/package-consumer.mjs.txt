@@ -13,7 +13,7 @@ import { fakeCodex, message } from './fake-codex.mjs';
 const exact = '  Café ✓ 😀\n\nFallible evidence.\n';
 const success = { type: 'turn.completed' };
 const sources = [{ uri: 'https://example.org/frozen', text: 'Naïve ✓ 😀\nCaptured text.\n', observedAt: 'caller note', omissions: ['coverage unknown'] }];
-const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'withCodexWorkspace'];
+const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace'];
 assert.deepEqual(Object.keys(api).sort(), expectedExports);
 assert.equal(api.profiles.quick.searches, 8);
 assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);
@@ -24,6 +24,9 @@ const tableColumns = [{ id: 'retention', title: 'Retention', question: 'How long
 const emptyTable = api.createEvidenceTable('Compare retention', { sources, columns: tableColumns });
 assert.equal(api.validateEvidenceTable(emptyTable).rows[0].cells[0].gap, 'Not assessed.');
 assert.match(api.renderEvidenceTable(emptyTable), /Not assessed/);
+const report = api.createReport(emptyTable);
+assert.equal(api.validateReport(report).sections.length, 1);
+assert.match(api.renderReport(report), /Not assessed/);
 const absent = path => access(path).then(() => false, () => true);
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 const hash = text => createHash('sha256').update(text).digest('hex');
