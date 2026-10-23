@@ -10,6 +10,7 @@ import {
   perspectiveResearch,
   outlineResearch,
   renderOutline,
+  createEvidenceTable, reviseEvidenceTable, validateEvidenceTable, renderEvidenceTable, evidenceTableResearch,
   createInvestigation, reviseInvestigation, advanceInvestigation, validateInvestigation, renderInvestigation,
 } from "../src/index.mjs";
 
@@ -84,6 +85,12 @@ Options:
   --max-sections N       outline section limit, 1-8 (default 6)
   --outline-input FILE   validate and format an existing outline draft without a session
   --outline-format FMT   markdown|json (default markdown)
+  --evidence-create      with --sources and --columns, create an empty table offline
+  --evidence-columns FILE JSON array of {id,title,question} columns (1-8)
+  --evidence-input FILE  validate, optionally edit and export a saved evidence table
+  --evidence-edit FILE   JSON object of question/columns/rows edits for --evidence-input
+  --evidence-format FMT  markdown|json (default json)
+  --evidence-draft       explicitly draft a table in one frozen session
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installation/auth/profile observations without inference
@@ -115,6 +122,12 @@ async function main() {
         "max-sections": { type: "string" },
         "outline-input": { type: "string" },
         "outline-format": { type: "string" },
+        "evidence-create": { type: "boolean" },
+        "evidence-draft": { type: "boolean" },
+        "evidence-input": { type: "string" },
+        "evidence-columns": { type: "string" },
+        "evidence-edit": { type: "string" },
+        "evidence-format": { type: "string" },
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
@@ -136,6 +149,41 @@ async function main() {
   if (values.help) {
     process.stdout.write(`${usage}\n`);
     return 0;
+  }
+  const evidence = values["evidence-create"] || values["evidence-draft"] || values["evidence-input"] !== undefined;
+  if (evidence) {
+    const inputMode = values["evidence-input"] !== undefined;
+    const draftMode = values["evidence-draft"] === true;
+    const createMode = values["evidence-create"] === true;
+    if ((Number(inputMode) + Number(draftMode) + Number(createMode) !== 1) || values.outline || values["outline-input"] !== undefined || values.grounded || values.perspectives !== undefined || values["list-perspectives"] || values["max-sections"] !== undefined || values.readiness || values.context !== undefined || values.questions !== undefined || values["investigation-create"] || values["investigation-input"] !== undefined || values["investigation-action"] !== undefined || values["investigation-format"] !== undefined || (inputMode && (values.sources || values["evidence-columns"] || draftMode || createMode)) || (!inputMode && (!values.sources || !values["evidence-columns"])) || (values["evidence-edit"] !== undefined && !inputMode) || (values["evidence-format"] !== undefined && !inputMode) || (values["evidence-format"] !== undefined && createMode)) return fail("invalid or mixed evidence-table options");
+    try {
+      if (inputMode) {
+        if (positionals.length || values.model || values.effort || values.profile) return fail("--evidence-input accepts no question or session options");
+        let table = validateEvidenceTable(await readSourcesFile(values["evidence-input"]));
+        if (values["evidence-edit"] !== undefined) table = reviseEvidenceTable(table, await readSourcesFile(values["evidence-edit"]));
+        const format = values["evidence-format"] ?? "json";
+        if (!["markdown", "json"].includes(format)) return fail("--evidence-format must be markdown or json");
+        process.stdout.write(renderEvidenceTable(table, { format }));
+        return 0;
+      }
+      const question = positionals.join(" ").trim();
+      if (!question) return fail("evidence table requires a question");
+      const sources = await readSourcesFile(values.sources);
+      const columns = await readSourcesFile(values["evidence-columns"]);
+      if (createMode) {
+        if (values.model || values.effort || values.profile) return fail("--evidence-create is offline and accepts no session options");
+        process.stdout.write(`${JSON.stringify(createEvidenceTable(question, { sources, columns }))}\n`);
+        return 0;
+      }
+      if (values.profile !== undefined && !Object.hasOwn(profiles, values.profile)) return fail(`research-ai: unknown profile ${JSON.stringify(values.profile)}`);
+      const ready = await codexReadiness();
+      if (!ready.available) return fail(`research-ai: ${ready.error}: ${ready.remedy}`);
+      const controller = new AbortController();
+      process.once("SIGINT", () => controller.abort());
+      const result = await evidenceTableResearch(question, { sources, columns, profile: values.profile, model: values.model, effort: values.effort, signal: controller.signal, progress: (event) => process.stderr.write(`${event}\n`) });
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return result.status === "complete" ? 0 : result.status === "cancelled" ? 2 : 1;
+    } catch (failure) { return fail(`research-ai: ${failure.message}`); }
   }
   const investigation = values["investigation-create"] || values["investigation-input"] !== undefined || values["investigation-action"] !== undefined || values["investigation-format"] !== undefined;
   if (investigation) {
