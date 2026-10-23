@@ -102,3 +102,42 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+# Guided investigation method
+
+`src/investigation.mjs` adapts bounded question-frontier generation,
+continuation from retained learnings/follow-up questions, explicit clarification,
+deduplication of retained source identities, and cited report synthesis from
+`dzhng/deep-research`, revision
+`1f8f3e285bbc23e80b98a66a64effab9069f3ad4`, inspected from its
+`src/deep-research.ts` and `src/feedback.ts`. The adaptation uses caller-owned
+resumable state and the existing restricted native executor; it does not include
+Firecrawl, recursive execution, concurrency, provider setup or donor dependencies.
+Failure is retained as failure rather than converted to an empty result. The
+donor package manifest says ISC, while its inspected LICENSE is MIT; this MIT
+notice is preserved for adapted portions. Its test script declares no usable
+tests; no donor tests were ported.
+
+Source: https://github.com/dzhng/deep-research/tree/1f8f3e285bbc23e80b98a66a64effab9069f3ad4
+
+MIT License
+
+Copyright (c) 2025 David Zhang
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

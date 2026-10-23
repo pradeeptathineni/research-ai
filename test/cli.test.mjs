@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { chmod } from 'node:fs/promises';
+import { chmod, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codexReadiness } from '../src/index.mjs';
@@ -57,6 +57,25 @@ it('reports readiness as JSON', async () => {
     available: true,
     runner: 'codex-cli 0.160.0',
   });
+});
+
+it('creates, edits and renders investigation state offline', async () => {
+  const created=await cli('--investigation-create','--goal','Compare formats','--scope','Offline first','Portable notes');
+  assert.equal(created.code,0);
+  const state=JSON.parse(created.stdout);
+  assert.equal(state.topic,'Portable notes');
+  assert.deepEqual(await fixture.probes(),[]);
+  const input=join(fixture.home,'study.json'), edit=join(fixture.home,'edit.json');
+  await writeFile(input,created.stdout);
+  await writeFile(edit,JSON.stringify({scope:'Offline first; user controlled'}));
+  const revised=await cli('--investigation-input',input,'--investigation-edit',edit);
+  assert.equal(revised.code,0);
+  assert.equal(JSON.parse(revised.stdout).scope,'Offline first; user controlled');
+  await writeFile(input,revised.stdout);
+  const markdown=await cli('--investigation-input',input,'--investigation-format','markdown');
+  assert.equal(markdown.code,0);
+  assert.match(markdown.stdout,/^# Portable notes/);
+  assert.deepEqual(await fixture.probes(),[]);
 });
 
 it('prints the answer to stdout and the receipt to stderr', async () => {
