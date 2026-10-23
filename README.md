@@ -193,6 +193,30 @@ Lenses steer questions; they are not people or expertise, and a perspective
 missing from your headings stays missing. Nothing is fetched or stored. The
 method adapts STORM's persona step; see [notices](THIRD-PARTY-NOTICES.md).
 
+### Cited outlines from retained sources
+
+`outlineResearch(topic, { sources, maxSections })` arranges explicitly selected
+frozen captures into an ordered, editable outline. Each point has exact source
+spans, and missing or conflicting material belongs in section gaps. A matching
+quote proves occurrence only; it does not prove that the source supports the
+point. The `research-outline-v1` draft keeps the supplied captures and exact
+SHA-256 digests for later validation.
+
+```sh
+node bin/research-ai.mjs --outline --sources captured.json --max-sections 6 "Home battery storage"
+node bin/research-ai.mjs --outline-input draft.json --outline-format markdown
+```
+
+`validateOutline` checks the closed draft shape, source digests and UTF-16 quote
+bindings. `reviseOutline` applies topic or section edits and marks the result
+user-modified. `renderOutline` validates before exporting Markdown or JSON;
+source URIs are displayed as text, never turned into links. The formatting CLI
+path opens only the explicit draft file and makes no model call. Drafts are
+ephemeral unless a consumer chooses to keep them. This adapts STORM's
+curated-conversation outline refinement to frozen caller text and user edits;
+it omits STORM's unconstrained parametric draft and Wikipedia fetching. See
+[notices](THIRD-PARTY-NOTICES.md).
+
 ## What each session enforces
 
 - `codex exec --ephemeral --sandbox read-only --ignore-user-config --ignore-rules`

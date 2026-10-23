@@ -18,6 +18,7 @@ structured output is failed, never promoted from interim narrative.
 | `src/codex.mjs`       | Codex readiness probes, the exclusive lease, the ephemeral working directory, model/effort selection, the hardened argument vector, the minimal environment, JSONL stream supervision, checkpoints, limits, deadline/abort and process-group kill |
 | `src/research.mjs`    | Ordinary research: profiles, a generic prompt with the question as labelled data, and mapping one session to `complete`/`partial`/`failed`                                                                                                        |
 | `src/perspectives.mjs` | `perspectives-v1`: heading-grounded lens candidates, a basic-facts lens first, one frozen schema-bound session per lens in order, exact-span validation and comparable assembly with omissions, unanswered questions and partial/cancelled states |
+| `src/outline.mjs` | `research-outline-v1`: one frozen schema-bound session, source-bound editable points and gaps, offline replay validation and Markdown/JSON export |
 | `src/index.d.ts`      | The public types                                                                                                                                                                                                                                  |
 | `bin/research-ai.mjs` | The CLI: argument parsing, readiness gate, stdout answer, stderr receipt, exit codes                                                                                                                                                              |
 
@@ -143,6 +144,9 @@ K13 controller coverage; disappearing observation cannot finish a session.
 - **Principles** keeps its corpus, taxonomy, source identities and human
   activation gates. research-ai can supply research text as candidate evidence,
   but it never writes, drafts or activates Principles content.
+- **Deep** may pass selected retained records to `outlineResearch`, preserving
+  their existing source qualifications. A draft remains ephemeral until that
+  consumer explicitly chooses to retain or export it.
 
 ## Next seam (proposed, not implemented)
 

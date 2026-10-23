@@ -1,5 +1,5 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts } from '@pradeeptathineni/research-ai';
-import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline } from '@pradeeptathineni/research-ai';
+import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline } from '@pradeeptathineni/research-ai';
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };
@@ -28,3 +28,5 @@ async function perspectives(): Promise<PerspectiveResult['status']> {
   return viewed.lenses[0]?.questions?.[0]?.citations[0]?.occurrence === 'exact-retained-span' ? viewed.status : 'failed';
 }
 void [lenses, perspectives];
+const outline: ResearchOutline | null = null;
+void [outline, outlineResearch, validateOutline, reviseOutline, renderOutline];

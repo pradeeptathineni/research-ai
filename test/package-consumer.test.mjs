@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,7 +68,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     // First assertion deliberately catches the accepted base's broken documentation closure.
     assert.ok(members.includes('package/ARCHITECTURE.md'), 'packed README outcome link must resolve to ARCHITECTURE.md');
     const expected = ['ARCHITECTURE.md', 'LICENSE', 'README.md', 'bin/research-ai.mjs', 'docs/compatibility.md',
-      'package.json', 'src/codex.mjs', 'src/index.d.ts', 'src/index.mjs', 'src/research.mjs', 'src/grounding.mjs', 'src/perspectives.mjs', 'THIRD-PARTY-NOTICES.md'];
+      'package.json', 'src/codex.mjs', 'src/index.d.ts', 'src/index.mjs', 'src/research.mjs', 'src/grounding.mjs', 'src/perspectives.mjs', 'src/outline.mjs', 'THIRD-PARTY-NOTICES.md'];
     assert.deepEqual(members, expected.map(name => `package/${name}`).sort());
     report.memberEvidence = [];
     for (const name of expected) {
@@ -99,10 +99,10 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     const installed = await command('install', process.execPath, [npm, 'install', archive, '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false']);
     assert.equal(installed.status, 0, installed.stderr);
     const packageRoot = join(consumer, 'node_modules', ...packageName.split('/'));
-    assert.equal(await realpath(packageRoot), packageRoot, 'installed package is an extracted artifact, not a source link');
-    assert.notEqual(packageRoot, source);
+    assert.equal((await lstat(packageRoot)).isSymbolicLink(), false, 'installed package is an extracted artifact, not a source link');
+    assert.notEqual(await realpath(packageRoot), await realpath(source));
     const bin = join(consumer, 'node_modules/.bin/research-ai');
-    assert.equal(await realpath(bin), join(packageRoot, manifest.bin['research-ai']));
+    assert.equal(await realpath(bin), join(await realpath(packageRoot), manifest.bin['research-ai']));
     assert.ok((await stat(bin)).mode & 0o111);
     report.installed = { packageRoot, bin, binRealpath: await realpath(bin) };
     await cp(join(source, 'test/fake-codex.mjs'), join(consumer, 'fake-codex.mjs'));
@@ -112,7 +112,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     const probe = await command('consumer', process.execPath, ['probe.mjs']);
     assert.equal(probe.status, 0, probe.stderr);
     report.consumerResults = JSON.parse(await readFile(join(consumer, 'consumer-results.json'), 'utf8'));
-    assert.equal(report.consumerResults.resolved, join(packageRoot, 'src/index.mjs'));
+    assert.equal(report.consumerResults.resolved, join(await realpath(packageRoot), 'src/index.mjs'));
     const versions = { typescript: '6.0.3', '@types/node': '24.19.0', 'undici-types': '7.24.6' };
     report.toolchain = [];
     for (const [name, version] of Object.entries(versions)) {

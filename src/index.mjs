@@ -2,3 +2,4 @@ export { codexReadiness, withCodexWorkspace, sessionCompleted } from './codex.mj
 export { profiles, ordinaryResearchPrompt, researchQuestion } from './research.mjs';
 export { groundedAnswer, validateGrounding, groundedResearchQuestion, assessGroundedAnswer } from './grounding.mjs';
 export { basicFacts, perspectiveCandidates, chooseLenses, perspectiveResearch } from './perspectives.mjs';
+export { outlineResearch, validateOutline, reviseOutline, renderOutline } from './outline.mjs';
