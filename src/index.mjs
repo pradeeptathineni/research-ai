@@ -4,4 +4,5 @@ export { groundedAnswer, validateGrounding, groundedResearchQuestion, assessGrou
 export { basicFacts, perspectiveCandidates, chooseLenses, perspectiveResearch } from './perspectives.mjs';
 export { outlineResearch, validateOutline, reviseOutline, renderOutline } from './outline.mjs';
 export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch } from './evidence-table.mjs';
+export { createReport, validateReport, reviseReport, draftReportSection, renderReport } from './report.mjs';
 export { createInvestigation, reviseInvestigation, validateInvestigation, advanceInvestigation, renderInvestigation } from './investigation.mjs';

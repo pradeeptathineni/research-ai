@@ -11,6 +11,7 @@ import {
   outlineResearch,
   renderOutline,
   createEvidenceTable, reviseEvidenceTable, validateEvidenceTable, renderEvidenceTable, evidenceTableResearch,
+  createReport, validateReport, reviseReport, draftReportSection, renderReport,
   createInvestigation, reviseInvestigation, advanceInvestigation, validateInvestigation, renderInvestigation,
 } from "../src/index.mjs";
 
@@ -91,6 +92,11 @@ Options:
   --evidence-edit FILE   JSON object of question/columns/rows edits for --evidence-input
   --evidence-format FMT  markdown|json (default json)
   --evidence-draft       explicitly draft a table in one frozen session
+  --report-create        create report authoring state from --report-input basis JSON
+  --report-input FILE    outline/evidence basis or saved report state (explicit JSON file)
+  --report-draft ID      explicitly draft one selected section in one frozen session
+  --report-edit FILE     JSON section edit for --report-input
+  --report-format FMT    markdown|json export (default markdown)
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installation/auth/profile observations without inference
@@ -128,6 +134,11 @@ async function main() {
         "evidence-columns": { type: "string" },
         "evidence-edit": { type: "string" },
         "evidence-format": { type: "string" },
+        "report-create": { type: "boolean" },
+        "report-input": { type: "string" },
+        "report-draft": { type: "string" },
+        "report-edit": { type: "string" },
+        "report-format": { type: "string" },
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
@@ -149,6 +160,36 @@ async function main() {
   if (values.help) {
     process.stdout.write(`${usage}\n`);
     return 0;
+  }
+  const reportMode = values["report-create"] || values["report-input"] !== undefined || values["report-draft"] !== undefined || values["report-edit"] !== undefined || values["report-format"] !== undefined;
+  if (reportMode) {
+    const creating = values["report-create"] === true;
+    const drafting = values["report-draft"] !== undefined;
+    const editing = values["report-edit"] !== undefined;
+    const formatting = values["report-format"] !== undefined;
+    if (values["report-input"] === undefined || positionals.length || values.outline || values["outline-input"] !== undefined || values["evidence-create"] || values["evidence-draft"] || values["evidence-input"] !== undefined || values["evidence-columns"] !== undefined || values["evidence-edit"] !== undefined || values["evidence-format"] !== undefined || values.grounded || values.perspectives !== undefined || values["list-perspectives"] || values["investigation-create"] || values["investigation-input"] !== undefined || values["investigation-edit"] !== undefined || values["investigation-action"] !== undefined || values["investigation-format"] !== undefined || values.readiness || values.context !== undefined || values.sources !== undefined || values.questions !== undefined || values["max-sections"] !== undefined || Number(creating) + Number(drafting) + Number(editing) + Number(formatting) > 1 || (creating && (values.model || values.effort || values.profile)) || ((editing || formatting || !creating && !drafting) && (values.model || values.effort || values.profile))) return fail("invalid or mixed report options");
+    try {
+      const raw = await readInvestigationFile(values["report-input"]);
+      if (creating) {
+        process.stdout.write(`${JSON.stringify(createReport(raw))}\n`);
+        return 0;
+      }
+      let report = validateReport(raw);
+      if (drafting) {
+        if (values.profile !== undefined && !Object.hasOwn(profiles, values.profile)) return fail(`research-ai: unknown profile ${JSON.stringify(values.profile)}`);
+        const ready = await codexReadiness();
+        if (!ready.available) return fail(`research-ai: ${ready.error}: ${ready.remedy}`);
+        const controller = new AbortController();
+        process.once("SIGINT", () => controller.abort());
+        report = await draftReportSection(report, { sectionId: values["report-draft"], profile: values.profile, model: values.model, effort: values.effort, signal: controller.signal, progress: (event) => process.stderr.write(`${event}\n`) });
+        process.stdout.write(`${JSON.stringify(report)}\n`);
+        const attempt = report.attempts.at(-1);
+        return attempt?.status === "complete" ? 0 : attempt?.status === "cancelled" || attempt?.status === "not_run" ? 2 : 1;
+      }
+      if (editing) report = reviseReport(report, await readInvestigationFile(values["report-edit"]));
+      process.stdout.write(renderReport(report, { format: values["report-format"] ?? "json" }));
+      return 0;
+    } catch (failure) { return fail(`research-ai: ${failure.message}`); }
   }
   const evidence = values["evidence-create"] || values["evidence-draft"] || values["evidence-input"] !== undefined;
   if (evidence) {

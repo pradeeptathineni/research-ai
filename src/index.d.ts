@@ -497,6 +497,42 @@ export function evidenceTableResearch(question: string, options: {
   model?: string; effort?: string; lease?: string; signal?: AbortSignal; progress?: (event: string) => void;
 }): Promise<{ status: "complete" | "failed" | "cancelled"; draft: ResearchEvidenceTable | null; receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string } }>;
 
+export interface ReportParagraph { text: string; citations: EvidenceTableCitation[] }
+export interface ReportSectionVersion { id: string; origin: "model-generated" | "user-modified"; paragraphs: ReportParagraph[]; gaps: string[]; attemptId: string | null; contentSha256: string }
+export interface ReportSection { id: string; title: string; currentVersion: number | null; versions: ReportSectionVersion[] }
+export interface ReportPayloadDigest { sha256: string; utf8Bytes: number }
+/** Bounded retained receipt; payloads are represented by digests and byte counts in report state. */
+export type ReportSessionReceipt = Omit<SessionOutcome, "final" | "readable" | "oversizedResponse" | "usage"> & {
+  final: string; usage: null;
+  reportPayloads: { final: ReportPayloadDigest; readable?: ReportPayloadDigest; oversizedResponse?: ReportPayloadDigest; providerUsage?: ReportPayloadDigest };
+};
+export interface ReportAttempt {
+  id: string; sectionId: string; requestSha256: string;
+  status: "complete" | "failed" | "cancelled" | "not_run";
+  reason: string | null; receipt: ReportSessionReceipt | null; versionId: string | null;
+}
+export interface ResearchReport {
+  version: "research-report-v1"; owner: "research-ai"; topic: string;
+  /** Complete validated outline/source and qualification closure. */
+  basis: ResearchOutline; basisSha256: string;
+  sections: ReportSection[]; attempts: ReportAttempt[];
+  usage: { calls: number; nativeSessions: number; searches: number; reads: number; seconds: number };
+  revision: number; parentHash: string | null; limits: string[];
+}
+/** Converts an outline or evidence table into a report without inference or loss. */
+export function createReport(input: ResearchOutline | ResearchEvidenceTable): ResearchReport;
+/** Rechecks the basis, bounded version history, accounting and exact source spans. */
+export function validateReport(value: unknown): ResearchReport;
+/** Appends a user-authored paragraph/gap version and keeps prior section versions. */
+export function reviseReport(report: ResearchReport, edit: { sectionId: string; paragraphs?: ReportParagraph[]; gaps?: string[] }): ResearchReport;
+/** Drafts one explicit section in one frozen schema-bound session; failures remain in attempts. */
+export function draftReportSection(report: ResearchReport, options: {
+  sectionId: string; profile?: Profile; model?: string; effort?: string; lease?: string;
+  signal?: AbortSignal; progress?: (event: string) => void;
+}): Promise<ResearchReport>;
+/** Validates and assembles the current full report, or returns complete JSON state. */
+export function renderReport(report: ResearchReport, options?: { format?: "markdown" | "json" }): string;
+
 export type InvestigationBudget = Budget & { calls: number };
 export interface InvestigationQuestion { id: string; parentId: string | null; question: string }
 export interface InvestigationEdit { topic?: string; goal?: string; scope?: string; questions?: InvestigationQuestion[]; sources?: FrozenSource[] | null; budget?: InvestigationBudget }

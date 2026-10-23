@@ -241,6 +241,34 @@ create/edit/export opens only the named JSON files; native drafting is explicit.
 Reopening checks exact source hashes and row-local UTF-16 quote bindings. Quotes
 prove occurrence only, not entailment, currentness, independence or truth.
 
+### Cited report authoring
+
+`createReport` accepts a cited outline or an evidence table. For a table, each
+question column becomes a report section, each cited cell becomes a point, and
+unanswered cells remain section gaps. `draftReportSection` explicitly writes
+one selected section from the retained frozen captures while carrying prior
+section drafts as context. `reviseReport` appends a human version and keeps the
+older wording available. `renderReport` validates source bindings and assembles
+the current sections into a full Markdown report or JSON state.
+
+```sh
+node bin/research-ai.mjs --report-create --report-input evidence-table.json > report.json
+node bin/research-ai.mjs --report-input report.json --report-draft retention > report-draft.json
+node bin/research-ai.mjs --report-input report-draft.json --report-edit section-edit.json > reviewed-report.json
+node bin/research-ai.mjs --report-input reviewed-report.json --report-format markdown
+```
+
+Each native action drafts one section only. Failed, cancelled or malformed
+attempts keep their receipt without replacing valid prose. Report state keeps
+up to 16 versions per section and 64 explicit attempts; assembly refuses the
+whole report if it exceeds 24,000 UTF-16 units. Before dispatch, the producer
+reserves room for the largest schema-valid section version; a report too near
+the 1 MiB state cap gets a `not_run` capacity attempt and no native call. Large
+runner payloads in retained receipts are represented by SHA-256 and byte count,
+while terminal, cleanup, and usage accounting remain available. Source quotes
+establish occurrence, not entailment or truth. No provider call occurs on
+create, edit, reopen or export.
+
 ## What each session enforces
 
 - `codex exec --ephemeral --sandbox read-only --ignore-user-config --ignore-rules`

@@ -1,5 +1,5 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch } from '@pradeeptathineni/research-ai';
-import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport } from '@pradeeptathineni/research-ai';
+import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };
@@ -39,3 +39,7 @@ const tableColumns: EvidenceTableColumn[] = [{ id: 'retention', title: 'Retentio
 const table: ResearchEvidenceTable = createEvidenceTable('Compare', { sources, columns: tableColumns });
 const editedTable = reviseEvidenceTable(validateEvidenceTable(table), { question: 'Compare captured values' });
 void [renderEvidenceTable(editedTable), evidenceTableResearch];
+const report: ResearchReport = createReport(editedTable);
+const reviewed: ResearchReport = reviseReport(validateReport(report), { sectionId: 'retention', paragraphs: [{ text: 'Captured retention.', citations: [{ source: 0, start: 0, end: 6, quote: 'Naïve ' }] }] });
+const paragraph: ReportParagraph = reviewed.sections[0].versions[0].paragraphs[0];
+void [draftReportSection, renderReport(reviewed), paragraph];
