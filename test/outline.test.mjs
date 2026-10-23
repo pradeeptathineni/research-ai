@@ -66,6 +66,46 @@ test("invalid inputs refuse before spawn and malformed generated spans never pro
   } finally { await malformed.cleanup(); }
 });
 
+test("generated unknown fields at section and point levels fail the whole reply", async () => {
+  for (const mutate of [
+    (raw) => { raw.sections[0].unexpected = "closed schema violation"; },
+    (raw) => { raw.sections[0].points[0].unexpected = "closed point violation"; },
+  ]) {
+    const raw = structuredClone(modelDraft);
+    mutate(raw);
+    const fixture = await fakeCodex({ events: reply(raw) });
+    try {
+      const result = await outlineResearch("Home batteries", { sources, lease: fixture.lease });
+      assert.equal(result.status, "failed");
+      assert.equal(result.draft, null);
+      assert.equal(result.receipt.failure, "invalid_outline");
+      assert.equal(JSON.parse(result.receipt.outcome.final).sections.length, 2);
+    } finally { await fixture.cleanup(); }
+  }
+});
+
+test("generated provenance requires matching receipt and content; edits must be origin-tagged", async () => {
+  const fixture = await fakeCodex({ events: reply(modelDraft) });
+  try {
+    const { draft } = await outlineResearch("Home batteries", { sources, lease: fixture.lease });
+    const roundTrip = JSON.parse(JSON.stringify(draft));
+    assert.match(renderOutline(roundTrip), /model-generated, caller-declared \(content digest matches; not authenticated\)/);
+    const edited = structuredClone(roundTrip);
+    edited.sections[0].points[0].text = "A directly edited statement.";
+    assert.throws(() => renderOutline(edited), /content does not match its receipt/);
+    const noReceipt = structuredClone(roundTrip);
+    delete noReceipt.origin.receipt;
+    assert.throws(() => validateOutline(noReceipt), /invalid origin receipt|generated content does not match/);
+    const wrongModel = structuredClone(roundTrip);
+    wrongModel.origin.model = "another-model";
+    assert.throws(() => validateOutline(wrongModel), /invalid_outline/);
+    const declaredEdit = reviseOutline(roundTrip, { sections: edited.sections });
+    assert.equal(declaredEdit.origin.type, "user-modified");
+    assert.equal(declaredEdit.origin.receipt.contentSha256, draft.origin.receipt.contentSha256);
+    assert.match(renderOutline(declaredEdit), /Origin: user-modified/);
+  } finally { await fixture.cleanup(); }
+});
+
 test("failed and cancelled native outcomes keep receipts and never yield complete drafts", async () => {
   for (const [scenario, expected] of [
     [{ events: [message(JSON.stringify(modelDraft)), { type: "turn.failed", error: { message: "fixture failure" } }] }, "failed"],
@@ -86,7 +126,7 @@ test("failed and cancelled native outcomes keep receipts and never yield complet
 test("offline validation uses UTF-16 boundaries and exports control characters visibly", () => {
   const text = "A 😀 B\u001b\u202e";
   const draft = {
-    version: "research-outline-v1", topic: "Topic", sources: [{ uri: "https://example.org/a`b", text, sha256: createHash("sha256").update(text).digest("hex") }],
+    version: "research-outline-v1", topic: "Topic", sources: [{ uri: "https://example.org/a`b", text, sha256: createHash("sha256").update(text).digest("hex"), omissions: ["PRIOR SYNTHESIS ONLY; not primary evidence. <img src=x> [click](javascript:evil)"] }],
     sections: [{ id: "section-1", title: "Unicode", points: [{ text: "An emoji.", citations: [{ source: 0, start: 2, end: 4, quote: "😀" }] }, { text: "Control example.", citations: [{ source: 0, start: 6, end: 8, quote: text.slice(6, 8) }] }], gaps: [] }],
     origin: { type: "caller-authored" }, limits: [],
   };
@@ -98,6 +138,9 @@ test("offline validation uses UTF-16 boundaries and exports control characters v
   assert.match(markdown, /\\u001b/);
   assert.match(markdown, /\\u202e/);
   assert.match(markdown, /``https:\/\/example\.org\/a`b``/);
+  assert.match(markdown, /Caller omission\/qualification: PRIOR SYNTHESIS ONLY; not primary evidence/);
+  assert.ok(markdown.includes(draft.sources[0].sha256));
+  assert.doesNotMatch(markdown, /<img|\[click\]\(javascript:evil\)/);
   assert.doesNotMatch(markdown, /\u001b|\u202e/);
   assert.equal(JSON.parse(renderOutline(draft, { format: "json" })).sources[0].text, text);
 });
@@ -114,6 +157,13 @@ test("outline CLI exports JSON and formats drafts without another model session"
     assert.equal(created.code, 0);
     const result = JSON.parse(created.stdout);
     await writeFile(draftFile, JSON.stringify(result.draft));
+    const directEdit = structuredClone(result.draft);
+    directEdit.sections[0].points[0].text = "An unmarked direct edit.";
+    const editedFile = join(fixture.root, "edited-draft.json");
+    await writeFile(editedFile, JSON.stringify(directEdit));
+    const refusedEdit = await cli("--outline-input", editedFile);
+    assert.equal(refusedEdit.code, 1);
+    assert.match(refusedEdit.stderr, /generated content does not match its receipt/);
     const formatted = await cli("--outline-input", draftFile);
     assert.equal(formatted.code, 0);
     assert.match(formatted.stdout, /## Costs/);

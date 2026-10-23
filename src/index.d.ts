@@ -455,7 +455,7 @@ export interface ResearchOutline {
   topic: string;
   sources: (FrozenSource & { sha256: string })[];
   sections: OutlineSection[];
-  origin: { type: "model-generated" | "user-modified" | "caller-authored"; model?: string; receipt?: { mode: "frozen"; profile: keyof typeof profiles; model: string; effort: string; nativeSessions: 1 } };
+  origin: { type: "model-generated" | "user-modified" | "caller-authored"; model?: string; receipt?: { mode: "frozen"; profile: keyof typeof profiles; model: string; effort: string; nativeSessions: 1; contentSha256: string } };
   limits: string[];
 }
 /** Validates closed shapes, exact source digests, and UTF-16 quote spans without judging entailment. */

@@ -208,11 +208,15 @@ node bin/research-ai.mjs --outline-input draft.json --outline-format markdown
 ```
 
 `validateOutline` checks the closed draft shape, source digests and UTF-16 quote
-bindings. `reviseOutline` applies topic or section edits and marks the result
-user-modified. `renderOutline` validates before exporting Markdown or JSON;
-source URIs are displayed as text, never turned into links. The formatting CLI
-path opens only the explicit draft file and makes no model call. Drafts are
-ephemeral unless a consumer chooses to keep them. This adapts STORM's
+bindings. Generated drafts also carry a digest over their topic, sources and
+sections; it detects edits, but does not authenticate who created a file.
+Markdown identifies generated origin as caller-declared and unverified. Use
+`reviseOutline` to apply topic or section edits and mark the result
+user-modified. `renderOutline` validates before exporting Markdown or JSON and
+includes each source digest and caller omission/qualification note. Source URIs
+are displayed as text, never turned into links. The formatting CLI path opens
+only the explicit draft file and makes no model call. Drafts are ephemeral
+unless a consumer chooses to keep them. This adapts STORM's
 curated-conversation outline refinement to frozen caller text and user edits;
 it omits STORM's unconstrained parametric draft and Wikipedia fetching. See
 [notices](THIRD-PARTY-NOTICES.md).
