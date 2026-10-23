@@ -77,11 +77,46 @@ test('append-only expansion keeps unchanged branch findings compatible',async()=
 test('source context edits make previous findings historical',async()=>{
   const fixture=await fakeCodex({sessions:[event({findings:['SOURCE-CONTEXT-ONLY'],gaps:[],sources:[{uri:'https://example.org/old'}],answer:'Old source answer.'}),event({report:'No current-source findings.'})]});
   try {
-    const start=createInvestigation('Topic',{questions:[{id:'q1',parentId:null,question:'Question A?'}]});
+    const source={uri:'https://example.org/old',text:'Same capture bytes'};
+    const start=createInvestigation('Topic',{questions:[{id:'q1',parentId:null,question:'Question A?'}],sources:[source]});
     const answered=await advanceInvestigation(start,{action:'investigate',branchIds:['q1'],lease:fixture.lease});
-    const revised=reviseInvestigation(answered,{sources:[{uri:'https://example.org/new',text:'New capture'}]});
+    const revised=reviseInvestigation(answered,{sources:[{...source,omissions:['Key contrary results omitted']}]});
     const report=await advanceInvestigation(revised,{action:'synthesize',lease:fixture.lease});
     assert.doesNotMatch((await fixture.record()).prompt,/SOURCE-CONTEXT-ONLY/);
     assert.match(renderInvestigation(report),/Historical attempts \(excluded from this report\)/);
+  } finally { await fixture.cleanup(); }
+});
+
+test('malformed branch findings and over-depth expansion keep failed native receipts',async()=>{
+  let fixture=await fakeCodex(event({findings:[123],gaps:[],sources:[],answer:'answer'}));
+  try {
+    const out=await advanceInvestigation(createInvestigation('Topic',{questions:[{id:'q1',parentId:null,question:'Q?'}]}),{action:'investigate',branchIds:['q1'],lease:fixture.lease});
+    assert.equal(out.history.at(-1).status,'failed');
+    assert.equal(out.history.at(-1).reason,'invalid_investigation_output');
+    assert.ok(out.history.at(-1).receipt);
+    assert.equal(out.used.calls,1);
+  } finally { await fixture.cleanup(); }
+  fixture=await fakeCodex(event({questions:[{parentId:'q4',question:'Too deep?'}]}));
+  try {
+    const questions=[{id:'q1',parentId:null,question:'1?'},{id:'q2',parentId:'q1',question:'2?'},{id:'q3',parentId:'q2',question:'3?'},{id:'q4',parentId:'q3',question:'4?'}];
+    const out=await advanceInvestigation(createInvestigation('Topic',{questions}),{action:'expand',lease:fixture.lease});
+    assert.equal(out.questions.length,4);
+    assert.equal(out.history.at(-1).status,'failed');
+    assert.equal(out.history.at(-1).reason,'invalid_investigation_output');
+    assert.ok(out.history.at(-1).receipt);
+  } finally { await fixture.cleanup(); }
+});
+
+test('restored uncertain cleanup blocks later explicit native dispatches',async()=>{
+  const fixture=await fakeCodex({sessions:[event({findings:['finding'],gaps:[],sources:[],answer:'answer'}),event({findings:['should not run'],gaps:[],sources:[],answer:'answer'})]});
+  try {
+    const initial=createInvestigation('Topic',{questions:[{id:'q1',parentId:null,question:'Q?'}]});
+    const first=await advanceInvestigation(initial,{action:'investigate',branchIds:['q1'],lease:fixture.lease});
+    first.history[0].receipt.cleanup={complete:false,error:'process_group_cleanup_failed'};
+    first.history[0].status='failed'; first.history[0].reason='process_group_cleanup_failed';
+    const resumed=await advanceInvestigation(validateInvestigation(first),{action:'investigate',branchIds:['q1'],lease:`${fixture.lease}-other`});
+    assert.equal(resumed.history.at(-1).status,'not_run');
+    assert.equal(resumed.history.at(-1).reason,'prior_cleanup_unconfirmed');
+    assert.equal((await fixture.probes()).filter(args=>args[0]==='exec').length,1);
   } finally { await fixture.cleanup(); }
 });

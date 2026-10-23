@@ -319,7 +319,10 @@ managed redirection: `--investigation-create`, `--investigation-input`,
 explicit action performs readiness checks and sends supplied scope/source
 content to the selected provider. State files are regular UTF-8 JSON files up
 to 1 MiB. The API refuses state/history beyond its caps (32 questions, depth 4,
-64 attempts) rather than trimming caller data.
+64 attempts) rather than trimming caller data. Append-only expansion can reuse
+an unchanged branch only while its exact question and full topic, scope, budget,
+and frozen source capture/qualification context still match. Changed questions
+or source notes remain historical and stay out of the next synthesis.
 
 The question-frontier, continuation from retained findings/gaps, explicit
 clarification and cited synthesis adapt methods in dzhng/deep-research. The
