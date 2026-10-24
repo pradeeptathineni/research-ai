@@ -122,7 +122,78 @@ export interface SessionOptions {
   onCheckpoint?: ((readable: Readable) => void) | undefined;
   /** Runs synchronously after preparation, immediately before the native process starts. */
   beforeSpawn?: (() => void) | undefined;
+  /** Synchronous research-activity-v1 observation after spawn; failure stops with activity_callback_failed. */
+  activity?: ((event: ResearchActivity) => void) | undefined;
 }
+
+export type ResearchActivityKind =
+  | "session.started" | "thread.started" | "turn.started" | "web.started" | "web.completed"
+  | "checkpoint" | "runner.error" | "turn.completed" | "turn.failed" | "protocol.failed"
+  | "session.stopped" | "activity.limited" | "session.settled";
+
+/** Closed details; no provider objects, prompts, reasoning, message/schema text, queries or diagnostics. */
+export interface ResearchActivityDetails {
+  "session.started": { mode: "live" | "frozen" };
+  "thread.started": Record<string, never>;
+  "turn.started": Record<string, never>;
+  /** One native web item started; `call` is the 1-based tool-call count. */
+  "web.started": { call: number };
+  /**
+   * Native report of a completed web item, not proof of access, source truth or entailment.
+   * `url` is the exact native string, only for http(s) without credentials, query or fragment.
+   */
+  "web.completed": {
+    action: "search" | "open_page" | "find_in_page" | "other" | "unrecognized" | "absent";
+    url: string | null;
+    urlStatus: "reported" | "absent" | "withheld";
+    searches: number;
+    reads: number;
+    unclassified: number;
+  };
+  /** Bounded readable buffer metadata; the note itself goes to `onCheckpoint`. */
+  "checkpoint": { notes: number; units: number; bytes: number; omitted: boolean };
+  "runner.error": Record<string, never>;
+  /** A native terminal was reported; completion is judged only at settlement. */
+  "turn.completed": Record<string, never>;
+  "turn.failed": Record<string, never>;
+  /** First sticky protocol failure. */
+  "protocol.failed": { reason: string };
+  /** First host stop trigger, e.g. action_limit, forbidden_runner_tool or request_aborted. */
+  "session.stopped": { trigger: string };
+  /** Delivery limit reached; later non-settlement observations are dropped and counted. */
+  "activity.limited": { limit: number };
+  /** Last event, after terminal, protocol and cleanup evidence; `completed` equals sessionCompleted. */
+  "session.settled": {
+    /** Native process diagnostics are replaced by native_process_error. */
+    completed: boolean; failureReason: string | null; cleanup: boolean;
+    delivered: number; omitted: number;
+  };
+}
+
+/** Ephemeral observation only: not a store, resume cursor, task record or permission. */
+export type ResearchActivity = {
+  [K in ResearchActivityKind]: {
+    version: "research-activity-v1";
+    /** Per-session, 1-based and increasing by one per delivered event. */
+    sequence: number;
+    /** Host ISO time of the observation. */
+    observedAt: string;
+    kind: K;
+    detail: Readonly<ResearchActivityDetails[K]>;
+  };
+}[ResearchActivityKind];
+
+export const researchActivity: Readonly<{
+  version: "research-activity-v1";
+  /** Maximum delivered events before `activity.limited`; settlement is always delivered. */
+  limit: 512;
+  kinds: readonly ResearchActivityKind[];
+  /** Facts this producer never reports, so consumers can show missing visibility honestly. */
+  unsupported: readonly (
+    | "fetch_status" | "http_status" | "source_verification" | "search_query" | "page_content"
+    | "partial_answer_text" | "reasoning" | "non_web_items"
+  )[];
+}>;
 
 /** Explicit terminal counts and sticky protocol failure; stderr alone is diagnostic.
  * Known thread/turn/item activity after a terminal invalidates completion.
@@ -262,6 +333,8 @@ export interface ResearchOptions {
   signal?: AbortSignal | undefined;
   progress?: ((event: string) => void) | undefined;
   onCheckpoint?: ((readable: Readable) => void) | undefined;
+  /** As in SessionOptions; the result and answer meanings are unchanged. */
+  activity?: ((event: ResearchActivity) => void) | undefined;
   /** Lease directory; defaults to a per-user path under the temporary directory. */
   lease?: string | undefined;
 }
@@ -448,6 +521,49 @@ export function perspectiveResearch(
 ): Promise<PerspectiveResult>;
 
 export interface OutlineCitation { source: number; start: number; end: number; quote: string }
+export type MindMapRelation = "elaborates" | "qualifies" | "contrasts";
+export interface MindMapCitation { source: number; start: number; end: number; quote: string }
+export interface MindMapNode {
+  id: string; label: string; relation: MindMapRelation | null;
+  citations: MindMapCitation[]; gap: string | null; children: MindMapNode[];
+}
+export interface ResearchMindMap {
+  version: "research-mindmap-v1"; question: string;
+  sources: (FrozenSource & { sha256: string })[]; root: MindMapNode;
+  origin: { type: "caller-authored" | "model-generated" | "user-modified"; model?: string;
+    receipt?: { mode: "frozen"; profile: Profile; model: string; effort: string; nativeSessions: 1; contentSha256: string } };
+  limits: string[];
+}
+export interface MindMapTreeNode extends Omit<MindMapNode, "children"> {
+  parentId: string | null; level: number; position: number; setSize: number;
+  path: string[]; childIds: string[]; accessibleName: string;
+}
+/** View projection only: retain the document, which also contains exact source text. */
+export interface MindMapTree {
+  version: "research-mindmap-tree-v1"; question: string; contentSha256: string;
+  origin: ResearchMindMap["origin"]; rootId: string; nodes: MindMapTreeNode[];
+  sources: (FrozenSourceReceipt & { index: number; utf16Length: number })[]; limits: string[];
+}
+export interface MindMapEdit {
+  question?: string; root?: MindMapNode;
+  nodes?: ({ id: string } & Partial<Pick<MindMapNode, "label" | "relation" | "citations" | "gap">>)[];
+}
+export const mindMapLimits: Readonly<{ depth: 6; nodes: 60; children: 8; label: 120; gap: 300; citations: 4; quote: 4000; limits: 12; bytes: 1048576 }>;
+/** Creates an explanatory hierarchy offline; custom limitations supplement the standard three. */
+export function createMindMap(question: string, input: { sources: FrozenSource[]; root: MindMapNode; limits?: string[] }): ResearchMindMap;
+/** Replays closed shapes, source hashes and exact UTF-16 spans; does not judge entailment. */
+export function validateMindMap(value: unknown): ResearchMindMap;
+/** Content edits retain the original generation binding and mark the document user-modified. */
+export function reviseMindMap(value: ResearchMindMap, edits?: MindMapEdit): ResearchMindMap;
+/** JSON is reopenable; tree is an accessible view projection; Markdown escapes untrusted text. */
+export function renderMindMap(value: ResearchMindMap, options?: { format?: "markdown" | "json" | "tree" }): string;
+/** Explicit frozen native draft; only a fully completed, cleaned-up session can return a map. */
+export function mindMapResearch(question: string, options: {
+  sources: FrozenSource[]; profile?: Profile; lease?: string; model?: string; effort?: string;
+  signal?: AbortSignal; progress?: (event: string) => void; activity?: (event: ResearchActivity) => void;
+}): Promise<{ status: "complete" | "failed" | "cancelled"; map: ResearchMindMap | null;
+  receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string; reason?: string } }>;
+
 export interface OutlinePoint { text: string; citations: OutlineCitation[] }
 export interface OutlineSection { id: string; title: string; points: OutlinePoint[]; gaps: string[] }
 export interface ResearchOutline {
@@ -521,6 +637,8 @@ export interface ResearchReport {
 }
 /** Converts an outline or evidence table into a report without inference or loss. */
 export function createReport(input: ResearchOutline | ResearchEvidenceTable): ResearchReport;
+/** Validates current report content and returns self-contained, offline HTML, capped at 8 MiB. */
+export function exportReportHtml(report: ResearchReport): string;
 /** Rechecks the basis, bounded version history, accounting and exact source spans. */
 export function validateReport(value: unknown): ResearchReport;
 /** Appends a user-authored paragraph/gap version and keeps prior section versions. */

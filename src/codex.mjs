@@ -204,6 +204,42 @@ function syncCallback(callback, value) {
   return result;
 }
 
+/**
+ * research-activity-v1: ephemeral typed observations of one session. Each kind carries a
+ * closed `detail`; provider event objects, prompts, reasoning, message/schema text, queries,
+ * find patterns and diagnostics never pass through. Web completion is a native report, not
+ * proof of access, source truth or entailment.
+ */
+export const researchActivity = Object.freeze({
+  version: 'research-activity-v1',
+  limit: 512,
+  kinds: Object.freeze([
+    'session.started', 'thread.started', 'turn.started', 'web.started', 'web.completed',
+    'checkpoint', 'runner.error', 'turn.completed', 'turn.failed', 'protocol.failed',
+    'session.stopped', 'activity.limited', 'session.settled',
+  ]),
+  unsupported: Object.freeze([
+    'fetch_status', 'http_status', 'source_verification', 'search_query', 'page_content',
+    'partial_answer_text', 'reasoning', 'non_web_items',
+  ]),
+});
+const webActions = new Set(['search', 'open_page', 'find_in_page', 'other']);
+
+// Reported exactly or withheld; a URL is never rewritten into a different display identity.
+function displayUrl(value) {
+  if (value === undefined) return { url: null, urlStatus: 'absent' };
+  if (typeof value !== 'string' || value.length > 2000 ||
+      !/^https?:\/\/[\x21-\x7e]+$/i.test(value) || /[?#]/.test(value))
+    return { url: null, urlStatus: 'withheld' };
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || !url.hostname) return { url: null, urlStatus: 'withheld' };
+  } catch {
+    return { url: null, urlStatus: 'withheld' };
+  }
+  return { url: value, urlStatus: 'reported' };
+}
+
 function validateSession(options) {
   if (
     !options ||
@@ -235,7 +271,7 @@ function validateSession(options) {
         options.initialSearches > budget.searches))
   )
     throw new TypeError('invalid_session_limit');
-  for (const key of ['progress', 'readNote', 'onCheckpoint', 'beforeSpawn'])
+  for (const key of ['progress', 'readNote', 'onCheckpoint', 'beforeSpawn', 'activity'])
     if (options[key] !== undefined && typeof options[key] !== 'function')
       throw new TypeError('invalid_session_callback');
   if (options.signal.aborted)
@@ -330,6 +366,7 @@ async function runSession(lease, directory, options) {
     readNote = defaultNote,
     onCheckpoint,
     beforeSpawn,
+    activity,
   } = options;
   const schemaPath =
     outputSchema === undefined ? undefined : join(directory, 'proposal.schema.json');
@@ -383,8 +420,34 @@ async function runSession(lease, directory, options) {
     const wireDigest = maxResponseBytes ? createHash('sha256') : undefined;
     const decoder = new StringDecoder('utf8');
     const utf8 = new TextDecoder('utf-8', { fatal: true });
+    // Activity is observation only: delivery failure stops the session like other callbacks.
+    let sequence = 0, omittedActivity = 0, activityLost = false;
+    const deliver = (kind, detail) => {
+      const event = Object.freeze({ version: researchActivity.version, sequence: ++sequence,
+        observedAt: new Date().toISOString(), kind, detail: Object.freeze(detail) });
+      try {
+        syncCallback(activity, event);
+        return true;
+      } catch {
+        activityLost = true;
+        return false;
+      }
+    };
+    const observe = (kind, detail = {}) => {
+      if (!activity || activityLost || finishing || settled) return;
+      if (sequence >= researchActivity.limit) {
+        if (!omittedActivity++ && !deliver('activity.limited', { limit: researchActivity.limit }))
+          stop('activity_callback_failed');
+        return;
+      }
+      if (!deliver(kind, detail)) stop('activity_callback_failed');
+    };
     const terminal = { completed: 0, failed: 0, protocolFailure: null };
-    const protocolFailure = (reason) => { terminal.protocolFailure ??= reason; };
+    const protocolFailure = (reason) => {
+      if (terminal.protocolFailure !== null) return;
+      terminal.protocolFailure = reason;
+      observe('protocol.failed', { reason });
+    };
     const termination = { exitCode: null, signal: null, trigger: null };
     let cleanup = { complete: false, error: null }, cleanupTask, startError;
     const outcome = (error) => ({
@@ -421,7 +484,17 @@ async function runSession(lease, directory, options) {
     const settle = (error) => {
       if (settled) return;
       settled = true;
-      resolve(outcome(error));
+      let result = outcome(error);
+      // Settlement is reported only after terminal, protocol and cleanup evidence is final.
+      if (child.pid && activity && !activityLost && !deliver('session.settled', {
+        completed: sessionCompleted(result),
+        failureReason: startError === undefined ? result.failureReason : 'native_process_error',
+        cleanup: result.cleanup.complete, delivered: sequence, omitted: omittedActivity,
+      })) {
+        termination.trigger ??= 'activity_callback_failed';
+        result = outcome(error);
+      }
+      resolve(result);
     };
     const finish = async () => {
       if (finishing || settled) return;
@@ -451,7 +524,10 @@ async function runSession(lease, directory, options) {
     };
     const stop = (trigger = 'runner_guard') => {
       if (finishing || settled) return;
-      termination.trigger ??= trigger;
+      if (termination.trigger === null) {
+        termination.trigger = trigger;
+        observe('session.stopped', { trigger });
+      }
       if (!cleanup.complete) beginCleanup();
     };
     const owner = { pid: process.pid, childPid: child.pid,
@@ -463,6 +539,7 @@ async function runSession(lease, directory, options) {
     }) : Promise.resolve();
     const timer = setTimeout(() => stop('native_deadline'), budget.seconds * 1000);
     const abort = () => stop('request_aborted');
+    if (child.pid) observe('session.started', { mode: live ? 'live' : 'frozen' });
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) stop('request_aborted');
     const consumeLine = (line) => {
@@ -479,14 +556,22 @@ async function runSession(lease, directory, options) {
         if (itemLifecycle &&
             (!event.item || typeof event.item !== 'object' || Array.isArray(event.item) ||
              typeof event.item.type !== 'string')) throw new Error('invalid item');
+        if (event.type === 'thread.started' || event.type === 'turn.started') observe(event.type);
         if (event.type === 'turn.completed') {
           terminal.completed++;
+          observe('turn.completed');
           if (event.error !== undefined || (event.usage !== undefined &&
               (!event.usage || typeof event.usage !== 'object' || Array.isArray(event.usage))))
             protocolFailure('invalid_runner_terminal');
         }
-        if (event.type === 'turn.failed') terminal.failed++;
-        if (event.type === 'error') protocolFailure('runner_protocol_error');
+        if (event.type === 'turn.failed') {
+          terminal.failed++;
+          observe('turn.failed');
+        }
+        if (event.type === 'error') {
+          observe('runner.error');
+          protocolFailure('runner_protocol_error');
+        }
         if (event.type === 'error' || event.type === 'turn.failed')
           diagnostic = typeof event.message === 'string' ? event.message.slice(0, 1000) :
             typeof event.error?.message === 'string' ? event.error.message.slice(0, 1000) : 'runner_error';
@@ -498,6 +583,7 @@ async function runSession(lease, directory, options) {
           }
           if (event.type === 'item.started') {
             toolCalls++;
+            observe('web.started', { call: toolCalls });
             try {
               syncCallback(progress, `Web action ${toolCalls}; search/read limits ${budget.searches}/${budget.documents}`);
             } catch {
@@ -509,6 +595,11 @@ async function runSession(lease, directory, options) {
             if (event.item.action?.type === 'search') searches++;
             else if (event.item.action?.type) reads++;
             else unclassifiedToolCalls++;
+            const type = event.item.action?.type;
+            observe('web.completed', {
+              action: typeof type !== 'string' ? 'absent' : webActions.has(type) ? type : 'unrecognized',
+              ...displayUrl(event.item.action?.url), searches, reads, unclassified: unclassifiedToolCalls,
+            });
             if (searches > budget.searches || reads > budget.documents) stop('action_limit');
           }
         }
@@ -561,6 +652,8 @@ async function runSession(lease, directory, options) {
                 if (end > 0 && /[\uD800-\uDBFF]/u.test(retained[end - 1])) end--;
                 readable = { format: 'markdown', text: retained.slice(0, end) + omission };
               }
+              observe('checkpoint', { notes: notes.length, units: readable.text.length,
+                bytes: Buffer.byteLength(readable.text), omitted: notesOmitted });
               try {
                 syncCallback(onCheckpoint, readable);
               } catch {

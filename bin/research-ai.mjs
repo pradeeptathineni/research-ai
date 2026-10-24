@@ -10,6 +10,7 @@ import {
   perspectiveResearch,
   outlineResearch,
   renderOutline,
+  createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch,
   createEvidenceTable, reviseEvidenceTable, validateEvidenceTable, renderEvidenceTable, evidenceTableResearch,
   createReport, validateReport, reviseReport, draftReportSection, renderReport,
   createInvestigation, reviseInvestigation, advanceInvestigation, validateInvestigation, renderInvestigation,
@@ -86,6 +87,12 @@ Options:
   --max-sections N       outline section limit, 1-8 (default 6)
   --outline-input FILE   validate and format an existing outline draft without a session
   --outline-format FMT   markdown|json (default markdown)
+  --mindmap-create       with --sources and --mindmap-root, create a map offline
+  --mindmap-root FILE    closed root node JSON for --mindmap-create
+  --mindmap-input FILE   validate/reopen a saved research-mindmap-v1 document
+  --mindmap-edit FILE    question/root/nodes JSON edits for --mindmap-input
+  --mindmap-format FMT   markdown|json|tree (default json); tree is a view projection
+  --mindmap-draft        with --sources, explicitly draft in one frozen native session
   --evidence-create      with --sources and --columns, create an empty table offline
   --evidence-columns FILE JSON array of {id,title,question} columns (1-8)
   --evidence-input FILE  validate, optionally edit and export a saved evidence table
@@ -100,6 +107,8 @@ Options:
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installation/auth/profile observations without inference
+  --activity-jsonl       ordinary research only: write research-activity-v1 JSON lines to
+                         stderr instead of progress text; stdout and the receipt are unchanged
   -h, --help             show this help
 
 Exit codes: 0 complete, 2 partial answer, 1 failure or usage error.
@@ -128,6 +137,12 @@ async function main() {
         "max-sections": { type: "string" },
         "outline-input": { type: "string" },
         "outline-format": { type: "string" },
+        "mindmap-create": { type: "boolean" },
+        "mindmap-root": { type: "string" },
+        "mindmap-input": { type: "string" },
+        "mindmap-edit": { type: "string" },
+        "mindmap-format": { type: "string" },
+        "mindmap-draft": { type: "boolean" },
         "evidence-create": { type: "boolean" },
         "evidence-draft": { type: "boolean" },
         "evidence-input": { type: "string" },
@@ -142,6 +157,7 @@ async function main() {
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
+        "activity-jsonl": { type: "boolean" },
         "investigation-create": { type: "boolean" },
         "investigation-input": { type: "string" },
         "investigation-edit": { type: "string" },
@@ -160,6 +176,47 @@ async function main() {
   if (values.help) {
     process.stdout.write(`${usage}\n`);
     return 0;
+  }
+  const activityJsonl = values["activity-jsonl"] === true;
+  if (activityJsonl && Object.keys(values).some((key) => !["activity-jsonl", "profile", "context", "sources", "model", "effort"].includes(key)))
+    return fail("--activity-jsonl applies only to ordinary research");
+  if (Object.keys(values).some((key) => key.startsWith("mindmap-"))) {
+    const creating = values["mindmap-create"] === true;
+    const drafting = values["mindmap-draft"] === true;
+    const reopening = values["mindmap-input"] !== undefined;
+    const allowed = ["mindmap-create", "mindmap-root", "mindmap-input", "mindmap-edit", "mindmap-format", "mindmap-draft", "sources", "profile", "model", "effort"];
+    if (Object.keys(values).some((key) => !allowed.includes(key)) || Number(creating) + Number(drafting) + Number(reopening) !== 1 ||
+        (!drafting && (values.model !== undefined || values.effort !== undefined || values.profile !== undefined)) ||
+        (reopening && (positionals.length || values.sources !== undefined || values["mindmap-root"] !== undefined)) ||
+        (!reopening && (!positionals.length || values.sources === undefined || values["mindmap-edit"] !== undefined)) ||
+        (creating !== (values["mindmap-root"] !== undefined)) ||
+        (drafting && values["mindmap-format"] !== undefined)) return fail("invalid or mixed mind-map options");
+    const format = values["mindmap-format"] ?? "json";
+    if (!["markdown", "json", "tree"].includes(format)) return fail("--mindmap-format must be markdown, json or tree");
+    try {
+      if (reopening) {
+        let map = validateMindMap(await readInvestigationFile(values["mindmap-input"]));
+        if (values["mindmap-edit"] !== undefined) map = reviseMindMap(map, await readInvestigationFile(values["mindmap-edit"]));
+        process.stdout.write(renderMindMap(map, { format }));
+        return 0;
+      }
+      const question = positionals.join(" ").trim();
+      const sources = await readSourcesFile(values.sources);
+      if (creating) {
+        const root = await readInvestigationFile(values["mindmap-root"]);
+        process.stdout.write(renderMindMap(createMindMap(question, { sources, root }), { format }));
+        return 0;
+      }
+      if (values.profile !== undefined && !Object.hasOwn(profiles, values.profile)) return fail("unknown profile");
+      const ready = await codexReadiness();
+      if (!ready.available) return fail(`research-ai: ${ready.error}: ${ready.remedy}`);
+      const controller = new AbortController();
+      process.once("SIGINT", () => controller.abort());
+      const result = await mindMapResearch(question, { sources, profile: values.profile, model: values.model, effort: values.effort,
+        signal: controller.signal, progress: (event) => process.stderr.write(`${event}\n`) });
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return result.status === "complete" ? 0 : result.status === "cancelled" ? 2 : 1;
+    } catch (failure) { return fail(`research-ai: ${failure.message}`); }
   }
   const reportMode = values["report-create"] || values["report-input"] !== undefined || values["report-draft"] !== undefined || values["report-edit"] !== undefined || values["report-format"] !== undefined;
   if (reportMode) {
@@ -368,7 +425,10 @@ async function main() {
       model: values.model,
       effort: values.effort,
       signal: controller.signal,
-      progress: (event) => process.stderr.write(`${event}\n`),
+      // Opt-in keeps stderr line-structured: activity records, then the existing receipt.
+      ...(activityJsonl
+        ? { activity: (event) => { process.stderr.write(`${JSON.stringify(event)}\n`); } }
+        : { progress: (event) => process.stderr.write(`${event}\n`) }),
     });
     if (values.grounded) process.stdout.write(`${JSON.stringify(result)}\n`);
     else if (result.answer) process.stdout.write(`${result.answer}\n`);

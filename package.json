@@ -12,7 +12,8 @@
     "node": ">=24.19.0 <25"
   },
   "bin": {
-    "research-ai": "bin/research-ai.mjs"
+    "research-ai": "bin/research-ai.mjs",
+    "research-report-export": "bin/research-report-export.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -28,7 +29,9 @@
     "THIRD-PARTY-NOTICES.md",
     "README.md",
     "ARCHITECTURE.md",
-    "docs/compatibility.md"
+    "docs/compatibility.md",
+    "docs/SurfSense-LICENSE.txt",
+    "docs/report-export.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

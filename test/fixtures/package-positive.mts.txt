@@ -1,5 +1,5 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport } from '@pradeeptathineni/research-ai';
-import type { ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
+import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };
@@ -22,6 +22,30 @@ async function consumer() {
   return [ready.available, sessionCompleted(outcome), direct.cleanup.complete, research.receipt.cleanup.error];
 }
 void consumer;
+import { createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch, mindMapLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchMindMap, MindMapNode, MindMapCitation, MindMapRelation, MindMapEdit, MindMapTree, MindMapTreeNode } from '@pradeeptathineni/research-ai';
+const relation: MindMapRelation = 'qualifies';
+const citation: MindMapCitation = { source: 0, start: 0, end: 13, quote: 'Captured text' };
+const mapRoot: MindMapNode = { id: 'root', label: 'Question', relation: null, citations: [], gap: null, children: [
+  { id: 'child', label: 'Captured', relation, citations: [citation], gap: null, children: [] },
+] };
+const mindMap: ResearchMindMap = createMindMap('Question', { sources, root: mapRoot });
+const mapEdit: MindMapEdit = { nodes: [{ id: 'child', label: 'A capture' }] };
+const editedMap = reviseMindMap(validateMindMap(mindMap), mapEdit);
+const mapTree: MindMapTree = JSON.parse(renderMindMap(editedMap, { format: 'tree' }));
+const mapTreeNode: MindMapTreeNode = mapTree.nodes[0]!;
+void [mapTreeNode.accessibleName, mindMapLimits.nodes];
+void mindMapResearch('Question', { sources, activity: event => { const sequence: number = event.sequence; void sequence; } });
+// @ts-expect-error unsupported relation
+const badMapRelation: MindMapRelation = 'causes';
+// @ts-expect-error renderer accepts only the three documented formats
+renderMindMap(mindMap, { format: 'html' });
+void badMapRelation;
+import { exportReportHtml } from '@pradeeptathineni/research-ai';
+const portableHtml: string = exportReportHtml(createReport(createEvidenceTable('Retention', { sources, columns: [{ id: 'retention', title: 'Retention', question: 'How long?' }] })));
+void portableHtml;
+// @ts-expect-error a mind map is not report authoring state
+exportReportHtml(mindMap);
 const lenses = chooseLenses(sources, [perspectiveCandidates(sources)[0]?.id ?? basicFacts.id, { label: 'Renter', focus: 'Costs without building changes' }]);
 async function perspectives(): Promise<PerspectiveResult['status']> {
   const viewed = await perspectiveResearch('Topic', { sources, perspectives: 'auto', questions: 2, onLens: ({ id, state }) => void [id, state] });
@@ -43,3 +67,8 @@ const report: ResearchReport = createReport(editedTable);
 const reviewed: ResearchReport = reviseReport(validateReport(report), { sectionId: 'retention', paragraphs: [{ text: 'Captured retention.', citations: [{ source: 0, start: 0, end: 6, quote: 'Naïve ' }] }] });
 const paragraph: ReportParagraph = reviewed.sections[0].versions[0].paragraphs[0];
 void [draftReportSection, renderReport(reviewed), paragraph];
+const onActivity = (event: ResearchActivity): void => {
+  if (event.kind === 'web.completed') { const url: string | null = event.detail.url; void [url, event.detail.urlStatus]; }
+  if (event.kind === 'session.settled') { const done: boolean = event.detail.completed; void [done, event.sequence, event.observedAt]; }
+};
+void [researchQuestion('Typed activity', { activity: onActivity }), researchActivity.kinds, researchActivity.version];

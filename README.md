@@ -59,6 +59,35 @@ const { status, answer, receipt } = await researchQuestion("question", {
 });
 ```
 
+### Live activity (`research-activity-v1`)
+
+`activity(event)` on `researchQuestion` or `workspace.run` receives typed,
+synchronous observations while a session runs: `version`, a per-session
+`sequence` starting at 1, ISO `observedAt`, `kind` and a closed `detail`.
+`researchActivity.kinds` lists the supported kinds; `researchActivity.unsupported`
+lists facts never reported (fetch/HTTP status, verification, queries, page
+content, partial answer text, reasoning, non-web items).
+
+- Native: `thread.started`, `turn.started`, `web.started`, `web.completed`
+  (action type, counts and a `url` only when the native report has an http(s)
+  URL with no credentials, query or fragment; otherwise `url: null` with
+  `urlStatus` `absent` or `withheld`), `runner.error`, `turn.completed`, `turn.failed`.
+- Host: `session.started`, `checkpoint` (note count, UTF-16 units, bytes,
+  omission flag; the note itself still goes to `onCheckpoint`), `protocol.failed`,
+  `session.stopped` (first trigger), `activity.limited` and `session.settled`.
+  `session.settled` comes last, after terminal/protocol/cleanup checks, and its
+  `completed` equals `sessionCompleted(outcome)`.
+- At most 512 events are delivered before `activity.limited`; later ones are
+  dropped and counted in `session.settled.omitted`.
+- A web completion is a native report, not proof of access, source truth or
+  entailment. Events are ephemeral: no store, resume cursor or permission.
+- A throwing or promise-returning observer stops the session with
+  `activity_callback_failed`, like the other callbacks; it is not called again.
+
+`--activity-jsonl` (ordinary research only) writes these events to stderr as
+JSON lines instead of progress text. The last stderr line is the usual receipt.
+Stdout and exit codes are unchanged.
+
 ### Readiness observations
 
 `codexReadiness()` and `--readiness` return additive schema version 1. Existing
@@ -221,6 +250,56 @@ curated-conversation outline refinement to frozen caller text and user edits;
 it omits STORM's unconstrained parametric draft and Wikipedia fetching. See
 [notices](THIRD-PARTY-NOTICES.md).
 
+### Evidence-linked mind maps
+
+`createMindMap(question, { sources, root })` creates an explanatory concept
+hierarchy from exact retained captures. Each descendant has cited UTF-16 spans
+or an explicit knowledge gap; `elaborates`, `qualifies` and `contrasts` describe
+its relationship to its parent. This explains concepts and tradeoffs, while
+outlines arrange reading order and investigations track questions/actions.
+
+```sh
+node bin/research-ai.mjs --mindmap-create --sources captures.json --mindmap-root root.json 'Where does search run?' > map.json
+node bin/research-ai.mjs --mindmap-input map.json --mindmap-edit edits.json > edited.json
+node bin/research-ai.mjs --mindmap-input edited.json --mindmap-format markdown
+node bin/research-ai.mjs --mindmap-input edited.json --mindmap-format tree
+node bin/research-ai.mjs --mindmap-draft --sources captures.json 'Where does search run?' > result.json
+```
+
+`root.json` is a node with exactly `{id,label,relation,citations,gap,children}`:
+root relation is null; other relations are `elaborates|qualifies|contrasts`.
+For example, a child can be
+`{"id":"local","label":"Files remain on device","relation":"elaborates","citations":[{"source":0,"start":0,"end":37,"quote":"Local search retains files on device."}],"gap":null,"children":[]}`.
+A gap child instead has `citations:[]` and a nonempty `gap`. Root needs a child.
+Each citation uses a zero-based source index and half-open UTF-16 offsets.
+`edits.json` accepts `{question?,root?,nodes?:[{id,label?,relation?,citations?,gap?}]}`.
+
+`validateMindMap` checks the complete `research-mindmap-v1` closure, including
+exact source text/hashes and caller qualifications. `reviseMindMap` marks content
+edits user-modified and retains the historical generation binding.
+`renderMindMap` exports Markdown, reopenable JSON or a `research-mindmap-tree-v1`
+view with deterministic preorder, parent/child IDs, levels, positions and
+accessible names. The view omits original source text: retain the complete
+document and select `sources[citation.source].text.slice(start,end)` when opening
+evidence. Render all labels, notes and quotes as text; do not execute arbitrary
+HTML, Markdown or Mermaid. UI collapse/pan/zoom and persistence belong to the
+consumer.
+
+Bounds are 60 nodes, depth 6 including root, 8 children/node, labels 120 UTF-16
+units, gaps 300, 4 citations/node, quotes 4000 and exported JSON <=1 MiB.
+Malformed/unknown fields, invalid spans, surrogate splits and unsafe label
+constructs refuse the whole map. Originals are never truncated or repaired.
+Mandatory limitations stay visible: matching text proves occurrence only,
+not entailment, truth, completeness, currentness or source independence.
+
+Offline creation/edit/reopen/export never calls a model. `mindMapResearch`
+explicitly drafts in one frozen schema-bound guarded session, returning
+`{status,map,receipt}`; failure/cancellation returns no map and keeps the native
+outcome. `result.map` is the document to retain. Model provenance is
+caller-declared and content-bound, not authenticated. Existing `progress` and
+`activity` synchronous callback rules apply; no schema/thinking callback is
+exposed. Tests use synthetic providers only. See [reuse notices](THIRD-PARTY-NOTICES.md).
+
 ### Comparative evidence tables
 
 `createEvidenceTable` starts a caller-owned comparison from 1–8 frozen captures
@@ -242,6 +321,13 @@ Reopening checks exact source hashes and row-local UTF-16 quote bindings. Quotes
 prove occurrence only, not entailment, currentness, independence or truth.
 
 ### Cited report authoring
+
+`exportReportHtml(report)` exports a validated report's current sections as
+self-contained offline HTML, with exact citation navigation, gaps and source
+qualifications. The installed `research-report-export --input report.json
+--output new-report.html` command creates a new file; open it in a browser and
+use Print to save a PDF. No provider call occurs. See [portable report export](docs/report-export.md)
+for input/output limits and the standalone checkout command.
 
 `createReport` accepts a cited outline or an evidence table. For a table, each
 question column becomes a report section, each cited cell becomes a point, and
@@ -338,8 +424,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and the repository's
 ## Origin
 
 Extracted from the native Codex runner in the MIT-licensed first-party Signals
-project. [LICENSE](LICENSE) keeps the original notice. No third-party code is
-included apart from the reproduced citation-support method credited above.
+project. [LICENSE](LICENSE) keeps the original notice. Adapted third-party
+portions and reproduced methods are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Guided investigations
 
@@ -375,3 +461,5 @@ or source notes remain historical and stay out of the next synthesis.
 The question-frontier, continuation from retained findings/gaps, explicit
 clarification and cited synthesis adapt methods in dzhng/deep-research. The
 package's recursive crawler, provider framework and dependencies are not used.
+
+No activity is delivered when the prepared process fails to spawn. A later native process error is labeled `native_process_error`; raw process diagnostics remain outside the activity projection.

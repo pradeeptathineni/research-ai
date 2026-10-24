@@ -58,17 +58,28 @@ if (args[0] === '--version') {
       Buffer.from(scenario.rawSuffixBase64 ?? '', 'base64'),
     ]);
     let offset = 0;
+    const finish = () => {
+      if (scenario.stderr) process.stderr.write(scenario.stderr);
+      if (scenario.hang) setInterval(() => {}, 1000);
+      else process.exitCode = scenario.exitCode ?? 0;
+    };
+    // Optional paced replay: one complete line per delay, so observers can act mid-session.
+    if (scenario.lineDelayMs) {
+      const paced = lines.slice();
+      const next = () => {
+        if (!paced.length) return finish();
+        process.stdout.write(paced.shift() + '\\n');
+        setTimeout(next, scenario.lineDelayMs);
+      };
+      return next();
+    }
     const emit = () => {
       if (offset < wire.length) {
         const end = Math.min(wire.length, offset + (scenario.chunkBytes ?? wire.length));
         process.stdout.write(wire.subarray(offset, end));
         offset = end;
         setImmediate(emit);
-      } else {
-        if (scenario.stderr) process.stderr.write(scenario.stderr);
-        if (scenario.hang) setInterval(() => {}, 1000);
-        else process.exitCode = scenario.exitCode ?? 0;
-      }
+      } else finish();
     };
     emit();
   });
