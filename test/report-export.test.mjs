@@ -44,11 +44,15 @@ test('exports validated current text with exact distinct source spans and explic
   assert.equal((html.match(/class="source" id=/g) ?? []).length, 2);
   assert.match(html, /href="#source-1"/);
   assert.match(html, /href="#source-2"/);
-  assert.match(html, /Retained quote \(UTF-16/);
+  assert.match(html, /UTF-16 span:/);
   assert.match(html, /SHA-256:/);
   assert.match(html, /capture date supplied by caller/);
   assert.match(html, /No independent audit\./);
   assert.match(html, /research-report-sha256/);
+  assert.match(html, /<details><summary>Report details/);
+  assert.equal((html.match(/<details><summary>Source details/g) ?? []).length, 2);
+  assert.match(html, /<blockquote>7 days<\/blockquote>/);
+  assert.match(html, /support and currentness are unverified/i);
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;no-run&lt;\/script&gt;/);
   assert.match(html, /&lt;img&gt;/);
