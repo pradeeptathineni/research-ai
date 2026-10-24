@@ -1,6 +1,6 @@
 Citation.js MIT notice for adapted BibTeX output routines
 
-Copyright (c) 2014-2026 Citation.js contributors
+Copyright (c) 2015-2026 Lars Willighagen
 
 Source: citation-js/citation-js, commit 75a422b4275740aa2b18753e5264f048c2b0cb48
 Files consulted: packages/plugin-bibtex/src/output/bibtex.js and value.js.
