@@ -105,26 +105,36 @@ export async function importTableCsv(csv, options) {
   const bytes = csvBytes(csv);
   const parse = await loadParser(options.parserRoot);
   let records;
+  let hasHeader = false;
+  let dataRows = 0;
   try {
     records = parse(bytes, {
       bom: true,
       cast: false,
       columns: false,
       max_record_size: MAX_RECORD_SIZE,
+      on_record(record) {
+        if (!hasHeader) {
+          validateHeaders(record);
+          hasHeader = true;
+        } else {
+          dataRows++;
+          if (dataRows > MAX_ROWS) fail('limit_exceeded', 'CSV contains more than 1,000 data rows.');
+        }
+        return record;
+      },
       relax_column_count: false,
       relax_quotes: false,
       skip_empty_lines: false,
       skip_records_with_error: false,
     });
-  } catch {
+  } catch (error) {
+    if (error?.code === 'limit_exceeded' || error?.code === 'invalid_csv_headers') throw error;
     fail('invalid_csv', 'CSV syntax or record shape is invalid.');
   }
-  if (!Array.isArray(records) || records.length === 0)
+  if (!Array.isArray(records) || records.length === 0 || !hasHeader)
     fail('invalid_csv_headers', 'CSV must contain a header row.');
   const headers = records[0];
-  validateHeaders(headers);
-  const rowCount = records.length - 1;
-  if (rowCount > MAX_ROWS) fail('limit_exceeded', 'CSV contains more than 1,000 data rows.');
   const rows = records.slice(1);
   if (rows.some((row) => !Array.isArray(row) || row.length !== headers.length))
     fail('invalid_csv', 'CSV records must have the same number of fields as the header.');

@@ -19,7 +19,9 @@ counts, and a 64 KiB maximum record size. Options are not request-controlled.
 Header values must be unique, nonempty, plain text and no longer than 120
 characters. There may be at most 16 columns and 1,000 data rows. CSV input is
 capped at exactly 1,000,000 UTF-8 bytes; input which exceeds a limit is refused,
-never truncated. The canonical table representation must also fit Research's
+never truncated. Header validation happens on the first parser record and the
+row cap rejects from the parser record callback before an over-limit row is
+retained. The canonical table representation must also fit Research's
 1,000,000-byte table cap; JSON escaping can expand it, in which case
 registration refuses it.
 

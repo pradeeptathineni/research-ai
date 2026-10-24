@@ -51,6 +51,7 @@ test('CSV syntax, header, and record-shape errors refuse without a partial table
 test('CSV count, column, field and byte caps refuse instead of truncating', { skip: !parserRoot }, async () => {
   const rows = Array.from({ length: 1001 }, () => 'x');
   await assert.rejects(importTableCsv(`value\n${rows.join('\n')}\n`, { parserRoot, label }), /more than 1,000/u);
+  await assert.rejects(importTableCsv(`value\n${rows.join('\n')}\n"unclosed`, { parserRoot, label }), /more than 1,000/u);
   await assert.rejects(importTableCsv(`${Array.from({ length: 17 }, (_, index) => `h${index}`).join(',')}\n`, { parserRoot, label }), /1 through 16/u);
   await assert.rejects(importTableCsv(`value\n${'x'.repeat(65 * 1024)}\n`, { parserRoot, label }), /syntax or record/u);
   await assert.rejects(importTableCsv('x'.repeat(1_000_001), { parserRoot, label }), /exceeds 1,000,000 bytes/u);
