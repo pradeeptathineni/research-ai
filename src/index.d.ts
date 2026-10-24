@@ -653,13 +653,51 @@ export function renderReport(report: ResearchReport, options?: { format?: "markd
 
 export type InvestigationBudget = Budget & { calls: number };
 export interface InvestigationQuestion { id: string; parentId: string | null; question: string }
-export interface InvestigationEdit { topic?: string; goal?: string; scope?: string; questions?: InvestigationQuestion[]; sources?: FrozenSource[] | null; budget?: InvestigationBudget }
+/** `independent` withholds sibling findings from investigate prompts and requires frozen sources; absent means shared. */
+export type InvestigationBranchContext = "shared" | "independent";
+export interface InvestigationEdit { topic?: string; goal?: string; scope?: string; questions?: InvestigationQuestion[]; sources?: FrozenSource[] | null; budget?: InvestigationBudget; branchContext?: InvestigationBranchContext }
 export type InvestigationAction = "clarify" | "expand" | "investigate" | "synthesize";
 export type InvestigationBranchStatus = "complete" | "partial" | "failed" | "cancelled" | "not_run";
-export interface InvestigationAttempt { id: string; identity: string; /** Compatibility hash for unchanged topic/scope/source/budget context; historical identity is retained. */ contextIdentity: string; revision: number; action: InvestigationAction; branchId: string | null; question: string | null; status: InvestigationBranchStatus; findings: string[]; gaps: string[]; sources: { uri: string; sha256?: string }[]; answer: string; reason: string | null; receipt: SessionOutcome | null }
-export interface Investigation { version: "guided-investigation-v1"; owner: "research-ai"; topic: string; goal: string; scope: string; revision: number; identity: string; questions: InvestigationQuestion[]; sources: (FrozenSource & { sha256: string })[] | null; budget: InvestigationBudget; used: { searches: number; documents: number; seconds: number; calls: number }; history: InvestigationAttempt[]; clarifications: string[]; report: { identity: string; markdown: string; attemptId: string } | null }
+export interface InvestigationAttempt { id: string; identity: string; /** Compatibility hash for unchanged topic/scope/source/budget context; historical identity is retained. */ contextIdentity: string; revision: number; /** `compare` appears only from `compareInvestigation`. */ action: InvestigationAction | "compare"; branchId: string | null; question: string | null; status: InvestigationBranchStatus; findings: string[]; gaps: string[]; sources: { uri: string; sha256?: string }[]; answer: string; reason: string | null; receipt: SessionOutcome | null }
+export interface Investigation { version: "guided-investigation-v1"; owner: "research-ai"; /** Present only in independent mode; joins identity hashes only when present. */ branchContext?: "independent"; topic: string; goal: string; scope: string; revision: number; identity: string; questions: InvestigationQuestion[]; sources: (FrozenSource & { sha256: string })[] | null; budget: InvestigationBudget; used: { searches: number; documents: number; seconds: number; calls: number }; history: InvestigationAttempt[]; clarifications: string[]; report: { identity: string; markdown: string; attemptId: string } | null }
 export function createInvestigation(topic: string, options?: Omit<InvestigationEdit, "topic">): Investigation;
 export function reviseInvestigation(state: Investigation, edit: InvestigationEdit): Investigation;
 export function validateInvestigation(value: unknown): Investigation;
 export function advanceInvestigation(state: Investigation, options: { action: InvestigationAction; branchIds?: string[]; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<Investigation>;
 export function renderInvestigation(state: Investigation, options?: { format?: "markdown" | "json" }): string;
+
+export type ReferenceAuthor = { literal: string } | { family: string; given?: string }
+export interface ReferenceMetadata {
+  type: 'article' | 'book' | 'webpage' | 'report'; title: string; authors?: ReferenceAuthor[];
+  year?: number; container_title?: string; publisher?: string; doi?: string; url?: string;
+}
+export interface ReferenceSelection {
+  ref: { owner: string; kind: string; id: string; revision: string; digest: string };
+  instance_id: string; owner_epoch: string | null;
+}
+export interface ReferenceRow {
+  id: string; selection: ReferenceSelection; metadata_revision: number;
+  metadata_sha256: string; metadata: ReferenceMetadata;
+  qualification: 'User-supplied bibliographic metadata; unverified.';
+}
+export interface ReferenceList {
+  schema: 'signals.reference-list.v1'; topic: { id: string; revision: number };
+  references: ReferenceRow[];
+}
+/** Rejects unsupported fields, stale hashes, duplicate IDs and malformed retained reference rows. */
+export function validateReferenceList(value: unknown): ReferenceList;
+/** Formats the supported local metadata subset without fetching, enrichment or style-engine claims. */
+export function formatBibliography(referenceList: ReferenceList, options?: { format?: 'text' | 'bibtex' | 'csl-json' }): string;
+/** Adds explicitly source-index-bound, unverified bibliographic descriptions to offline report HTML. */
+export function exportReportWithReferences(report: ResearchReport, referenceList: ReferenceList, bindings: { source: number; reference_id: string }[]): string;
+/** A cited position: an exact quote from a selected attempt and, where supported, an exact frozen-source span. */
+export interface BranchPosition { attemptId: string; branchId: string; stance: string; branchQuote: string; /** `answer` or `findings[N]`. */ branchField: string; /** Null means a branch claim only, not source evidence. */ source: { uri: string; sha256: string; quote: string; occurrence: number; start: number; end: number } | null }
+export interface BranchComparisonPoint { summary: string; positions: BranchPosition[] }
+export interface BranchComparisonResult { summary: string; agreements: BranchComparisonPoint[]; disagreements: BranchComparisonPoint[]; unknowns: { summary: string; attemptIds: string[] }[] }
+export interface BranchAttemptSnapshot { id: string; branchId: string; question: string; identity: string; contextIdentity: string; revision: number; findings: string[]; gaps: string[]; sources: { uri: string; sha256?: string }[]; answer: string; digest: string; pinned: boolean }
+/** Self-contained, fallible comparison; `digest` identifies bytes, not model truth. */
+export interface BranchComparison { version: "branch-comparison-v1"; owner: "research-ai"; topic: string; goal: string; scope: string; investigationIdentity: string; contextIdentity: string; attemptId: string; status: InvestigationBranchStatus; reason: string | null; selection: BranchAttemptSnapshot[]; sources: (FrozenSource & { sha256: string })[]; preserved: { gaps: { attemptId: string; gap: string }[]; omissions: { uri: string; omission: string }[] }; result: BranchComparisonResult | null; /** Unvalidated readable text from a partial or cancelled session. */ partialText: string | null; receipt: SessionOutcome | null; digest: string }
+export function compareInvestigation(state: Investigation, options: { branchIds: string[]; /** Pin exact attempts by branch id; otherwise the latest current completed attempt is used. */ attempts?: Record<string, string>; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<{ investigation: Investigation; comparison: BranchComparison }>;
+export function validateComparison(value: unknown): BranchComparison;
+export function comparisonCurrentness(comparison: BranchComparison, state: Investigation): { current: boolean; reasons: string[] };
+export function renderComparison(comparison: BranchComparison, options?: { format?: "markdown" | "json"; investigation?: Investigation }): string;

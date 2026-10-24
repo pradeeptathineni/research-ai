@@ -8,3 +8,5 @@ export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, render
 export { createReport, validateReport, reviseReport, draftReportSection, renderReport } from './report.mjs';
 export { exportReportHtml } from './report-export.mjs';
 export { createInvestigation, reviseInvestigation, validateInvestigation, advanceInvestigation, renderInvestigation } from './investigation.mjs';
+export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
+export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
