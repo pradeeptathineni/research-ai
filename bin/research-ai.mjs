@@ -100,6 +100,8 @@ Options:
   --model NAME           Codex model (default: ~/.codex/config.toml or CLI default)
   --effort LEVEL         reasoning effort (default: config or CLI default)
   --readiness            report installation/auth/profile observations without inference
+  --activity-jsonl       ordinary research only: write research-activity-v1 JSON lines to
+                         stderr instead of progress text; stdout and the receipt are unchanged
   -h, --help             show this help
 
 Exit codes: 0 complete, 2 partial answer, 1 failure or usage error.
@@ -142,6 +144,7 @@ async function main() {
         model: { type: "string" },
         effort: { type: "string" },
         readiness: { type: "boolean" },
+        "activity-jsonl": { type: "boolean" },
         "investigation-create": { type: "boolean" },
         "investigation-input": { type: "string" },
         "investigation-edit": { type: "string" },
@@ -161,6 +164,9 @@ async function main() {
     process.stdout.write(`${usage}\n`);
     return 0;
   }
+  const activityJsonl = values["activity-jsonl"] === true;
+  if (activityJsonl && Object.keys(values).some((key) => !["activity-jsonl", "profile", "context", "sources", "model", "effort"].includes(key)))
+    return fail("--activity-jsonl applies only to ordinary research");
   const reportMode = values["report-create"] || values["report-input"] !== undefined || values["report-draft"] !== undefined || values["report-edit"] !== undefined || values["report-format"] !== undefined;
   if (reportMode) {
     const creating = values["report-create"] === true;
@@ -368,7 +374,10 @@ async function main() {
       model: values.model,
       effort: values.effort,
       signal: controller.signal,
-      progress: (event) => process.stderr.write(`${event}\n`),
+      // Opt-in keeps stderr line-structured: activity records, then the existing receipt.
+      ...(activityJsonl
+        ? { activity: (event) => { process.stderr.write(`${JSON.stringify(event)}\n`); } }
+        : { progress: (event) => process.stderr.write(`${event}\n`) }),
     });
     if (values.grounded) process.stdout.write(`${JSON.stringify(result)}\n`);
     else if (result.answer) process.stdout.write(`${result.answer}\n`);

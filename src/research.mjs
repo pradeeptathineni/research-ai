@@ -155,6 +155,7 @@ export async function researchQuestion(question, options = {}) {
         model: options.model,
         effort: options.effort,
         onCheckpoint: options.onCheckpoint,
+        activity: options.activity,
       }),
   );
   const complete = sessionCompleted(outcome);

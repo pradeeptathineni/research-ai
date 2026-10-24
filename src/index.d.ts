@@ -122,7 +122,78 @@ export interface SessionOptions {
   onCheckpoint?: ((readable: Readable) => void) | undefined;
   /** Runs synchronously after preparation, immediately before the native process starts. */
   beforeSpawn?: (() => void) | undefined;
+  /** Synchronous research-activity-v1 observation after spawn; failure stops with activity_callback_failed. */
+  activity?: ((event: ResearchActivity) => void) | undefined;
 }
+
+export type ResearchActivityKind =
+  | "session.started" | "thread.started" | "turn.started" | "web.started" | "web.completed"
+  | "checkpoint" | "runner.error" | "turn.completed" | "turn.failed" | "protocol.failed"
+  | "session.stopped" | "activity.limited" | "session.settled";
+
+/** Closed details; no provider objects, prompts, reasoning, message/schema text, queries or diagnostics. */
+export interface ResearchActivityDetails {
+  "session.started": { mode: "live" | "frozen" };
+  "thread.started": Record<string, never>;
+  "turn.started": Record<string, never>;
+  /** One native web item started; `call` is the 1-based tool-call count. */
+  "web.started": { call: number };
+  /**
+   * Native report of a completed web item, not proof of access, source truth or entailment.
+   * `url` is the exact native string, only for http(s) without credentials, query or fragment.
+   */
+  "web.completed": {
+    action: "search" | "open_page" | "find_in_page" | "other" | "unrecognized" | "absent";
+    url: string | null;
+    urlStatus: "reported" | "absent" | "withheld";
+    searches: number;
+    reads: number;
+    unclassified: number;
+  };
+  /** Bounded readable buffer metadata; the note itself goes to `onCheckpoint`. */
+  "checkpoint": { notes: number; units: number; bytes: number; omitted: boolean };
+  "runner.error": Record<string, never>;
+  /** A native terminal was reported; completion is judged only at settlement. */
+  "turn.completed": Record<string, never>;
+  "turn.failed": Record<string, never>;
+  /** First sticky protocol failure. */
+  "protocol.failed": { reason: string };
+  /** First host stop trigger, e.g. action_limit, forbidden_runner_tool or request_aborted. */
+  "session.stopped": { trigger: string };
+  /** Delivery limit reached; later non-settlement observations are dropped and counted. */
+  "activity.limited": { limit: number };
+  /** Last event, after terminal, protocol and cleanup evidence; `completed` equals sessionCompleted. */
+  "session.settled": {
+    /** Native process diagnostics are replaced by native_process_error. */
+    completed: boolean; failureReason: string | null; cleanup: boolean;
+    delivered: number; omitted: number;
+  };
+}
+
+/** Ephemeral observation only: not a store, resume cursor, task record or permission. */
+export type ResearchActivity = {
+  [K in ResearchActivityKind]: {
+    version: "research-activity-v1";
+    /** Per-session, 1-based and increasing by one per delivered event. */
+    sequence: number;
+    /** Host ISO time of the observation. */
+    observedAt: string;
+    kind: K;
+    detail: Readonly<ResearchActivityDetails[K]>;
+  };
+}[ResearchActivityKind];
+
+export const researchActivity: Readonly<{
+  version: "research-activity-v1";
+  /** Maximum delivered events before `activity.limited`; settlement is always delivered. */
+  limit: 512;
+  kinds: readonly ResearchActivityKind[];
+  /** Facts this producer never reports, so consumers can show missing visibility honestly. */
+  unsupported: readonly (
+    | "fetch_status" | "http_status" | "source_verification" | "search_query" | "page_content"
+    | "partial_answer_text" | "reasoning" | "non_web_items"
+  )[];
+}>;
 
 /** Explicit terminal counts and sticky protocol failure; stderr alone is diagnostic.
  * Known thread/turn/item activity after a terminal invalidates completion.
@@ -262,6 +333,8 @@ export interface ResearchOptions {
   signal?: AbortSignal | undefined;
   progress?: ((event: string) => void) | undefined;
   onCheckpoint?: ((readable: Readable) => void) | undefined;
+  /** As in SessionOptions; the result and answer meanings are unchanged. */
+  activity?: ((event: ResearchActivity) => void) | undefined;
   /** Lease directory; defaults to a per-user path under the temporary directory. */
   lease?: string | undefined;
 }

@@ -93,6 +93,41 @@ it('prints the answer to stdout and the receipt to stderr', async () => {
   assert.ok(prompt.includes('"question":"portable notes?"'));
 });
 
+it('keeps stdout and receipt unchanged while --activity-jsonl writes typed stderr records', async () => {
+  const answer = 'Direct answer with [a source](https://example.org).';
+  const events = [{ type: 'item.started', item: { type: 'web_search' } },
+    { type: 'item.completed', item: { type: 'web_search', action: { type: 'search' } } },
+    message(answer), { type: 'turn.completed' }];
+  await fixture.scenario({ events });
+  const plain = await cli('--model', 'fixture', 'q');
+  assert.ok(plain.stderr.split('\n').some(line => line.startsWith('Runner: Codex;')));
+  assert.equal(plain.stderr.includes('research-activity-v1'), false);
+  await fixture.scenario({ events });
+  const { code, stdout, stderr } = await cli('--activity-jsonl', '--model', 'fixture', 'q');
+  assert.equal(code, 0);
+  assert.equal(stdout, plain.stdout);
+  assert.equal(stdout, `${answer}\n`);
+  const records = stderr.trim().split('\n').map(line => JSON.parse(line));
+  const receipt = records.pop();
+  const strip = ({ stages, ...rest }) => rest;
+  assert.deepEqual(strip(receipt), strip(JSON.parse(plain.stderr.trim().split('\n').at(-1))));
+  assert.equal(receipt.status, 'complete');
+  assert.deepEqual(records.map(record => record.kind), ['session.started', 'web.started', 'web.completed',
+    'checkpoint', 'turn.completed', 'session.settled']);
+  assert.ok(records.every((record, index) => record.version === 'research-activity-v1' && record.sequence === index + 1));
+  assert.equal(records.at(-1).detail.completed, true);
+  assert.equal(stderr.includes(answer), false);
+});
+
+it('refuses --activity-jsonl outside ordinary research', async () => {
+  for (const args of [['--readiness'], ['--grounded', '--sources', 'x.json', 'q'], ['--outline-input', 'x.json']]) {
+    const { code, stderr } = await cli('--activity-jsonl', ...args);
+    assert.equal(code, 1);
+    assert.match(stderr, /--activity-jsonl applies only to ordinary research/);
+  }
+  assert.deepEqual(await fixture.probes(), []);
+});
+
 it('exits 2 with a partial answer', async () => {
   await fixture.scenario({ events: [message('Provisional note.')], exitCode: 1 });
   const { code, stdout, stderr } = await cli('q');

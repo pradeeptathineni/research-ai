@@ -59,6 +59,35 @@ const { status, answer, receipt } = await researchQuestion("question", {
 });
 ```
 
+### Live activity (`research-activity-v1`)
+
+`activity(event)` on `researchQuestion` or `workspace.run` receives typed,
+synchronous observations while a session runs: `version`, a per-session
+`sequence` starting at 1, ISO `observedAt`, `kind` and a closed `detail`.
+`researchActivity.kinds` lists the supported kinds; `researchActivity.unsupported`
+lists facts never reported (fetch/HTTP status, verification, queries, page
+content, partial answer text, reasoning, non-web items).
+
+- Native: `thread.started`, `turn.started`, `web.started`, `web.completed`
+  (action type, counts and a `url` only when the native report has an http(s)
+  URL with no credentials, query or fragment; otherwise `url: null` with
+  `urlStatus` `absent` or `withheld`), `runner.error`, `turn.completed`, `turn.failed`.
+- Host: `session.started`, `checkpoint` (note count, UTF-16 units, bytes,
+  omission flag; the note itself still goes to `onCheckpoint`), `protocol.failed`,
+  `session.stopped` (first trigger), `activity.limited` and `session.settled`.
+  `session.settled` comes last, after terminal/protocol/cleanup checks, and its
+  `completed` equals `sessionCompleted(outcome)`.
+- At most 512 events are delivered before `activity.limited`; later ones are
+  dropped and counted in `session.settled.omitted`.
+- A web completion is a native report, not proof of access, source truth or
+  entailment. Events are ephemeral: no store, resume cursor or permission.
+- A throwing or promise-returning observer stops the session with
+  `activity_callback_failed`, like the other callbacks; it is not called again.
+
+`--activity-jsonl` (ordinary research only) writes these events to stderr as
+JSON lines instead of progress text. The last stderr line is the usual receipt.
+Stdout and exit codes are unchanged.
+
 ### Readiness observations
 
 `codexReadiness()` and `--readiness` return additive schema version 1. Existing
@@ -375,3 +404,5 @@ or source notes remain historical and stay out of the next synthesis.
 The question-frontier, continuation from retained findings/gaps, explicit
 clarification and cited synthesis adapt methods in dzhng/deep-research. The
 package's recursive crawler, provider framework and dependencies are not used.
+
+No activity is delivered when the prepared process fails to spawn. A later native process error is labeled `native_process_error`; raw process diagnostics remain outside the activity projection.
