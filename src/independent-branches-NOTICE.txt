@@ -1,0 +1,20 @@
+Independent branches (src/investigation.mjs branchContext, src/branch-comparison.mjs)
+
+Method reference only; no source code was copied.
+
+The branch split/merge method is adapted from deepResearch() in
+https://github.com/dzhng/deep-research/blob/1f8f3e285bbc23e80b98a66a64effab9069f3ad4/src/deep-research.ts
+(MIT License, Copyright (c) 2025 David Zhang). In that function, sibling queries receive
+common prior learnings, accumulate their own learnings, and the parent deduplicates the
+results.
+
+research-ai reimplements the idea on its existing guided investigation:
+- Siblings share only topic, goal, scope and frozen sources, and each sees only its own
+  compatible earlier attempts.
+- Branches run sequentially under the existing exclusive lease. The donor's p-limit,
+  Promise.all fan-out, Firecrawl and OpenAI runtime are not used.
+- The merge is an explicit, separate comparison session with exact quote and span binding,
+  not automatic deduplication.
+
+Because no donor code was copied, no donor license file is shipped
+(src/independent-branches-LICENSE.txt was intentionally not created).
