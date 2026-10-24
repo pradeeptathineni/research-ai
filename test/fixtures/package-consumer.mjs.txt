@@ -13,7 +13,7 @@ import { fakeCodex, message } from './fake-codex.mjs';
 const exact = '  Café ✓ 😀\n\nFallible evidence.\n';
 const success = { type: 'turn.completed' };
 const sources = [{ uri: 'https://example.org/frozen', text: 'Naïve ✓ 😀\nCaptured text.\n', observedAt: 'caller note', omissions: ['coverage unknown'] }];
-const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace'];
+const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch'].sort();
 assert.deepEqual(Object.keys(api).sort(), expectedExports);
 assert.equal(api.profiles.quick.searches, 8);
 assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);
@@ -65,6 +65,45 @@ const cli = args => {
   return { args, status: result.status, stdout: result.stdout, stderr: result.stderr };
 };
 const investigationEvent = value => ({ events: [message(JSON.stringify(value)), success] });
+await probe('mindmap-create-inspect-edit-export-reopen-and-explicit-draft', { events: [message(JSON.stringify({ rootLabel: 'Where does search run?', nodes: [
+  { parent: -1, label: 'Files remain local', relation: 'elaborates', citations: [{ source: 0, start: 0, end: 37 }], gap: null },
+  { parent: -1, label: 'Selected text goes to provider', relation: 'contrasts', citations: [{ source: 1, start: 0, end: 51 }], gap: null },
+  { parent: 1, label: 'Retention unknown', relation: 'qualifies', citations: [], gap: 'Provider policy is absent.' },
+] })), success] }, async fixture => {
+  const captures = [
+    { uri: 'https://example.org/local', text: 'Local search retains files on device.', observedAt: 'synthetic', omissions: ['Retention duration unknown.'] },
+    { uri: 'https://example.org/cloud', text: 'Cloud indexing sends selected text to the provider.', omissions: ['Provider policy absent.'] },
+  ];
+  const child = (id, label, source) => ({ id, label, relation: 'elaborates', citations: [{ source, start: 0, end: captures[source].text.length, quote: captures[source].text }], gap: null, children: [] });
+  const root = { id: 'root', label: 'Where does search run?', relation: null, citations: [], gap: null, children: [child('local', 'Files remain local', 0), { ...child('cloud', 'Text goes to provider', 1), relation: 'contrasts' },
+    { id: 'gap', label: 'Retention unknown', relation: 'qualifies', citations: [], gap: 'Neither capture specifies duration.', children: [] }] };
+  const map = api.createMindMap('Where does search run?', { sources: captures, root });
+  const before = JSON.parse(api.renderMindMap(map, { format: 'tree' }));
+  const inspected = map.root.children.flatMap(n => n.citations).map(c => map.sources[c.source].text.slice(c.start, c.end));
+  assert.deepEqual(inspected, captures.map(s => s.text));
+  const edited = api.reviseMindMap(map, { nodes: [{ id: 'local', label: 'Local search keeps files on device', citations: [{ source: 0, start: 0, end: 12, quote: 'Local search' }] }] });
+  assert.equal(edited.origin.type, 'user-modified');
+  const json = api.renderMindMap(edited, { format: 'json' });
+  await writeFile('mindmap.json', json);
+  const reopened = api.validateMindMap(JSON.parse(await readFile('mindmap.json', 'utf8')));
+  assert.equal(api.renderMindMap(reopened, { format: 'json' }), json);
+  assert.deepEqual(reopened.sources.map(({ sha256, ...s }) => s), captures);
+  const after = JSON.parse(api.renderMindMap(reopened, { format: 'tree' }));
+  assert.notEqual(after.contentSha256, before.contentSha256);
+  await writeFile('mindmap-tree.json', api.renderMindMap(reopened, { format: 'tree' }));
+  await writeFile('mindmap.md', api.renderMindMap(reopened));
+  const cliExport = cli(['--mindmap-input', 'mindmap.json', '--mindmap-format', 'markdown']);
+  assert.equal(cliExport.status, 0, cliExport.stderr);
+  assert.equal(cliExport.stdout, api.renderMindMap(reopened));
+  assert.deepEqual(await fixture.probes(), []);
+  assert.equal(await fixture.launched(), false);
+  const generated = await api.mindMapResearch('Where does search run?', { sources: captures, lease: fixture.lease, model: 'fixture-model' });
+  assert.equal(generated.status, 'complete');
+  assert.equal(generated.map.origin.type, 'model-generated');
+  assert.equal(generated.receipt.outcome.cleanup.complete, true);
+  return { inspected, before: before.contentSha256, after: after.contentSha256, originalsPreserved: true, origin: reopened.origin.type,
+    tree: after, markdown: cliExport.stdout, nativeSessions: generated.receipt.outcome.nativeSessions };
+});
 await probe('investigation-create-resume-synthesize', { sessions: [
   investigationEvent({ questions: ['Which constraint matters most?'] }),
   investigationEvent({ questions: [{ parentId: 'q1', question: 'How portable is export?' }] }),

@@ -28,7 +28,8 @@
     "THIRD-PARTY-NOTICES.md",
     "README.md",
     "ARCHITECTURE.md",
-    "docs/compatibility.md"
+    "docs/compatibility.md",
+    "docs/SurfSense-LICENSE.txt"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

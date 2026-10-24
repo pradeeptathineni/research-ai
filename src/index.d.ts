@@ -521,6 +521,49 @@ export function perspectiveResearch(
 ): Promise<PerspectiveResult>;
 
 export interface OutlineCitation { source: number; start: number; end: number; quote: string }
+export type MindMapRelation = "elaborates" | "qualifies" | "contrasts";
+export interface MindMapCitation { source: number; start: number; end: number; quote: string }
+export interface MindMapNode {
+  id: string; label: string; relation: MindMapRelation | null;
+  citations: MindMapCitation[]; gap: string | null; children: MindMapNode[];
+}
+export interface ResearchMindMap {
+  version: "research-mindmap-v1"; question: string;
+  sources: (FrozenSource & { sha256: string })[]; root: MindMapNode;
+  origin: { type: "caller-authored" | "model-generated" | "user-modified"; model?: string;
+    receipt?: { mode: "frozen"; profile: Profile; model: string; effort: string; nativeSessions: 1; contentSha256: string } };
+  limits: string[];
+}
+export interface MindMapTreeNode extends Omit<MindMapNode, "children"> {
+  parentId: string | null; level: number; position: number; setSize: number;
+  path: string[]; childIds: string[]; accessibleName: string;
+}
+/** View projection only: retain the document, which also contains exact source text. */
+export interface MindMapTree {
+  version: "research-mindmap-tree-v1"; question: string; contentSha256: string;
+  origin: ResearchMindMap["origin"]; rootId: string; nodes: MindMapTreeNode[];
+  sources: (FrozenSourceReceipt & { index: number; utf16Length: number })[]; limits: string[];
+}
+export interface MindMapEdit {
+  question?: string; root?: MindMapNode;
+  nodes?: ({ id: string } & Partial<Pick<MindMapNode, "label" | "relation" | "citations" | "gap">>)[];
+}
+export const mindMapLimits: Readonly<{ depth: 6; nodes: 60; children: 8; label: 120; gap: 300; citations: 4; quote: 4000; limits: 12; bytes: 1048576 }>;
+/** Creates an explanatory hierarchy offline; custom limitations supplement the standard three. */
+export function createMindMap(question: string, input: { sources: FrozenSource[]; root: MindMapNode; limits?: string[] }): ResearchMindMap;
+/** Replays closed shapes, source hashes and exact UTF-16 spans; does not judge entailment. */
+export function validateMindMap(value: unknown): ResearchMindMap;
+/** Content edits retain the original generation binding and mark the document user-modified. */
+export function reviseMindMap(value: ResearchMindMap, edits?: MindMapEdit): ResearchMindMap;
+/** JSON is reopenable; tree is an accessible view projection; Markdown escapes untrusted text. */
+export function renderMindMap(value: ResearchMindMap, options?: { format?: "markdown" | "json" | "tree" }): string;
+/** Explicit frozen native draft; only a fully completed, cleaned-up session can return a map. */
+export function mindMapResearch(question: string, options: {
+  sources: FrozenSource[]; profile?: Profile; lease?: string; model?: string; effort?: string;
+  signal?: AbortSignal; progress?: (event: string) => void; activity?: (event: ResearchActivity) => void;
+}): Promise<{ status: "complete" | "failed" | "cancelled"; map: ResearchMindMap | null;
+  receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string; reason?: string } }>;
+
 export interface OutlinePoint { text: string; citations: OutlineCitation[] }
 export interface OutlineSection { id: string; title: string; points: OutlinePoint[]; gaps: string[] }
 export interface ResearchOutline {

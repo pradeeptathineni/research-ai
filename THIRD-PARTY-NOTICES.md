@@ -1,3 +1,28 @@
+# Evidence-linked mind maps
+
+`src/mindmap.mjs` ports the unsafe-construct regular expression and adapts the
+hierarchy bounds/checks from SurfSense `check_mindmap_markdown`, at revision
+`e3de9e0d293b2ebb1fb813628ecc1d6f26909396`. `test/mindmap.test.mjs` adapts
+the corresponding root/empty/unsafe/control/depth/node-count/label negative
+cases to closed JSON trees with exact source bindings. Copyright (c) SurfSense;
+these adapted portions are licensed under Apache License 2.0. The complete
+inspected license is included in `docs/SurfSense-LICENSE.txt`. No root NOTICE
+was present in the pinned tree. Source and license were inspected before reuse.
+
+Sources:
+- https://github.com/MODSetter/SurfSense/blob/e3de9e0d293b2ebb1fb813628ecc1d6f26909396/surfsense_backend/app/artifacts/verification/formats/mindmap.py
+- https://github.com/MODSetter/SurfSense/blob/e3de9e0d293b2ebb1fb813628ecc1d6f26909396/surfsense_backend/tests/unit/artifacts/test_mindmap_verification.py
+
+Changes: JavaScript closed-object validation instead of a Markdown parser,
+mandatory exact UTF-16 source spans or knowledge gaps, safe offline exports,
+origin/content bindings and explicit guarded native drafting. The local donor
+pipeline's recursive hierarchy rendering was inspected; its silent skip/truncate
+behavior conflicts with the retained closure, so it was not copied. PNG/PIL
+validation, model prompts, Markmap code/dependencies/assets and service code
+are not included. The rest of this feature is owned implementation built on
+the package's existing frozen-source and session contracts; it is not claimed
+as a port of the donor application.
+
 # Citation support method
 
 `src/grounding.mjs` reproduces ALCE `eval.py:compute_autoais` at revision

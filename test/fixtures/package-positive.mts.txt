@@ -22,6 +22,25 @@ async function consumer() {
   return [ready.available, sessionCompleted(outcome), direct.cleanup.complete, research.receipt.cleanup.error];
 }
 void consumer;
+import { createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch, mindMapLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchMindMap, MindMapNode, MindMapCitation, MindMapRelation, MindMapEdit, MindMapTree, MindMapTreeNode } from '@pradeeptathineni/research-ai';
+const relation: MindMapRelation = 'qualifies';
+const citation: MindMapCitation = { source: 0, start: 0, end: 13, quote: 'Captured text' };
+const mapRoot: MindMapNode = { id: 'root', label: 'Question', relation: null, citations: [], gap: null, children: [
+  { id: 'child', label: 'Captured', relation, citations: [citation], gap: null, children: [] },
+] };
+const mindMap: ResearchMindMap = createMindMap('Question', { sources, root: mapRoot });
+const mapEdit: MindMapEdit = { nodes: [{ id: 'child', label: 'A capture' }] };
+const editedMap = reviseMindMap(validateMindMap(mindMap), mapEdit);
+const mapTree: MindMapTree = JSON.parse(renderMindMap(editedMap, { format: 'tree' }));
+const mapTreeNode: MindMapTreeNode = mapTree.nodes[0]!;
+void [mapTreeNode.accessibleName, mindMapLimits.nodes];
+void mindMapResearch('Question', { sources, activity: event => { const sequence: number = event.sequence; void sequence; } });
+// @ts-expect-error unsupported relation
+const badMapRelation: MindMapRelation = 'causes';
+// @ts-expect-error renderer accepts only the three documented formats
+renderMindMap(mindMap, { format: 'html' });
+void badMapRelation;
 const lenses = chooseLenses(sources, [perspectiveCandidates(sources)[0]?.id ?? basicFacts.id, { label: 'Renter', focus: 'Costs without building changes' }]);
 async function perspectives(): Promise<PerspectiveResult['status']> {
   const viewed = await perspectiveResearch('Topic', { sources, perspectives: 'auto', questions: 2, onLens: ({ id, state }) => void [id, state] });
