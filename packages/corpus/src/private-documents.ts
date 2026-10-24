@@ -18,6 +18,9 @@ const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_TEXT_UNITS = 48000;
 const MAX_TEXT_BYTES = 96000;
 const MAX_PAGES = 50;
+const MAX_OUTLINE_NODES = 200;
+const MAX_OUTLINE_DEPTH = 16;
+const MAX_OUTLINE_TITLE = 300;
 const MAX_DOCUMENTS = 20;
 const MAX_TOTAL_RAW_BYTES = 12 * 1024 * 1024;
 const MAX_STORE_BYTES = 20 * 1024 * 1024;
@@ -406,6 +409,204 @@ async function extractPdf(bytes: Buffer, python: string) {
     child.stdin.end(bytes);
   });
 }
+
+const pdfSectionsHelper = fileURLToPath(
+  new URL('../../../scripts/private-pdf-sections.py', import.meta.url),
+);
+type PrivateDocumentSection = {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  physical_start: number;
+  physical_end: number;
+};
+type PdfOutline = {
+  extractor: 'pypdf-6.15.0';
+  outcome: 'available' | 'absent' | 'unavailable';
+  nodes: PrivateDocumentSection[];
+  omitted: number;
+};
+function outlineFailure(code: string): never {
+  if (code === 'pdf_parser_unavailable' || code === 'pdf_parser_version_mismatch')
+    throw new PrivateDocumentError(
+      503,
+      code,
+      'Install exactly pypdf 6.15.0 in the selected Python environment; no automatic installation was attempted.',
+    );
+  if (code === 'pdf_encrypted')
+    throw new PrivateDocumentError(
+      422,
+      code,
+      'Encrypted PDFs are refused, including files whose empty password might otherwise open them.',
+    );
+  throw new PrivateDocumentError(
+    422,
+    code,
+    'PDF outline inspection failed; malformed or unsupported files are refused.',
+  );
+}
+async function extractPdfSections(bytes: Buffer, python: string): Promise<PdfOutline> {
+  return await new Promise<PdfOutline>((resolveResult, reject) => {
+    const child = spawn(python, ['-I', pdfSectionsHelper], {
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    const output: Buffer[] = [];
+    let outputBytes = 0;
+    let settled = false;
+    const finish = (error?: Error, result?: PdfOutline) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolveResult(result!);
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(
+        new PrivateDocumentError(
+          422,
+          'pdf_outline_timeout',
+          'PDF outline inspection exceeded its 10 second limit.',
+        ),
+      );
+    }, 10000);
+    child.stdout.on('data', (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > 350_000) {
+        child.kill('SIGKILL');
+        finish(
+          new PrivateDocumentError(
+            422,
+            'pdf_outline_limit',
+            'PDF outline output exceeded its limit.',
+          ),
+        );
+      } else output.push(chunk);
+    });
+    child.on('error', (error) => {
+      finish(
+        new PrivateDocumentError(
+          503,
+          'pdf_parser_unavailable',
+          (error as NodeJS.ErrnoException).code === 'ENOENT'
+            ? 'Python is unavailable. Install pypdf 6.15.0 into the selected Python environment.'
+            : 'PDF parser could not start.',
+        ),
+      );
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      try {
+        const value: unknown = JSON.parse(Buffer.concat(output).toString('utf8'));
+        if (!value || typeof value !== 'object' || Array.isArray(value))
+          throw new Error('invalid_pdf_outline_result');
+        const result = value as Record<string, unknown>;
+        if (code !== 0)
+          return outlineFailure(
+            typeof result.error === 'string' ? result.error : 'pdf_outline_failed',
+          );
+        const fields = ['extractor', 'outcome', 'nodes', 'omitted'];
+        if (
+          Object.keys(result).length !== fields.length ||
+          fields.some((field) => !(field in result)) ||
+          result.extractor !== 'pypdf-6.15.0' ||
+          !['available', 'absent', 'unavailable'].includes(String(result.outcome)) ||
+          !Array.isArray(result.nodes) ||
+          result.nodes.length > MAX_OUTLINE_NODES ||
+          !Number.isSafeInteger(result.omitted) ||
+          (result.omitted as number) < 0
+        )
+          throw new Error('invalid_pdf_outline_result');
+        const ids = new Set<string>();
+        const depths = new Map<string, number>();
+        const nodes = result.nodes.map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item))
+            throw new Error('invalid_pdf_outline_node');
+          const node = item as Record<string, unknown>;
+          if (
+            Object.keys(node).length !== 5 ||
+            typeof node.id !== 'string' ||
+            !/^[a-f0-9]{64}$/.test(node.id) ||
+            ids.has(node.id) ||
+            !(
+              node.parent_id === null ||
+              (typeof node.parent_id === 'string' && ids.has(node.parent_id))
+            ) ||
+            (node.parent_id !== null &&
+              (depths.get(node.parent_id) ?? MAX_OUTLINE_DEPTH) + 1 >
+                MAX_OUTLINE_DEPTH) ||
+            typeof node.title !== 'string' ||
+            node.title.length < 1 ||
+            node.title.length > MAX_OUTLINE_TITLE ||
+            !Number.isSafeInteger(node.physical_start) ||
+            !Number.isSafeInteger(node.physical_end) ||
+            (node.physical_start as number) < 1 ||
+            (node.physical_end as number) < (node.physical_start as number) ||
+            (node.physical_end as number) > MAX_PAGES
+          )
+            throw new Error('invalid_pdf_outline_node');
+          ids.add(node.id);
+          depths.set(
+            node.id,
+            node.parent_id === null ? 1 : (depths.get(node.parent_id) ?? 0) + 1,
+          );
+          return node as unknown as PrivateDocumentSection;
+        });
+        if (
+          (result.outcome === 'available' && nodes.length === 0) ||
+          (result.outcome === 'absent' && (nodes.length !== 0 || result.omitted !== 0)) ||
+          (result.outcome === 'unavailable' && nodes.length !== 0)
+        )
+          throw new Error('invalid_pdf_outline_result');
+        finish(undefined, {
+          extractor: 'pypdf-6.15.0',
+          outcome: result.outcome as PdfOutline['outcome'],
+          nodes,
+          omitted: result.omitted as number,
+        });
+      } catch (error) {
+        if (error instanceof PrivateDocumentError) return finish(error);
+        finish(
+          new PrivateDocumentError(
+            422,
+            'pdf_outline_failed',
+            'PDF outline inspection returned an invalid bounded result.',
+          ),
+        );
+      }
+    });
+    child.stdin.on('error', () => {});
+    child.stdin.end(bytes);
+  });
+}
+
+/** Read bounded bookmark sections from the exact retained PDF without changing owner state. */
+export async function privateDocumentSections(
+  root: string,
+  input: unknown,
+  options: { python?: string } = {},
+) {
+  const shape = Type.Object({ document_ref: recordRefSchema, raw_sha256: sha }, closed);
+  if (!Value.Check(shape, input))
+    invalid('PDF sections require only an exact document ref and raw SHA-256.');
+  const request = input as { document_ref: RecordRef; raw_sha256: string };
+  const python = options.python ?? 'python3';
+  if (
+    typeof python !== 'string' ||
+    python.length < 1 ||
+    python.length > 2048 ||
+    [...python].some((character) => [0, 10, 13].includes(character.charCodeAt(0)))
+  )
+    invalid('The trusted Python executable must be one path or command name.');
+  const retained = await readPrivatePdfBytes(root, request);
+  const parsed = await extractPdfSections(Buffer.from(retained.bytes_base64, 'base64'), python);
+  return {
+    document_ref: retained.document_ref,
+    raw_sha256: retained.raw_sha256,
+    ...parsed,
+  };
+}
+
 function pagesFor(mediaType: PrivateDocumentInput['media_type'], bytes: Buffer, python: string) {
   if (mediaType === 'application/pdf') {
     if (!bytes.subarray(0, 1024).includes(Buffer.from('%PDF-')))

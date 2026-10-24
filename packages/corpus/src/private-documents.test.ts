@@ -11,6 +11,7 @@ import {
   importPrivateDocument,
   listPrivateDocuments,
   openPrivateDocument,
+  privateDocumentSections,
   readPrivatePdfBytes,
   selectPrivateDocument,
 } from './private-documents.js';
@@ -47,6 +48,51 @@ function pdf(texts: string[], padding = '') {
     .join('');
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(body, 'latin1');
+}
+function bookmarkedPdf() {
+  const source = `
+import sys
+from io import BytesIO
+from pypdf import PdfReader, PdfWriter
+from pypdf.constants import PageLabelStyle
+
+writer = PdfWriter(clone_from=PdfReader(BytesIO(sys.stdin.buffer.read())))
+intro = writer.add_outline_item('Introduction', 0)
+writer.add_outline_item('Repeated heading', 1, parent=intro)
+writer.add_outline_item('Repeated heading', 2, parent=intro)
+writer.add_outline_item('Repeated heading', 3)
+writer.set_page_label(0, 2, PageLabelStyle.LOWERCASE_ROMAN)
+output = BytesIO()
+writer.write(output)
+sys.stdout.buffer.write(output.getvalue())
+`;
+  return execFileSync('python3', ['-c', source], {
+    input: pdf(['Page one', 'Page two', 'Page three', 'Page four', 'Page five', 'Page six']),
+    maxBuffer: 1024 * 1024,
+  });
+}
+function boundedOutlinePdf(count: number, nested: boolean) {
+  const source = `
+import sys
+from io import BytesIO
+from pypdf import PdfReader, PdfWriter
+
+writer = PdfWriter(clone_from=PdfReader(BytesIO(sys.stdin.buffer.read())))
+if ${nested ? 'True' : 'False'}:
+    parent = None
+    for index in range(${count}):
+        parent = writer.add_outline_item(f'Level {index}', 0, parent=parent)
+else:
+    for index in range(${count}):
+        writer.add_outline_item(f'Bookmark {index}', 0)
+output = BytesIO()
+writer.write(output)
+sys.stdout.buffer.write(output.getvalue())
+`;
+  return execFileSync('python3', ['-c', source], {
+    input: pdf(['Page one']),
+    maxBuffer: 1024 * 1024,
+  });
 }
 function encoded(bytes: Buffer) {
   return {
@@ -282,6 +328,91 @@ it('rejects rehashed inconsistent private state and stale exact document refs', 
   await expect(openPrivateDocument(root, imported.document.id)).rejects.toMatchObject({
     code: 'private_document_unavailable',
   });
+});
+
+it('reads stable bookmark sections with physical ranges and exact document identity', async () => {
+  const root = await privateRoot();
+  const bytes = bookmarkedPdf();
+  const imported = await importPrivateDocument(root, encoded(bytes));
+  const input = { document_ref: imported.ref, raw_sha256: imported.document.raw_sha256 };
+  const first = await privateDocumentSections(root, input);
+  const reopened = await privateDocumentSections(root, input);
+  expect(first).toMatchObject({
+    document_ref: imported.ref,
+    raw_sha256: imported.document.raw_sha256,
+    extractor: 'pypdf-6.15.0',
+    outcome: 'available',
+    omitted: 0,
+    nodes: [
+      { title: 'Introduction', parent_id: null, physical_start: 1, physical_end: 3 },
+      { title: 'Repeated heading', physical_start: 2, physical_end: 2 },
+      { title: 'Repeated heading', physical_start: 3, physical_end: 3 },
+      { title: 'Repeated heading', parent_id: null, physical_start: 4, physical_end: 6 },
+    ],
+  });
+  expect(first.nodes.map((node) => node.id)).toEqual(reopened.nodes.map((node) => node.id));
+  expect(new Set(first.nodes.map((node) => node.id)).size).toBe(4);
+  await expect(
+    privateDocumentSections(root, { ...input, raw_sha256: '0'.repeat(64) }),
+  ).rejects.toMatchObject({ code: 'provider_record_changed' });
+  await expect(
+    privateDocumentSections(root, { ...input, path: '/private/source.pdf' }),
+  ).rejects.toMatchObject({ code: 'invalid_private_document' });
+});
+
+it('reports no outline as absent and keeps the section API under the existing private route guard', async () => {
+  const root = await privateRoot();
+  const imported = await importPrivateDocument(root, encoded(pdf(['Page one', 'Page two'])));
+  const input = { document_ref: imported.ref, raw_sha256: imported.document.raw_sha256 };
+  await expect(privateDocumentSections(root, input)).resolves.toMatchObject({
+    document_ref: imported.ref,
+    outcome: 'absent',
+    nodes: [],
+    omitted: 0,
+  });
+  const api = await serverFor(root);
+  const noToken = await fetch(new URL('private-documents/sections', api.base), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  expect(noToken.status).toBe(403);
+  const response = await fetch(new URL('private-documents/sections', api.base), {
+    method: 'POST',
+    headers: api.headers,
+    body: JSON.stringify(input),
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    document_ref: imported.ref,
+    raw_sha256: imported.document.raw_sha256,
+    outcome: 'absent',
+    nodes: [],
+  });
+  const query = await fetch(new URL('private-documents/sections?path=/etc/passwd', api.base), {
+    method: 'POST',
+    headers: api.headers,
+    body: JSON.stringify(input),
+  });
+  expect(query.status).toBe(400);
+});
+
+it('bounds bookmark count and nesting without silently omitting a count', async () => {
+  const root = await privateRoot();
+  const many = await importPrivateDocument(root, encoded(boundedOutlinePdf(205, false)));
+  const deep = await importPrivateDocument(root, encoded(boundedOutlinePdf(20, true)));
+  const limitedCount = await privateDocumentSections(root, {
+    document_ref: many.ref,
+    raw_sha256: many.document.raw_sha256,
+  });
+  expect(limitedCount).toMatchObject({ outcome: 'available', omitted: 5 });
+  expect(limitedCount.nodes).toHaveLength(200);
+  const limitedDepth = await privateDocumentSections(root, {
+    document_ref: deep.ref,
+    raw_sha256: deep.document.raw_sha256,
+  });
+  expect(limitedDepth).toMatchObject({ outcome: 'available', omitted: 4 });
+  expect(limitedDepth.nodes).toHaveLength(16);
 });
 
 it('guards bounded import, exact page reads, query fields, token and owner origin over loopback HTTP', async () => {

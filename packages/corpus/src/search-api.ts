@@ -25,6 +25,7 @@ import {
   listPrivateDocuments,
   openPrivateDocument,
   selectPrivateDocument,
+  privateDocumentSections,
   PrivateDocumentError,
   readPrivatePdfBytes,
 } from './private-documents.js';
@@ -404,6 +405,14 @@ export function searchApi(
               'Listing does not accept query fields.',
             );
           json(200, await listPrivateDocuments(root));
+        } else if (route === 'private-documents/sections' && mutation) {
+          if (params.size)
+            throw new PrivateDocumentError(
+              400,
+              'invalid_private_document',
+              'Section inspection does not accept query fields.',
+            );
+          json(200, await privateDocumentSections(root, body));
         } else if (route === 'private-documents/selection' && mutation) {
           if (params.size)
             throw new PrivateDocumentError(
