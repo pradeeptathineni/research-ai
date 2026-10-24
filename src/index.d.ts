@@ -701,3 +701,33 @@ export function compareInvestigation(state: Investigation, options: { branchIds:
 export function validateComparison(value: unknown): BranchComparison;
 export function comparisonCurrentness(comparison: BranchComparison, state: Investigation): { current: boolean; reasons: string[] };
 export function renderComparison(comparison: BranchComparison, options?: { format?: "markdown" | "json"; investigation?: Investigation }): string;
+
+export type ResearchTableCell = string | number | boolean | null;
+export interface ResearchTableColumn { id: string; label: string; type: "text" | "number" | "boolean" }
+export interface ResearchTable {
+  version: "research-table-v1"; id: string; columns: ResearchTableColumn[];
+  rows: ResearchTableCell[][]; origin: { type: "caller-authored"; label: string }; sha256: string;
+}
+export interface ResearchTableQuery {
+  aggregate: "count" | "sum" | "avg" | "min" | "max"; column_id?: string; group_by?: string;
+  where?: { column_id: string; op: "eq"; value: ResearchTableCell };
+}
+export interface ResearchTableCompleteResult {
+  version: "research-table-result-v1"; status: "complete"; input_digest: string; query_digest: string;
+  engine: { package: "@duckdb/node-api"; version: "2.0.0-r.1"; nativeVersion: string };
+  columns: { id: string; label: string; type: "text" | "number" | "boolean" | "integer" }[];
+  rows: ResearchTableCell[][]; qualifications: string[];
+}
+export type ResearchTableResult = ResearchTableCompleteResult | {
+  version: "research-table-result-v1"; status: "failed"; input_digest: string; query_digest: string; error: string;
+} | {
+  version: "research-table-result-v1"; status: "unknown"; input_digest: string; query_digest: string;
+  reason: "deadline" | "aborted" | "worker_cleanup_unconfirmed";
+};
+/** Validates a closed caller-authored typed table and computes its exact canonical digest. */
+export function registerTable(table: Omit<ResearchTable, "sha256">): ResearchTable;
+/** Runs a closed aggregate in a short-lived restricted worker; engineRoot is trusted host configuration. */
+export function analyzeTable(table: ResearchTable, query: ResearchTableQuery, options: {
+  engineRoot: string; signal?: AbortSignal; timeoutMs?: number;
+}): Promise<ResearchTableResult>;
+export const tableAnalysisLimits: Readonly<{ rows: number; columns: number; bytes: number; groups: number; timeoutMs: number }>;

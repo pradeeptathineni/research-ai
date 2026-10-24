@@ -13,8 +13,11 @@ import { fakeCodex, message } from './fake-codex.mjs';
 const exact = '  Café ✓ 😀\n\nFallible evidence.\n';
 const success = { type: 'turn.completed' };
 const sources = [{ uri: 'https://example.org/frozen', text: 'Naïve ✓ 😀\nCaptured text.\n', observedAt: 'caller note', omissions: ['coverage unknown'] }];
-const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch', 'exportReportHtml', 'compareInvestigation', 'validateComparison', 'comparisonCurrentness', 'renderComparison', 'validateReferenceList', 'formatBibliography', 'exportReportWithReferences'].sort();
+const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch', 'exportReportHtml', 'compareInvestigation', 'validateComparison', 'comparisonCurrentness', 'renderComparison', 'validateReferenceList', 'formatBibliography', 'exportReportWithReferences', 'registerTable', 'analyzeTable', 'tableAnalysisLimits'].sort();
 assert.deepEqual(Object.keys(api).sort(), expectedExports);
+const registeredTable = api.registerTable({ version: 'research-table-v1', id: 'table-4f7d831d-fb2b-4a4b-89f4-c06c8cf08699', columns: [{ id: 'c0', label: 'Kind', type: 'text' }], rows: [['synthetic']], origin: { type: 'caller-authored', label: 'Offline package probe' } });
+assert.match(registeredTable.sha256, /^[0-9a-f]{64}$/);
+assert.equal(api.tableAnalysisLimits.rows, 1000);
 assert.equal(api.profiles.quick.searches, 8);
 assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);
 const grounded = api.groundedAnswer({ sources, judge: { id: 'installed-fixture', kind: 'synthetic' }, claims: [{ text: 'Unresolved claim.', citations: [], joint: { verdict: 'insufficient', reason: 'No cited span.' } }] });
@@ -58,6 +61,10 @@ const run = (fixture, options = {}) => api.researchQuestion('Synthetic packed re
 const lower = (fixture, body) => api.withCodexWorkspace({ lease: fixture.lease, prefix: 'packed-outcome-' }, body);
 const options = { prompt: 'Synthetic packed lower-level session', live: false, budget: { searches: 0, documents: 0, seconds: 5 }, signal: new AbortController().signal };
 const bin = fileURLToPath(new URL('./node_modules/.bin/research-ai', import.meta.url));
+const tableBin = fileURLToPath(new URL('./node_modules/.bin/research-table-analysis', import.meta.url));
+const tableHelp = spawnSync(tableBin, ['--help'], { encoding: 'utf8', timeout: 10000, env: process.env });
+assert.equal(tableHelp.status, 0, tableHelp.stderr);
+assert.match(tableHelp.stdout, /--engine-root/);
 const cli = args => {
   const result = spawnSync(bin, args, { encoding: 'utf8', timeout: 10000, env: process.env });
   assert.equal(result.error, undefined);

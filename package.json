@@ -15,7 +15,8 @@
     "research-ai": "bin/research-ai.mjs",
     "research-report-export": "bin/research-report-export.mjs",
     "research-bibliography": "bin/research-bibliography.mjs",
-    "research-branches": "bin/research-branches.mjs"
+    "research-branches": "bin/research-branches.mjs",
+    "research-table-analysis": "bin/research-table-analysis.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -37,7 +38,8 @@
     "src/bibliography-NOTICE.txt",
     "src/bibliography-MIT-LICENSE.txt",
     "docs/bibliography.md",
-    "docs/independent-branches.md"
+    "docs/independent-branches.md",
+    "docs/table-analysis.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

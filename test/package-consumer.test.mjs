@@ -73,6 +73,8 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
       'src/independent-branches-NOTICE.txt', 'docs/independent-branches.md');
     expected.push('bin/research-bibliography.mjs', 'docs/bibliography.md', 'src/bibliography.mjs',
       'src/bibliography-MIT-LICENSE.txt', 'src/bibliography-NOTICE.txt');
+    expected.push('bin/research-table-analysis.mjs', 'docs/table-analysis.md',
+      'src/table-analysis.mjs', 'src/table-analysis-worker.mjs');
     assert.deepEqual(members, expected.map(name => `package/${name}`).sort());
     report.memberEvidence = [];
     for (const name of expected) {
@@ -110,6 +112,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-report-export')), join(await realpath(packageRoot), manifest.bin['research-report-export']));
     assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-branches')), join(await realpath(packageRoot), manifest.bin['research-branches']));
     assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-bibliography')), join(await realpath(packageRoot), manifest.bin['research-bibliography']));
+    assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-table-analysis')), join(await realpath(packageRoot), manifest.bin['research-table-analysis']));
     assert.ok((await stat(bin)).mode & 0o111);
     report.installed = { packageRoot, bin, binRealpath: await realpath(bin) };
     await cp(join(source, 'test/fake-codex.mjs'), join(consumer, 'fake-codex.mjs'));

@@ -10,3 +10,4 @@ export { exportReportHtml } from './report-export.mjs';
 export { createInvestigation, reviseInvestigation, validateInvestigation, advanceInvestigation, renderInvestigation } from './investigation.mjs';
 export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
+export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';

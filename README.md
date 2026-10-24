@@ -463,3 +463,11 @@ clarification and cited synthesis adapt methods in dzhng/deep-research. The
 package's recursive crawler, provider framework and dependencies are not used.
 
 No activity is delivered when the prepared process fails to spawn. A later native process error is labeled `native_process_error`; raw process diagnostics remain outside the activity projection.
+
+## Registered-table analysis
+
+`registerTable` binds a bounded caller-authored typed table to its canonical
+digest. `analyzeTable` supports closed aggregate operations in an optional,
+host-configured DuckDB worker; Research has no runtime dependency on DuckDB.
+See [the table-analysis contract](docs/table-analysis.md) for limits, host
+setup, and numeric qualifications.
