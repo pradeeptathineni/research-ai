@@ -124,15 +124,16 @@ function validateRawTable(table) {
     row.forEach((value, columnIndex) => typeMatches(value, table.columns[columnIndex].type, `rows[${rowIndex}][${columnIndex}]`));
   }
   closed(table.origin, ['type', 'label'], 'origin');
-  if (table.origin.type !== 'caller-authored') fail('invalid_input', 'Only caller-authored tables are accepted.');
+  if (!['caller-authored', 'caller-supplied'].includes(table.origin.type))
+    fail('invalid_input', 'Origin must identify caller-authored or caller-supplied values.');
   text(table.origin.label, 'origin.label');
   const canonicalInput = canonical(coreTable(table));
   if (Buffer.byteLength(canonicalInput, 'utf8') > MAX_BYTES)
-    fail('limit_exceeded', 'Canonical table input exceeds 1 MiB.');
+    fail('limit_exceeded', 'Canonical table input exceeds 1,000,000 bytes.');
   return JSON.parse(canonicalInput);
 }
 
-/** Validate a caller-authored table and bind its exact canonical JSON digest. */
+/** Validate a caller-authored or caller-supplied table and bind its exact canonical JSON digest. */
 export function registerTable(table) {
   const value = validateRawTable(table);
   return freezeTree({ ...value, sha256: digest(value) });

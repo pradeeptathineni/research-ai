@@ -471,3 +471,8 @@ digest. `analyzeTable` supports closed aggregate operations in an optional,
 host-configured DuckDB worker; Research has no runtime dependency on DuckDB.
 See [the table-analysis contract](docs/table-analysis.md) for limits, host
 setup, and numeric qualifications.
+
+`importTableCsv` can turn a supplied UTF-8 CSV string or byte buffer into a
+bounded text-only table. It requires a host-configured optional CSV parser and
+does not infer types or evaluate formulas. See [CSV import](docs/table-csv.md)
+for parser setup and refusal limits.

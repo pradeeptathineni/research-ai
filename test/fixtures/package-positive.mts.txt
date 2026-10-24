@@ -1,5 +1,11 @@
 import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
 import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
+import { importTableCsv, registerTable } from '@pradeeptathineni/research-ai';
+import type { ResearchTableCsvResult } from '@pradeeptathineni/research-ai';
+declare const hostParserRoot: string;
+const importedCsv: Promise<ResearchTableCsvResult> = importTableCsv('header\nvalue\n', { parserRoot: hostParserRoot, label: 'Synthetic CSV' });
+const suppliedTable = registerTable({ version: 'research-table-v1', id: 'table-4f7d831d-fb2b-4a4b-89f4-c06c8cf08699', columns: [{ id: 'c0', label: 'Header', type: 'text' }], rows: [['value']], origin: { type: 'caller-supplied', label: 'Synthetic CSV' } });
+void [importedCsv, suppliedTable.sha256];
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };

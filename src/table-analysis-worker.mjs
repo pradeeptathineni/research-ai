@@ -159,7 +159,9 @@ async function main(engineRoot) {
     if (rawRows.length > MAX_GROUPS) throw new Error('group_limit_exceeded');
     const columns = resultColumns(input.query, input.table, built.aggregateIndex, built.groupIndex);
     const rows = normalizeRows(rawRows, columns);
-    const qualifications = ['Caller-authored values are not independently sourced or verified.'];
+    const qualifications = [input.table.origin.type === 'caller-supplied'
+      ? 'Caller-supplied values are not independently sourced or verified.'
+      : 'Caller-authored values are not independently sourced or verified.'];
     if (['sum', 'avg'].includes(input.query.aggregate))
       qualifications.push('Number aggregates use binary floating-point and may round decimal values.');
     encode({

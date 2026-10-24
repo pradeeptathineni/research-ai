@@ -11,3 +11,4 @@ export { createInvestigation, reviseInvestigation, validateInvestigation, advanc
 export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';
+export { importTableCsv } from './table-csv.mjs';

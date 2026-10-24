@@ -1,7 +1,7 @@
 # Registered-table analysis
 
 `registerTable(table)` accepts a closed `research-table-v1` object with a
-caller-authored label, typed columns, and primitive rows. It validates the
+caller-authored or caller-supplied label, typed columns, and primitive rows. It validates the
 shape and limits, computes SHA-256 over canonical JSON, and returns a frozen
 copy with that digest. It does not read or verify external sources.
 

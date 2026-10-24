@@ -706,7 +706,7 @@ export type ResearchTableCell = string | number | boolean | null;
 export interface ResearchTableColumn { id: string; label: string; type: "text" | "number" | "boolean" }
 export interface ResearchTable {
   version: "research-table-v1"; id: string; columns: ResearchTableColumn[];
-  rows: ResearchTableCell[][]; origin: { type: "caller-authored"; label: string }; sha256: string;
+  rows: ResearchTableCell[][]; origin: { type: "caller-authored" | "caller-supplied"; label: string }; sha256: string;
 }
 export interface ResearchTableQuery {
   aggregate: "count" | "sum" | "avg" | "min" | "max"; column_id?: string; group_by?: string;
@@ -724,10 +724,18 @@ export type ResearchTableResult = ResearchTableCompleteResult | {
   version: "research-table-result-v1"; status: "unknown"; input_digest: string; query_digest: string;
   reason: "deadline" | "aborted" | "worker_cleanup_unconfirmed";
 };
-/** Validates a closed caller-authored typed table and computes its exact canonical digest. */
+/** Validates a closed caller-authored or caller-supplied typed table and computes its exact canonical digest. */
 export function registerTable(table: Omit<ResearchTable, "sha256">): ResearchTable;
 /** Runs a closed aggregate in a short-lived restricted worker; engineRoot is trusted host configuration. */
 export function analyzeTable(table: ResearchTable, query: ResearchTableQuery, options: {
   engineRoot: string; signal?: AbortSignal; timeoutMs?: number;
 }): Promise<ResearchTableResult>;
 export const tableAnalysisLimits: Readonly<{ rows: number; columns: number; bytes: number; groups: number; timeoutMs: number }>;
+
+export interface ResearchTableCsvImport {
+  version: "research-table-csv-v1"; csv_sha256: string; table_sha256: string;
+  parser: { name: "csv-parse"; version: "7.0.3" }; headers: "first-row"; values: "text";
+}
+export interface ResearchTableCsvResult { table: ResearchTable; import: ResearchTableCsvImport }
+/** Parses bounded UTF-8 CSV in memory through the host-configured optional csv-parse package. */
+export function importTableCsv(csv: string | Uint8Array, options: { parserRoot: string; label: string }): Promise<ResearchTableCsvResult>;
