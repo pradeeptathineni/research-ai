@@ -13,7 +13,8 @@
   },
   "bin": {
     "research-ai": "bin/research-ai.mjs",
-    "research-report-export": "bin/research-report-export.mjs"
+    "research-report-export": "bin/research-report-export.mjs",
+    "research-bibliography": "bin/research-bibliography.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -31,7 +32,10 @@
     "ARCHITECTURE.md",
     "docs/compatibility.md",
     "docs/SurfSense-LICENSE.txt",
-    "docs/report-export.md"
+    "docs/report-export.md",
+    "src/bibliography-NOTICE.txt",
+    "src/bibliography-MIT-LICENSE.txt",
+    "docs/bibliography.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

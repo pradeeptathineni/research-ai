@@ -663,3 +663,28 @@ export function reviseInvestigation(state: Investigation, edit: InvestigationEdi
 export function validateInvestigation(value: unknown): Investigation;
 export function advanceInvestigation(state: Investigation, options: { action: InvestigationAction; branchIds?: string[]; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<Investigation>;
 export function renderInvestigation(state: Investigation, options?: { format?: "markdown" | "json" }): string;
+
+export type ReferenceAuthor = { literal: string } | { family: string; given?: string }
+export interface ReferenceMetadata {
+  type: 'article' | 'book' | 'webpage' | 'report'; title: string; authors?: ReferenceAuthor[];
+  year?: number; container_title?: string; publisher?: string; doi?: string; url?: string;
+}
+export interface ReferenceSelection {
+  ref: { owner: string; kind: string; id: string; revision: string; digest: string };
+  instance_id: string; owner_epoch: string | null;
+}
+export interface ReferenceRow {
+  id: string; selection: ReferenceSelection; metadata_revision: number;
+  metadata_sha256: string; metadata: ReferenceMetadata;
+  qualification: 'User-supplied bibliographic metadata; unverified.';
+}
+export interface ReferenceList {
+  schema: 'signals.reference-list.v1'; topic: { id: string; revision: number };
+  references: ReferenceRow[];
+}
+/** Rejects unsupported fields, stale hashes, duplicate IDs and malformed retained reference rows. */
+export function validateReferenceList(value: unknown): ReferenceList;
+/** Formats the supported local metadata subset without fetching, enrichment or style-engine claims. */
+export function formatBibliography(referenceList: ReferenceList, options?: { format?: 'text' | 'bibtex' | 'csl-json' }): string;
+/** Adds explicitly source-index-bound, unverified bibliographic descriptions to offline report HTML. */
+export function exportReportWithReferences(report: ResearchReport, referenceList: ReferenceList, bindings: { source: number; reference_id: string }[]): string;
