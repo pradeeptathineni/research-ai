@@ -71,8 +71,7 @@ export function validateReferenceList(list) {
   return list;
 }
 
-const bibtexEscape = (value) => String(value).replace(/[\\{}%$&#_]/g, (character) => ({ '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', '%': '\\%', '$': '\\$', '&': '\\&', '#': '\\#', '_': '\\_' })[character]);
-const bibtexName = (author) => author.literal ?? [author.family, author.given].filter(Boolean).join(', ');
+const bibtexEscape = (value) => String(value).replace(/[\\{}%$&#_^~]/g, (character) => ({ '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', '%': '\\%', '$': '\\$', '&': '\\&', '#': '\\#', '_': '\\_', '^': '\\textasciicircum{}', '~': '\\textasciitilde{}' })[character]);
 const cslType = { article: 'article-journal', book: 'book', webpage: 'webpage', report: 'report' };
 const entryType = { article: 'article', book: 'book', webpage: 'online', report: 'report' };
 
@@ -91,12 +90,17 @@ function cslRow(row) {
 function bibtexRow(row) {
   const metadata = row.metadata;
   const fields = [
-    ['author', metadata.authors?.map(bibtexName).join(' and ')], ['title', metadata.title],
+    ['author', metadata.authors], ['title', metadata.title],
     ['journal', metadata.type === 'article' ? metadata.container_title : undefined],
     ['booktitle', metadata.type !== 'article' ? metadata.container_title : undefined],
     ['publisher', metadata.publisher], ['year', metadata.year], ['doi', metadata.doi], ['url', metadata.url],
   ].filter(([, value]) => value !== undefined);
-  return `@${entryType[metadata.type]}{${row.id},\n${fields.map(([key, value]) => `  ${key} = {${bibtexEscape(value)}},`).join('\n')}\n}`;
+  return `@${entryType[metadata.type]}{${row.id},\n${fields.map(([key, value]) => {
+    const formatted = key === 'author'
+      ? value.map((author) => author.literal ? `{${bibtexEscape(author.literal)}}` : bibtexEscape([author.family, author.given].filter(Boolean).join(', '))).join(' and ')
+      : bibtexEscape(value);
+    return `  ${key} = {${formatted}},`;
+  }).join('\n')}\n}`;
 }
 
 /** Formats validated metadata as plain text, a supported BibTeX subset, or CSL-JSON. */
@@ -126,7 +130,15 @@ export function exportReportWithReferences(report, referenceList, bindings) {
   let html = exportReportHtml(state);
   if (!bound.length) return html;
   const bib = bound.map(({ source, row }) => `<li><span>[${source + 1}]</span> ${escapeCitationText(renderTextRow(row.metadata))} <span class="qualification">User-assigned metadata; unverified.</span></li>`).join('');
-  const section = `<section aria-labelledby="bibliography"><h2 id="bibliography">Bibliography</h2><p>Associations are user-assigned and unverified.</p><ol>${bib}</ol><details><summary>Bibliography details</summary><p>Schema: signals.reference-list.v1</p><p>SHA-256: ${digest(canonical(referenceList))}</p></details></section>`;
+  const reportSha256 = digest(JSON.stringify(state));
+  const boundRows = [...bound].sort((left, right) => left.source - right.source).map(({ source, row }) => ({
+    source,
+    source_identity: { uri: state.basis.sources[source].uri, sha256: state.basis.sources[source].sha256 },
+    reference_id: row.id,
+    reference: row,
+  }));
+  const bibliographySha256 = digest(canonical({ schema: 'research-report-bibliography.v1', report_sha256: reportSha256, topic: referenceList.topic, bindings: boundRows }));
+  const section = `<section aria-labelledby="bibliography"><h2 id="bibliography">Bibliography</h2><p>Associations are user-assigned and unverified.</p><ol>${bib}</ol><details><summary>Bibliography details</summary><p>Schema: research-report-bibliography.v1</p><p>SHA-256: ${bibliographySha256}</p></details></section>`;
   html = html.replace('</main>', `${section}</main>`);
   if (Buffer.byteLength(html, 'utf8') > 8 * 1024 * 1024) throw new Error('report_export_too_large: HTML exceeds 8 MiB');
   return html;

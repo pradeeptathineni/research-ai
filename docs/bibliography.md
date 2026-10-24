@@ -17,7 +17,11 @@ TeX. No dependency or network access is used.
 source index may be bound once; IDs and indices are checked. The standalone
 HTML keeps the existing exact source URI, hash, quote, citation spans and gaps,
 then adds a separately hashed bibliography and labels associations
-user-assigned and unverified. It includes no remote assets or scripts.
+user-assigned and unverified. That digest covers the report state digest,
+source URI and hash for each binding, each selected reference row, and its
+explicit source-to-reference association. Swapping bindings changes the
+bibliography digest while leaving report evidence unchanged. It includes no
+remote assets or scripts.
 
 ```sh
 node bin/research-bibliography.mjs --input references.json --format bibtex
