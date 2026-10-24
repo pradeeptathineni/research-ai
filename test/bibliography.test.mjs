@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFile, execFileSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createReport, reviseReport } from '../src/report.mjs';
 import { validateReferenceList, formatBibliography, exportReportWithReferences } from '../src/bibliography.mjs';
 
@@ -83,4 +88,34 @@ test('bibliography digest changes when source bindings swap while report source 
   assert.notEqual(digestFrom(first), digestFrom(swapped));
   assert.equal(first.slice(0, first.indexOf('<section aria-labelledby="bibliography">')), swapped.slice(0, swapped.indexOf('<section aria-labelledby="bibliography">')));
   assert.notEqual(bibliographyAt(first), bibliographyAt(swapped));
+});
+
+test('CLI refuses a FIFO promptly without waiting for a writer', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bibliography-fifo-'));
+  const fifo = join(root, 'references.json');
+  const cliPath = fileURLToPath(new URL('../bin/research-bibliography.mjs', import.meta.url));
+  try {
+    execFileSync('mkfifo', [fifo]);
+    const started = Date.now();
+    const result = await new Promise((resolve) => execFile(process.execPath, [cliPath, '--input', fifo], { timeout: 3000 }, (error, stdout, stderr) => resolve({ error, stdout, stderr })));
+    assert.equal(result.error?.code, 1, result.stderr);
+    assert.match(result.stderr, /regular non-symlink JSON file/);
+    assert.ok(Date.now() - started < 2000, 'FIFO input should be refused without waiting for a writer');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('CLI rejects regular inputs larger than 1 MiB', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bibliography-large-'));
+  const input = join(root, 'references.json');
+  const cliPath = fileURLToPath(new URL('../bin/research-bibliography.mjs', import.meta.url));
+  try {
+    await writeFile(input, Buffer.alloc(1024 * 1024 + 1));
+    const result = await new Promise((resolve) => execFile(process.execPath, [cliPath, '--input', input], { timeout: 3000 }, (error, stdout, stderr) => resolve({ error, stdout, stderr })));
+    assert.equal(result.error?.code, 1, result.stderr);
+    assert.match(result.stderr, /no larger than 1 MiB/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

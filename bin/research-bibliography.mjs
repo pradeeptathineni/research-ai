@@ -22,14 +22,21 @@ function parseArgs(args) {
 }
 
 async function readJson(path) {
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   let bytes;
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > maxInputBytes) throw new Error('input must be a regular non-symlink JSON file no larger than 1 MiB');
-    bytes = await handle.readFile();
+    const buffer = Buffer.alloc(maxInputBytes + 1);
+    let total = 0;
+    while (total < buffer.length) {
+      const result = await handle.read(buffer, total, buffer.length - total, total);
+      if (result.bytesRead === 0) break;
+      total += result.bytesRead;
+    }
+    if (total > maxInputBytes) throw new Error('input exceeds 1 MiB');
+    bytes = buffer.subarray(0, total);
   } finally { await handle.close(); }
-  if (bytes.length > maxInputBytes) throw new Error('input exceeds 1 MiB');
   const text = bytes.toString('utf8');
   if (!Buffer.from(text, 'utf8').equals(bytes)) throw new Error('input is not valid UTF-8');
   uniqueKeys(text);
