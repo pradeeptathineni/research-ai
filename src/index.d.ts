@@ -637,6 +637,8 @@ export interface ResearchReport {
 }
 /** Converts an outline or evidence table into a report without inference or loss. */
 export function createReport(input: ResearchOutline | ResearchEvidenceTable): ResearchReport;
+/** Validates current report content and returns self-contained, offline HTML, capped at 8 MiB. */
+export function exportReportHtml(report: ResearchReport): string;
 /** Rechecks the basis, bounded version history, accounting and exact source spans. */
 export function validateReport(value: unknown): ResearchReport;
 /** Appends a user-authored paragraph/gap version and keeps prior section versions. */

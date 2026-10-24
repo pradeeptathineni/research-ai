@@ -13,7 +13,7 @@ import { fakeCodex, message } from './fake-codex.mjs';
 const exact = '  Café ✓ 😀\n\nFallible evidence.\n';
 const success = { type: 'turn.completed' };
 const sources = [{ uri: 'https://example.org/frozen', text: 'Naïve ✓ 😀\nCaptured text.\n', observedAt: 'caller note', omissions: ['coverage unknown'] }];
-const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch'].sort();
+const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch', 'exportReportHtml'].sort();
 assert.deepEqual(Object.keys(api).sort(), expectedExports);
 assert.equal(api.profiles.quick.searches, 8);
 assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);
@@ -65,6 +65,48 @@ const cli = args => {
   return { args, status: result.status, stdout: result.stdout, stderr: result.stderr };
 };
 const investigationEvent = value => ({ events: [message(JSON.stringify(value)), success] });
+await probe('portable-report-installed-api-and-cli', {}, async fixture => {
+  const captured = [{ uri: 'https://example.org/policy', text: 'The service keeps logs for seven days.', observedAt: 'synthetic capture', omissions: ['No independent audit. <script>do not run</script>'] }];
+  const basis = api.createEvidenceTable('Retention <review>', { sources: captured, columns: [{ id: 'retention', title: 'Retention', question: 'How long?' }] });
+  const report = api.reviseReport(api.createReport(basis), { sectionId: 'retention', paragraphs: [{ text: 'Logs are kept for seven days.', citations: [{ source: 0, start: 0, end: captured[0].text.length, quote: captured[0].text }] }], gaps: ['Backup retention is absent.'] });
+  const html = api.exportReportHtml(report);
+  assert.equal(html, api.exportReportHtml(JSON.parse(JSON.stringify(report))));
+  assert.match(html, /href="#source-1"/);
+  assert.match(html, /No independent audit/);
+  assert.match(html, /Backup retention is absent/);
+  assert.doesNotMatch(html, /<script\b/);
+  const reportPath = join(fixture.root, 'portable-report.json');
+  const htmlPath = join(fixture.root, 'portable-report.html');
+  await writeFile(reportPath, JSON.stringify(report));
+  await writeFile('portable-report.json', JSON.stringify(report, null, 2) + '\n');
+  await writeFile('portable-report.html', html);
+  const exporter = fileURLToPath(new URL('./node_modules/.bin/research-report-export', import.meta.url));
+  const invoke = args => {
+    const result = spawnSync(exporter, args, { encoding: 'utf8', timeout: 10000, env: process.env });
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  };
+  const stdout = invoke(['--input', reportPath]);
+  assert.equal(stdout.status, 0, stdout.stderr);
+  assert.equal(stdout.stdout, html);
+  const created = invoke(['--input', reportPath, '--output', htmlPath]);
+  assert.equal(created.status, 0, created.stderr);
+  assert.equal(await readFile(htmlPath, 'utf8'), html);
+  const overwrite = invoke(['--input', reportPath, '--output', htmlPath]);
+  assert.equal(overwrite.status, 1);
+  assert.match(overwrite.stderr, /EEXIST/);
+  const invalid = structuredClone(report);
+  invalid.basis.sources[0].text += 'changed';
+  assert.throws(() => api.exportReportHtml(invalid), /invalid_report|outline|digest/i);
+  await writeFile(reportPath, JSON.stringify(invalid));
+  const refused = invoke(['--input', reportPath]);
+  assert.equal(refused.status, 1);
+  assert.equal(refused.stdout, '');
+  assert.deepEqual(await fixture.probes(), []);
+  assert.equal(await fixture.launched(), false);
+  return { htmlSha256: createHash('sha256').update(html).digest('hex'), htmlBytes: Buffer.byteLength(html), stdoutMatchesApi: true, createOnly: true, invalidSourceRefused: true, nativeSessions: 0 };
+});
 await probe('mindmap-create-inspect-edit-export-reopen-and-explicit-draft', { events: [message(JSON.stringify({ rootLabel: 'Where does search run?', nodes: [
   { parent: -1, label: 'Files remain local', relation: 'elaborates', citations: [{ source: 0, start: 0, end: 37 }], gap: null },
   { parent: -1, label: 'Selected text goes to provider', relation: 'contrasts', citations: [{ source: 1, start: 0, end: 51 }], gap: null },

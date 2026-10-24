@@ -41,6 +41,11 @@ const badMapRelation: MindMapRelation = 'causes';
 // @ts-expect-error renderer accepts only the three documented formats
 renderMindMap(mindMap, { format: 'html' });
 void badMapRelation;
+import { exportReportHtml } from '@pradeeptathineni/research-ai';
+const portableHtml: string = exportReportHtml(createReport(createEvidenceTable('Retention', { sources, columns: [{ id: 'retention', title: 'Retention', question: 'How long?' }] })));
+void portableHtml;
+// @ts-expect-error a mind map is not report authoring state
+exportReportHtml(mindMap);
 const lenses = chooseLenses(sources, [perspectiveCandidates(sources)[0]?.id ?? basicFacts.id, { label: 'Renter', focus: 'Costs without building changes' }]);
 async function perspectives(): Promise<PerspectiveResult['status']> {
   const viewed = await perspectiveResearch('Topic', { sources, perspectives: 'auto', questions: 2, onLens: ({ id, state }) => void [id, state] });

@@ -68,7 +68,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     // First assertion deliberately catches the accepted base's broken documentation closure.
     assert.ok(members.includes('package/ARCHITECTURE.md'), 'packed README outcome link must resolve to ARCHITECTURE.md');
     const expected = ['ARCHITECTURE.md', 'LICENSE', 'README.md', 'bin/research-ai.mjs', 'docs/compatibility.md',
-      'package.json', 'src/codex.mjs', 'src/index.d.ts', 'src/index.mjs', 'src/research.mjs', 'src/grounding.mjs', 'src/perspectives.mjs', 'src/outline.mjs', 'src/mindmap.mjs', 'docs/SurfSense-LICENSE.txt', 'src/evidence-table.mjs', 'src/report.mjs', 'src/investigation.mjs', 'THIRD-PARTY-NOTICES.md'];
+      'package.json', 'src/codex.mjs', 'src/index.d.ts', 'src/index.mjs', 'src/research.mjs', 'src/grounding.mjs', 'src/perspectives.mjs', 'src/outline.mjs', 'src/mindmap.mjs', 'docs/SurfSense-LICENSE.txt', 'src/evidence-table.mjs', 'src/report.mjs', 'src/report-export.mjs', 'src/report-export.d.ts', 'src/report-export-NOTICE.txt', 'bin/research-report-export.mjs', 'docs/report-export.md', 'src/investigation.mjs', 'THIRD-PARTY-NOTICES.md'];
     assert.deepEqual(members, expected.map(name => `package/${name}`).sort());
     report.memberEvidence = [];
     for (const name of expected) {
@@ -103,6 +103,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     assert.notEqual(await realpath(packageRoot), await realpath(source));
     const bin = join(consumer, 'node_modules/.bin/research-ai');
     assert.equal(await realpath(bin), join(await realpath(packageRoot), manifest.bin['research-ai']));
+    assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-report-export')), join(await realpath(packageRoot), manifest.bin['research-report-export']));
     assert.ok((await stat(bin)).mode & 0o111);
     report.installed = { packageRoot, bin, binRealpath: await realpath(bin) };
     await cp(join(source, 'test/fake-codex.mjs'), join(consumer, 'fake-codex.mjs'));

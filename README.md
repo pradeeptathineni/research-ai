@@ -322,6 +322,13 @@ prove occurrence only, not entailment, currentness, independence or truth.
 
 ### Cited report authoring
 
+`exportReportHtml(report)` exports a validated report's current sections as
+self-contained offline HTML, with exact citation navigation, gaps and source
+qualifications. The installed `research-report-export --input report.json
+--output new-report.html` command creates a new file; open it in a browser and
+use Print to save a PDF. No provider call occurs. See [portable report export](docs/report-export.md)
+for input/output limits and the standalone checkout command.
+
 `createReport` accepts a cited outline or an evidence table. For a table, each
 question column becomes a report section, each cited cell becomes a point, and
 unanswered cells remain section gaps. `draftReportSection` explicitly writes

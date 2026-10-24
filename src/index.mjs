@@ -6,4 +6,5 @@ export { outlineResearch, validateOutline, reviseOutline, renderOutline } from '
 export { mindMapLimits, createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch } from './mindmap.mjs';
 export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch } from './evidence-table.mjs';
 export { createReport, validateReport, reviseReport, draftReportSection, renderReport } from './report.mjs';
+export { exportReportHtml } from './report-export.mjs';
 export { createInvestigation, reviseInvestigation, validateInvestigation, advanceInvestigation, renderInvestigation } from './investigation.mjs';

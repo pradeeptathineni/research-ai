@@ -1,3 +1,19 @@
+# Portable report export
+
+`src/report-export.mjs` adapts print typography, spacing and blockquote styling
+from GPT Researcher `backend/styles/pdf_styles.css` at revision
+`3582a6841fe7dc801e2a34e34ee408641aea9bce`, copyright 2023 Tavily,
+Apache License 2.0. Changes use local system serif fonts, cited source cards,
+collapsible metadata and offline browser printing. Citation rendering and the
+restrictive offline HTML policy are original to research-ai. The standalone
+CLI's bounded, visible file handling is informed by `backend/utils.py`; no donor
+Python, Markdown converter, images or PDF/DOCX engines are included.
+
+The complete license, source pin, copyright and modification notice are shipped
+in [src/report-export-NOTICE.txt](src/report-export-NOTICE.txt).
+
+Source: https://github.com/assafelovic/gpt-researcher/tree/3582a6841fe7dc801e2a34e34ee408641aea9bce
+
 # Evidence-linked mind maps
 
 `src/mindmap.mjs` ports the unsafe-construct regular expression and adapts the
