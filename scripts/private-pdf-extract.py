@@ -16,9 +16,9 @@ except ImportError:
     resource = None
 
 MAX_INPUT = 4 * 1024 * 1024
-MAX_PAGES = 50
-MAX_TEXT_UNITS = 48_000
-MAX_TEXT_BYTES = 96_000
+MAX_PAGES = 256
+MAX_TEXT_UNITS = 256_000
+MAX_TEXT_BYTES = 768_000
 
 
 def fail(code: str) -> None:

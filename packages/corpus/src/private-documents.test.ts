@@ -296,6 +296,146 @@ it('imports, reopens and returns a valid PDF at the original-byte limit', async 
   expect(Buffer.from(original.bytes_base64, 'base64').equals(bytes)).toBe(true);
 }, 15_000);
 
+it('retains and reopens all 64 pages, including late-page frozen citations', async () => {
+  const root = await privateRoot();
+  const texts = Array.from({ length: 64 }, (_, index) => {
+    const number = index + 1;
+    const marker =
+      number === 1 || number === 61 || number === 64
+        ? `Coverage citation on page ${number}. `
+        : `Page ${number}. `;
+    return marker + 'x'.repeat(820 - marker.length);
+  });
+  const bytes = pdf(texts);
+  const imported = await importPrivateDocument(root, encoded(bytes));
+  expect(imported.document.pages).toHaveLength(64);
+  expect(imported.document.pages.reduce((sum, page) => sum + page.text.length, 0)).toBeGreaterThan(
+    48_000,
+  );
+  expect(imported.document.raw_sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
+  expect(imported.document.pages[60]!.text).toContain('Coverage citation on page 61.');
+
+  const listed = await listPrivateDocuments(root);
+  expect(listed.documents[0]).toMatchObject({
+    page_count: 64,
+    raw_sha256: imported.document.raw_sha256,
+  });
+  expect(listed.documents[0]).not.toHaveProperty('pages');
+  const reopened = await openPrivateDocument(root, imported.document.id);
+  expect(reopened.ref).toEqual(imported.ref);
+  expect(reopened.document.pages.map((page) => page.text_sha256)).toEqual(
+    imported.document.pages.map((page) => page.text_sha256),
+  );
+  const selected = await selectPrivateDocument(
+    root,
+    { document_ref: reopened.ref, pages: [1, 61, 64] },
+    'http://127.0.0.1:5178',
+  );
+  expect(selected.pages).toEqual([1, 61, 64]);
+  expect(selected.sources[1]!.text).toContain('Coverage citation on page 61.');
+  await expect(
+    privateDocumentSections(root, {
+      document_ref: reopened.ref,
+      raw_sha256: reopened.document.raw_sha256,
+    }),
+  ).resolves.toMatchObject({ outcome: 'absent', nodes: [], omitted: 0 });
+}, 30_000);
+
+it('refuses page, text and raw-byte overages before changing retained bytes', async () => {
+  const root = await privateRoot();
+  await importPrivateDocument(root, {
+    name: 'retained.txt',
+    media_type: 'text/plain',
+    bytes_base64: Buffer.from('keep this record').toString('base64'),
+  });
+  const path = join(root, '.signals/private-documents.json');
+  const before = await readFile(path);
+  const cases: Array<[unknown, string]> = [
+    [encoded(pdf(Array.from({ length: 257 }, () => 'Over page limit'))), 'pdf_page_limit'],
+    [
+      {
+        name: 'too-long.txt',
+        media_type: 'text/plain',
+        bytes_base64: Buffer.from('x'.repeat(256_001)).toString('base64'),
+      },
+      'invalid_private_document',
+    ],
+    [
+      {
+        name: 'too-large.txt',
+        media_type: 'text/plain',
+        bytes_base64: Buffer.alloc(4 * 1024 * 1024 + 1).toString('base64'),
+      },
+      'invalid_private_document',
+    ],
+  ];
+  for (const [input, code] of cases) {
+    await expect(importPrivateDocument(root, input)).rejects.toMatchObject({ code });
+    expect(await readFile(path)).toEqual(before);
+  }
+}, 30_000);
+
+it('refuses aggregate raw-byte and serialized-store overages without changing retained bytes', async () => {
+  const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+  const record = (index: number, raw: Buffer, text: string) => {
+    const draft = {
+      schema_version: '1.0',
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      name: `seed-${index}.txt`,
+      media_type: 'text/plain',
+      imported_at: '2026-10-25T00:00:00.000Z',
+      raw_base64: raw.toString('base64'),
+      raw_sha256: digest(raw),
+      extractor: 'operator-text-v1',
+      pages: [{ number: 1, text, text_sha256: digest(text) }],
+      qualification: ['Seeded valid private fixture record.'],
+    };
+    return { ...draft, record_sha256: digest(JSON.stringify(draft)) };
+  };
+  const seed = async (root: string, documents: object[]) => {
+    const directory = join(root, '.signals');
+    await mkdir(directory, { recursive: true });
+    const path = join(directory, 'private-documents.json');
+    await writeFile(path, JSON.stringify({ schema_version: '1.0', documents }));
+    return { path, bytes: await readFile(path) };
+  };
+
+  const aggregateRoot = await privateRoot();
+  const aggregateRaw = Buffer.alloc(1024 * 1024, 'r');
+  const aggregateStore = await seed(
+    aggregateRoot,
+    Array.from({ length: 12 }, (_, index) => record(index, aggregateRaw, 'seed')),
+  );
+  await expect(
+    importPrivateDocument(aggregateRoot, {
+      name: 'aggregate-overage.txt',
+      media_type: 'text/plain',
+      bytes_base64: Buffer.from('x').toString('base64'),
+    }),
+  ).rejects.toMatchObject({ code: 'private_document_unavailable' });
+  expect((await readFile(aggregateStore.path)).equals(aggregateStore.bytes)).toBe(true);
+
+  const storeRoot = await privateRoot();
+  const pageText = 'x'.repeat(256_000);
+  const sourceBytes = Buffer.alloc(600_000, 'x');
+  const storeDocuments = Array.from({ length: 19 }, (_, index) =>
+    record(index, sourceBytes, pageText),
+  );
+  const store = await seed(storeRoot, storeDocuments);
+  expect(store.bytes.length).toBeLessThan(20 * 1024 * 1024);
+  let probe = pdf(['z'.repeat(255_000)]);
+  let padding = 600_000 - probe.length;
+  for (let attempt = 0; attempt < 3 && probe.length !== 600_000; attempt++) {
+    probe = pdf(['z'.repeat(255_000)], `%${'x'.repeat(padding - 2)}\n`);
+    padding += 600_000 - probe.length;
+  }
+  expect(probe.length).toBe(600_000);
+  await expect(importPrivateDocument(storeRoot, encoded(probe))).rejects.toMatchObject({
+    code: 'private_document_unavailable',
+  });
+  expect((await readFile(store.path)).equals(store.bytes)).toBe(true);
+}, 60_000);
+
 it('refuses malformed base64 padding and nonalphabet characters without decoding them as bytes', async () => {
   const root = await privateRoot();
   for (const bytes_base64 of ['eA===', 'eA$=']) {

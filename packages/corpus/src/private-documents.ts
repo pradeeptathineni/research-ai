@@ -15,15 +15,20 @@ const closed = { additionalProperties: false };
 const sha = Type.String({ pattern: '^[a-f0-9]{64}$' });
 const uuid = Type.String({ pattern: '^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$' });
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
-const MAX_TEXT_UNITS = 48000;
-const MAX_TEXT_BYTES = 96000;
-const MAX_PAGES = 50;
+const MAX_TEXT_UNITS = 256_000;
+const MAX_TEXT_BYTES = 768_000;
+const MAX_PAGES = 256;
 const MAX_OUTLINE_NODES = 200;
 const MAX_OUTLINE_DEPTH = 16;
 const MAX_OUTLINE_TITLE = 300;
 const MAX_DOCUMENTS = 20;
 const MAX_TOTAL_RAW_BYTES = 12 * 1024 * 1024;
 const MAX_STORE_BYTES = 20 * 1024 * 1024;
+export const PRIVATE_DOCUMENT_INPUT_LIMITS = Object.freeze({
+  maxPages: MAX_PAGES,
+  maxTextUnits: MAX_TEXT_UNITS,
+  maxTextBytes: MAX_TEXT_BYTES,
+});
 const pageSchema = Type.Object(
   {
     number: Type.Integer({ minimum: 1, maximum: MAX_PAGES }),
@@ -324,13 +329,13 @@ async function extractPdf(bytes: Buffer, python: string) {
     }, 10000);
     child.stdout.on('data', (chunk: Buffer) => {
       outputBytes += chunk.length;
-      if (outputBytes > 1_500_000) {
+      if (outputBytes > 5_000_000) {
         child.kill('SIGKILL');
         finish(
           new PrivateDocumentError(
             422,
             'pdf_extraction_limit',
-            'PDF extraction output exceeded its limit.',
+            'PDF extraction output exceeded its 5 MB limit.',
           ),
         );
       } else output.push(chunk);
@@ -371,9 +376,9 @@ async function extractPdf(bytes: Buffer, python: string) {
           const reasons: Record<string, string> = {
             pdf_encrypted:
               'Encrypted PDFs are refused, including files whose empty password might otherwise open them.',
-            pdf_page_limit: 'PDF documents are limited to 50 pages.',
+            pdf_page_limit: 'PDF documents are limited to 256 pages.',
             pdf_text_limit:
-              'Complete extracted text exceeds the 48,000 UTF16-unit or 96,000 UTF8-byte document limit.',
+              'Complete extracted text exceeds the 256,000 UTF16-unit or 768,000 UTF8-byte document limit.',
             pdf_too_large: 'PDF input exceeds the 4 MiB byte limit.',
             invalid_pdf_header: 'The supplied bytes do not have a PDF header.',
           };
@@ -533,8 +538,7 @@ async function extractPdfSections(bytes: Buffer, python: string): Promise<PdfOut
               (typeof node.parent_id === 'string' && ids.has(node.parent_id))
             ) ||
             (node.parent_id !== null &&
-              (depths.get(node.parent_id) ?? MAX_OUTLINE_DEPTH) + 1 >
-                MAX_OUTLINE_DEPTH) ||
+              (depths.get(node.parent_id) ?? MAX_OUTLINE_DEPTH) + 1 > MAX_OUTLINE_DEPTH) ||
             typeof node.title !== 'string' ||
             node.title.length < 1 ||
             node.title.length > MAX_OUTLINE_TITLE ||
@@ -546,10 +550,7 @@ async function extractPdfSections(bytes: Buffer, python: string): Promise<PdfOut
           )
             throw new Error('invalid_pdf_outline_node');
           ids.add(node.id);
-          depths.set(
-            node.id,
-            node.parent_id === null ? 1 : (depths.get(node.parent_id) ?? 0) + 1,
-          );
+          depths.set(node.id, node.parent_id === null ? 1 : (depths.get(node.parent_id) ?? 0) + 1);
           return node as unknown as PrivateDocumentSection;
         });
         if (
@@ -653,7 +654,7 @@ export async function importPrivateDocument(
   } catch (error) {
     return privateDocumentError(error);
   }
-  if (extracted.pages.length > MAX_PAGES) invalid('PDF documents are limited to 50 pages.');
+  if (extracted.pages.length > MAX_PAGES) invalid('PDF documents are limited to 256 pages.');
   let units = 0;
   let bytesCount = 0;
   const pages = extracted.pages.map((text, index) => {
@@ -667,7 +668,7 @@ export async function importPrivateDocument(
       bytesCount > MAX_TEXT_BYTES
     )
       invalid(
-        'Complete extracted text exceeds the 48,000 UTF16-unit or 96,000 UTF8-byte document limit.',
+        'Complete extracted text exceeds the 256,000 UTF16-unit or 768,000 UTF8-byte document limit.',
       );
     return { number: index + 1, text, text_sha256: sha256(text) };
   });
@@ -834,7 +835,7 @@ export async function selectPrivateDocument(
       return page;
     });
     if (selected.reduce((sum, page) => sum + page.text.length, 0) > MAX_TEXT_UNITS)
-      invalid('Selected pages exceed the 48,000 UTF16-unit frozen-source limit.');
+      invalid('Selected pages exceed the 256,000 UTF16-unit frozen-source limit.');
     return {
       sources: selected.map((page) => ({
         uri: `${origin}/signals-ai/__signals/api/private-documents/${record.id}/pages/${page.number}`,

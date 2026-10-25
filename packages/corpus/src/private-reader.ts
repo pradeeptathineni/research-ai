@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import type { FrozenSource } from '@pradeeptathineni/research-ai';
 import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
-import { openPrivateDocument } from './private-documents.js';
+import { openPrivateDocument, PRIVATE_DOCUMENT_INPUT_LIMITS } from './private-documents.js';
 import { atomicJson, readPrivateJson, withWriter } from './search-store.js';
 import { isWellFormedUnicode, recordRefSchema, type RecordRef } from './source-captures.js';
 
@@ -16,9 +16,9 @@ const MAX_STORE_BYTES = 40 * 1024 * 1024;
 const annotationSchema = Type.Object(
   {
     id: uuid,
-    page: Type.Integer({ minimum: 1, maximum: 50 }),
-    start: Type.Integer({ minimum: 0, maximum: 48000 }),
-    end: Type.Integer({ minimum: 1, maximum: 48000 }),
+    page: Type.Integer({ minimum: 1, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxPages }),
+    start: Type.Integer({ minimum: 0, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxTextUnits }),
+    end: Type.Integer({ minimum: 1, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxTextUnits }),
     quote: Type.String({ minLength: 1, maxLength: 4000 }),
     page_sha256: sha,
     note: Type.String({ maxLength: 2000 }),
@@ -30,8 +30,8 @@ const readerSchema = Type.Object(
     id: uuid,
     document_ref: recordRefSchema,
     raw_sha256: sha,
-    created_page: Type.Integer({ minimum: 1, maximum: 50 }),
-    page: Type.Integer({ minimum: 1, maximum: 50 }),
+    created_page: Type.Integer({ minimum: 1, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxPages }),
+    page: Type.Integer({ minimum: 1, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxPages }),
     annotations: Type.Array(annotationSchema, { maxItems: MAX_ANNOTATIONS }),
     revision: Type.Integer({ minimum: 1 }),
     digest: sha,
@@ -172,7 +172,7 @@ const createSchema = Type.Object(
     id: uuid,
     document_ref: recordRefSchema,
     raw_sha256: sha,
-    page: Type.Integer({ minimum: 1, maximum: 50 }),
+    page: Type.Integer({ minimum: 1, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxPages }),
   },
   closed,
 );
@@ -181,7 +181,9 @@ const reviseSchema = Type.Object(
     id: uuid,
     expected_revision: Type.Integer({ minimum: 1 }),
     expected_digest: sha,
-    page: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
+    page: Type.Optional(
+      Type.Integer({ minimum: 1, maximum: PRIVATE_DOCUMENT_INPUT_LIMITS.maxPages }),
+    ),
     add_annotations: Type.Optional(Type.Array(annotationSchema, { maxItems: MAX_ANNOTATIONS })),
     remove_annotation_ids: Type.Optional(
       Type.Array(uuid, { maxItems: MAX_ANNOTATIONS, uniqueItems: true }),
@@ -361,7 +363,8 @@ export async function selectPrivateReaderAnnotations(
     return item!;
   });
   const units = chosen.reduce((sum, item) => sum + item.quote.length, 0);
-  if (units > 48000) invalid('Selected passages exceed the 48,000 UTF-16-unit source limit.');
+  if (units > PRIVATE_DOCUMENT_INPUT_LIMITS.maxTextUnits)
+    invalid('Selected passages exceed the 256,000 UTF-16-unit source limit.');
   const sources = chosen.map((item) => ({
     uri: `${origin}/signals-ai/__signals/api/private-documents/${reader.document_ref.id}/pages/${item.page}#range=${item.start}-${item.end}&sha256=${item.page_sha256}&annotation=${item.id}`,
     text: item.quote,

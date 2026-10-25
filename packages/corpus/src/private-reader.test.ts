@@ -305,6 +305,46 @@ it('serves original bytes only for an exact PDF ref and freezes selected exact a
   expect(restored.reader.annotations[0]?.note).toBe('Review this clause');
 });
 
+it('creates, annotates and reopens an exact page 61 reader record', async () => {
+  const workspace = await root();
+  const texts = Array.from({ length: 64 }, (_, index) => `Page ${index + 1}: retained text`);
+  const bytes = pdf(texts);
+  const imported = await importPrivateDocument(workspace, {
+    name: 'sixty-four-pages.pdf',
+    media_type: 'application/pdf',
+    bytes_base64: bytes.toString('base64'),
+  });
+  const readerId = 'a72db7a3-56e4-48d0-85f1-ef1e15a6b2ea';
+  const created = await createPrivateReader(workspace, {
+    id: readerId,
+    document_ref: imported.ref,
+    raw_sha256: imported.document.raw_sha256,
+    page: 61,
+  });
+  expect(created.reader.page).toBe(61);
+  expect(created.document.pages[60]!.text).toContain('Page 61: retained text');
+  const quote = 'Page 61: retained text';
+  const updated = await revisePrivateReader(workspace, {
+    id: readerId,
+    expected_revision: created.reader.revision,
+    expected_digest: created.reader.digest,
+    add_annotations: [
+      {
+        id: 'b82db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+        page: 61,
+        start: 0,
+        end: quote.length,
+        quote,
+        page_sha256: created.document.pages[60]!.text_sha256,
+        note: 'Retained late-page citation',
+      },
+    ],
+  });
+  const reopened = await openPrivateReader(workspace, readerId);
+  expect(reopened.reader).toEqual(updated.reader);
+  expect(reopened.reader.annotations[0]).toMatchObject({ page: 61, quote });
+});
+
 it('refuses non-PDF bytes and code-point-splitting offsets', async () => {
   const workspace = await root();
   const textDoc = await importPrivateDocument(workspace, {

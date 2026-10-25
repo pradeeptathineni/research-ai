@@ -16,7 +16,7 @@ except ImportError:
     resource = None
 
 MAX_INPUT = 4 * 1024 * 1024
-MAX_PAGES = 50
+MAX_PAGES = 256
 MAX_NODES = 200
 MAX_DEPTH = 16
 MAX_TITLE = 300
