@@ -12,3 +12,4 @@ export { validateReferenceList, formatBibliography, exportReportWithReferences }
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';
 export { importTableCsv } from './table-csv.mjs';
+export { documentResearchLimits, prepareDocumentResearch, researchDocuments, validateDocumentResearch, renderDocumentResearch } from './document-research.mjs';

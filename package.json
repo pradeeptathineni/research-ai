@@ -17,7 +17,8 @@
     "research-bibliography": "bin/research-bibliography.mjs",
     "research-branches": "bin/research-branches.mjs",
     "research-table-analysis": "bin/research-table-analysis.mjs",
-    "research-table-csv": "bin/research-table-csv.mjs"
+    "research-table-csv": "bin/research-table-csv.mjs",
+    "research-documents": "bin/research-documents.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -41,7 +42,8 @@
     "docs/bibliography.md",
     "docs/independent-branches.md",
     "docs/table-analysis.md",
-    "docs/table-csv.md"
+    "docs/table-csv.md",
+    "docs/document-research.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

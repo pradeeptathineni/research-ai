@@ -739,3 +739,44 @@ export interface ResearchTableCsvImport {
 export interface ResearchTableCsvResult { table: ResearchTable; import: ResearchTableCsvImport }
 /** Parses bounded UTF-8 CSV in memory through the host-configured optional csv-parse package. */
 export function importTableCsv(csv: string | Uint8Array, options: { parserRoot: string; label: string }): Promise<ResearchTableCsvResult>;
+
+export interface ResearchDocumentPage { number: number; text: string; sha256: string }
+/** Caller-frozen extracted document pages; sha256 identifies raw source bytes but is not checked here. */
+export interface ResearchDocumentInput { id: string; title: string; sha256: string; pages: ResearchDocumentPage[] }
+export interface PreparedDocumentResearch {
+  schema: "research-document-input-v1"; question: string; documents: ResearchDocumentInput[]; inputDigest: string;
+  counts: { documents: number; pages: number; utf16Units: number }; limits: string[];
+}
+export interface DocumentAnswerParagraph { text: string; evidenceIds: string[] }
+export interface DocumentResearchEvidence {
+  id: string; documentId: string; page: number; start: number; end: number; quote: string;
+  relation: "supporting" | "conflicting" | "context"; occurrence: "exact-page-span";
+}
+export interface DocumentResearchDraft {
+  version: "research-document-answer-v1"; question: string; documents: ResearchDocumentInput[]; inputDigest: string;
+  answer: DocumentAnswerParagraph[]; evidence: DocumentResearchEvidence[];
+  coverage: "answered" | "partial" | "insufficient"; gaps: string[];
+  origin: { type: "model-generated"; model: string; receipt: {
+    mode: "frozen"; profile: Profile; model: string; effort: string; nativeSessions: 1; contentSha256: string;
+  } }; limits: string[];
+}
+export type DocumentResearchResult = {
+  status: "complete"; draft: DocumentResearchDraft; receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome };
+} | {
+  status: "partial" | "failed" | "cancelled"; draft: null;
+  receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string };
+};
+/** Validates complete ordered pages and their extracted-text hashes before any session. */
+export function prepareDocumentResearch(question: string, documents: ResearchDocumentInput[]): PreparedDocumentResearch;
+/** Replays document hashes, answer-to-evidence links and exact UTF-16 page spans without a model. */
+export function validateDocumentResearch(value: unknown): DocumentResearchDraft;
+/** Researches all supplied pages in one frozen, schema-bound native session. */
+export function researchDocuments(question: string, documents: ResearchDocumentInput[], options?: {
+  profile?: Profile; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void;
+  activity?: (event: ResearchActivity) => void;
+}): Promise<DocumentResearchResult>;
+/** Renders a validated source-bound document answer without turning titles into links. */
+export function renderDocumentResearch(value: DocumentResearchDraft, options?: { format?: "markdown" | "json" }): string;
+export const documentResearchLimits: Readonly<{
+  documents: 4; pagesPerDocument: 50; totalUtf16Units: 48000; answers: 24; evidence: 48; evidenceQuoteUtf16Units: 4000;
+}>;

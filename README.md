@@ -152,6 +152,30 @@ node bin/research-ai.mjs --sources captured.json "question"
 omissions? }]` (SHA-256 of the exact UTF-8 text, caller notes verbatim). This
   identifies what was supplied; it does not verify, date or certify anything.
 
+### Complete-document questions
+
+`prepareDocumentResearch(question, documents)` checks caller-provided extracted
+pages and returns a consent-preview digest. `researchDocuments(question,
+documents, options)` then sends every page together in one frozen, schema-bound
+session. It does not choose passages or fetch links. Limits are four documents,
+50 ordered pages each, and 48,000 combined UTF-16 units. Page hashes are checked
+against their UTF-8 text; a document's raw-byte digest remains caller-asserted.
+
+`validateDocumentResearch` checks the retained page closure, answer evidence IDs
+and exact page-local UTF-16 spans. `renderDocumentResearch` exports JSON or
+Markdown. A complete answer requires a valid citation for every answer paragraph;
+insufficient source coverage returns an empty answer and explicit gaps. Citation
+relations are fallible model judgments, not verification. Non-complete sessions
+retain their receipt but never promote interim text to an answer. See
+[`docs/document-research.md`](docs/document-research.md).
+
+```sh
+research-documents --input captured-documents.json --profile quick
+```
+
+The CLI reads only the explicitly named JSON input, prints the result to stdout
+and the session receipt to stderr, and retains no document corpus.
+
 `withCodexWorkspace({ lease, prefix }, async (workspace) => workspace.run(options))`
 is the lower-level executor. Callers supply the prompt, live or frozen mode,
 budget, optional JSON output schema, response byte cap, checkpoint reader and

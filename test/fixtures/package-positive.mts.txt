@@ -6,6 +6,17 @@ declare const hostParserRoot: string;
 const importedCsv: Promise<ResearchTableCsvResult> = importTableCsv('header\nvalue\n', { parserRoot: hostParserRoot, label: 'Synthetic CSV' });
 const suppliedTable = registerTable({ version: 'research-table-v1', id: 'table-4f7d831d-fb2b-4a4b-89f4-c06c8cf08699', columns: [{ id: 'c0', label: 'Header', type: 'text' }], rows: [['value']], origin: { type: 'caller-supplied', label: 'Synthetic CSV' } });
 void [importedCsv, suppliedTable.sha256];
+import { documentResearchLimits, prepareDocumentResearch, researchDocuments, renderDocumentResearch, validateDocumentResearch } from '@pradeeptathineni/research-ai';
+import type { DocumentResearchDraft, DocumentResearchResult, PreparedDocumentResearch, ResearchDocumentInput } from '@pradeeptathineni/research-ai';
+const frozenPage = 'A complete synthetic page.';
+const frozenDocument: ResearchDocumentInput = { id: 'doc-a', title: 'Synthetic document', sha256: 'a'.repeat(64), pages: [{ number: 1, text: frozenPage, sha256: 'b'.repeat(64) }] };
+const preparedDocument: PreparedDocumentResearch = prepareDocumentResearch('Question', [frozenDocument]);
+const documentActivity = (event: ResearchActivity): void => { void [event.kind, event.sequence]; };
+const documentRun: Promise<DocumentResearchResult> = researchDocuments('Question', [frozenDocument], { activity: documentActivity });
+function documentUse(draft: DocumentResearchDraft): string {
+  return renderDocumentResearch(validateDocumentResearch(draft));
+}
+void [preparedDocument, documentRun, documentUse, documentResearchLimits.documents];
 import { legacy } from './shape.mjs';
 const cleanup: SessionCleanup = { complete: true, error: null };
 const outcome: SessionOutcome = { ...legacy, cleanup };
