@@ -511,3 +511,15 @@ functions. Exact input/query/result digests accompany the output. Big integers
 and decimals remain strings. `validateTableQueryResult` reopens a completed
 artifact offline, optionally checking its original registered tables, without
 running SQL. Consumers own persistence. See [query examples and limits](docs/table-query.md).
+
+## Portable Research notebooks
+
+`createResearchNotebook` keeps complete retained documents, versioned editable
+notes and explicit question results in one portable JSON value. Questions bind
+only explicitly selected source records and note versions. `prepareNotebookQuestion`
+returns exact full inputs and consent digests; callers confirm those digests
+before using the existing complete-document coverage runner. Citations reopen
+the original source or note version, and saved answers become editable notes
+with question origin. Validation, reading, editing, citation lookup and export
+work offline. See [notebook usage and limits](docs/notebook.md). The standalone
+entry point is `research-notebook --action ...`.

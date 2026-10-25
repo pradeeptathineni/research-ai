@@ -1,0 +1,19 @@
+Notebook/source/note association and selected full-context assembly adapt
+concepts from lfnovo/open-notebook at revision
+a0f6f3081ae06328f0a451b3a3ef2959ca25721d, Copyright (c) 2024 Luis Novo. The
+reviewed source files were `open_notebook/domain/notebook.py`,
+`context_builder.py`, and `ask.py`; the exact MIT license is included here.
+
+Mapping: `Notebook.get_context` and `build_notebook_context` supplied the
+notebook/source/note and explicit inclusion concepts. `SourceInsight.save_as_note`
+supplied the retained-insight-to-note lifecycle concept. `ThreadState.notebook_ids`
+supplied the notebook-scoped ask concept. These are independently reproduced
+and adapted to portable closed JSON state, immutable complete-document and
+append-only note-version bindings, exact source-map citations, offline replay,
+and the existing Research complete-document coverage executor. No upstream
+source code or schema was copied. The storage, selection, quote/result
+validators and executor are existing Research-owned code or new implementation,
+not donor ports.
+
+Not included: SurrealDB, LangChain, model provisioning, embeddings, vector
+search, audio, podcast generation, cloud services, or source acquisition.

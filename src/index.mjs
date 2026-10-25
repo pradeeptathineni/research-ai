@@ -16,3 +16,6 @@ export { documentResearchLimits, prepareDocumentResearch, researchDocuments, val
 export { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from './document-coverage.mjs';
 
 export { prepareTableQuery, queryTables, validateTableQueryResult, tableQueryLimits } from './table-query.mjs';
+export { researchNotebookLimits, createResearchNotebook, validateResearchNotebook, reviseResearchNotebook,
+  prepareNotebookQuestion, recordNotebookQuestion, saveNotebookQuestionAsNote, getNotebookCitation,
+  renderResearchNotebook } from './notebook.mjs';

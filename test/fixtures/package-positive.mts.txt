@@ -116,3 +116,12 @@ const sqlResult: Promise<TableQueryResult> = queryTables(sqlBindings, sqlQuery, 
 declare const savedSqlResult: unknown;
 const reopenedSql: TableQueryComplete = validateTableQueryResult(savedSqlResult, {tables:sqlBindings});
 void [sqlPreview.inputs[0]?.row_column,sqlResult,reopenedSql.result_sha256,tableQueryLimits.rows];
+
+import { createResearchNotebook, reviseResearchNotebook, prepareNotebookQuestion, validateResearchNotebook, renderResearchNotebook, researchNotebookLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchNotebook, ResearchNotebookQuestionSpec, PreparedNotebookQuestion } from '@pradeeptathineni/research-ai';
+const notebook: ResearchNotebook = createResearchNotebook('Portable research');
+const noteBookWithNote: ResearchNotebook = reviseResearchNotebook(notebook, { type: 'add-note', title: 'Scope', text: 'Use retained sources only.' });
+const notebookSpec: ResearchNotebookQuestionSpec = { id: 'question:4f7d831d-fb2b-4a4b-89f4-c06c8f086999', question: 'What is in scope?', sourceIds: [], notes: [{ id: noteBookWithNote.notes[0]!.id, version: 1 }] };
+const notebookPreview: PreparedNotebookQuestion = prepareNotebookQuestion(noteBookWithNote, notebookSpec);
+const reopenedNotebook: ResearchNotebook = validateResearchNotebook(noteBookWithNote);
+void [renderResearchNotebook(reopenedNotebook), notebookPreview.preview.planDigest, researchNotebookLimits.bytes];

@@ -865,6 +865,62 @@ export function validateDocumentCoverage(value: unknown): DocumentCoverageResult
 /** Validates first; never turns titles into links. */
 export function renderDocumentCoverage(value: DocumentCoverageResult, options?: { format?: "markdown" | "json" }): string;
 
+export interface ResearchNotebookOrigin { kind: "human" | "question"; questionId: string | null }
+export interface ResearchNotebookNoteVersion {
+  version: number; title: string; text: string; origin: ResearchNotebookOrigin; sha256: string;
+}
+export interface ResearchNotebookNote { id: string; versions: ResearchNotebookNoteVersion[] }
+export interface ResearchNotebookSource { id: string; document: ResearchDocumentInput; digest: string }
+export interface ResearchNotebookSourceMap {
+  documentId: string; kind: "document" | "note"; recordId: string; version: number | null; digest: string; title: string;
+}
+export interface ResearchNotebookQuestionSpec {
+  id: string; question: string; sourceIds: string[]; notes: Array<{ id: string; version: number }>;
+}
+export interface ResearchNotebookQuestion {
+  id: string; question: string; scopeDigest: string; notebookDigest: string; spec: ResearchNotebookQuestionSpec;
+  sourceMap: ResearchNotebookSourceMap[]; policy: DocumentCoveragePolicy; result: DocumentCoverageResult;
+}
+export interface ResearchNotebook {
+  version: "research-notebook-v1"; id: string; title: string; topic: string; revision: number;
+  sources: ResearchNotebookSource[]; notes: ResearchNotebookNote[]; questions: ResearchNotebookQuestion[]; sha256: string;
+}
+export type ResearchNotebookEdit =
+  | { type: "rename"; title?: string; topic?: string }
+  | { type: "add-source"; id?: string; document: ResearchDocumentInput }
+  | { type: "add-note"; id?: string; title: string; text: string }
+  | { type: "edit-note"; id: string; title: string; text: string };
+export interface PreparedNotebookQuestion {
+  version: "research-notebook-question-preview-v1"; notebookId: string; notebookDigest: string;
+  spec: ResearchNotebookQuestionSpec; scopeDigest: string; sourceMap: ResearchNotebookSourceMap[];
+  request: { question: string; documents: ResearchDocumentInput[]; policy: DocumentCoveragePolicy };
+  preview: { scopeDigest: string; planDigest: string; inputDigest: string; counts: PreparedDocumentCoverage["counts"];
+    policy: DocumentCoveragePolicy; sources: Array<ResearchNotebookSourceMap & { pages: number }> };
+}
+export const researchNotebookLimits: Readonly<{
+  sources: 16; notes: 32; versions: 16; questions: 32; bytes: 16777216;
+  titleUtf16Units: 200; topicUtf16Units: 2000; noteTextUtf16Units: 20000; schema: "research-notebook-v1";
+}>;
+/** Creates portable notebook state without storage or inference. */
+export function createResearchNotebook(title: string, options?: { topic?: string; id?: string }): ResearchNotebook;
+/** Replays the entire closed notebook and returns a validated copy. */
+export function validateResearchNotebook(value: unknown): ResearchNotebook;
+/** Applies one metadata or append-only source/note edit. */
+export function reviseResearchNotebook(notebook: ResearchNotebook, edit: ResearchNotebookEdit): ResearchNotebook;
+/** Binds an explicit nonempty source/note selection to the complete coverage inputs and consent digests. */
+export function prepareNotebookQuestion(notebook: ResearchNotebook, spec: ResearchNotebookQuestionSpec, policy?: Partial<DocumentCoveragePolicy>): PreparedNotebookQuestion;
+/** Attaches a complete, partial or failed result to the prepared immutable scope. */
+export function recordNotebookQuestion(notebook: ResearchNotebook, prepared: PreparedNotebookQuestion, result: DocumentCoverageResult): ResearchNotebook;
+/** Copies a nonempty retained answer into a versioned, editable note with question origin. */
+export function saveNotebookQuestionAsNote(notebook: ResearchNotebook, questionId: string, options?: { title?: string; id?: string }): ResearchNotebook;
+/** Returns exact retained evidence and the source/note version selected by the question. */
+export function getNotebookCitation(notebook: ResearchNotebook, questionId: string, evidenceId: string): {
+  evidence: DocumentCoverageEvidence; document: ResearchDocumentInput;
+  page: ResearchDocumentInput["pages"][number]; source: ResearchNotebookSource | { id: string; version: ResearchNotebookNoteVersion };
+};
+/** Reopens complete notebook JSON or safe Markdown without inference. */
+export function renderResearchNotebook(notebook: ResearchNotebook, options?: { format?: "json" | "markdown" }): string;
+
 
 export interface TableQueryBinding { name: string; table: ResearchTable }
 export interface TableQuery { sql: string; parameters: Array<string | number | boolean | null> }

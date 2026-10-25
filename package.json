@@ -19,7 +19,8 @@
     "research-table-analysis": "bin/research-table-analysis.mjs",
     "research-table-csv": "bin/research-table-csv.mjs",
     "research-documents": "bin/research-documents.mjs",
-    "research-table-query": "bin/research-table-query.mjs"
+    "research-table-query": "bin/research-table-query.mjs",
+    "research-notebook": "bin/research-notebook.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -46,7 +47,10 @@
     "docs/table-csv.md",
     "docs/document-research.md",
     "docs/document-coverage.md",
-    "docs/table-query.md"
+    "docs/table-query.md",
+    "docs/notebook.md",
+    "src/notebook-MIT-LICENSE.txt",
+    "src/notebook-NOTICE.txt"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

@@ -72,6 +72,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+# Portable Research notebooks
+
+Notebook/source/note association and the retained insight-to-note lifecycle
+independently reproduce and adapt concepts from `lfnovo/open-notebook` at
+revision `a0f6f3081ae06328f0a451b3a3ef2959ca25721d`, Copyright (c) 2024 Luis
+Novo. No donor source code or schema is included. The notebook reuses the
+existing complete-document planner, quote and result validators, and frozen
+executor. Changes include portable closed state, immutable source and note
+version bindings, explicit question selection, offline citation reopen and
+export, and append-only answer notes. See the [notice](src/notebook-NOTICE.txt)
+and [exact license](src/notebook-MIT-LICENSE.txt).
+
 # Outline refinement method
 
 `src/outline.mjs` adapts the evidence-driven organization and refinement

@@ -29,6 +29,7 @@ structured output is failed, never promoted from interim narrative.
 | `src/outline.mjs` | `research-outline-v1`: one frozen schema-bound session, source-bound editable points and gaps, offline replay validation and Markdown/JSON export |
 | `src/evidence-table.mjs` | `research-evidence-table-v1`: source-indexed question columns, row-local exact spans, offline validation/revision and Markdown/JSON export |
 | `src/document-research.mjs` | `research-document-answer-v1`: complete ordered caller-extracted page input, one frozen schema-bound answer, exact document/page spans, explicit coverage/gaps and offline replay |
+| `src/notebook.mjs` | `research-notebook-v1`: portable notebook/source/note/question closure, append-only note versions, explicit selected complete-document plans, offline citation lookup and export |
 | `src/report.mjs` | `research-report-v1`: table-to-outline conversion, versioned cited section writing/revision, explicit one-section frozen sessions and full report assembly |
 | `src/index.d.ts`      | The public types                                                                                                                                                                                                                                  |
 | `bin/research-ai.mjs` | The CLI: argument parsing, readiness gate, stdout answer, stderr receipt, exit codes                                                                                                                                                              |
@@ -36,6 +37,14 @@ structured output is failed, never promoted from interim narrative.
 `codex.mjs` does not know about any consumer. It takes the prompt, schema,
 budget, lease name, directory prefix and note reader as inputs. It returns
 an outcome object for the caller to interpret.
+
+Notebook state remains caller-owned JSON. The module validates immutable
+complete documents, note-version digests, explicit source maps, and the exact
+existing document-coverage result for each retained question. It invokes no
+storage or provider for create, edit, prepare, citation, validation or render.
+The optional ask path delegates to the existing coverage owner after explicit
+notebook, scope and plan confirmation. Donor concepts and exact MIT terms are
+recorded in `src/notebook-NOTICE.txt` and `THIRD-PARTY-NOTICES.md`.
 
 ## Readiness
 
