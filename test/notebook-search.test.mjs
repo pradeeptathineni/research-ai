@@ -62,6 +62,22 @@ test("UTF-16 offsets and excerpts slice the original Unicode and CRLF text", () 
   assert.equal(pageText.charCodeAt(hit.excerpt.start) >= 0xdc00 && pageText.charCodeAt(hit.excerpt.start) <= 0xdfff, false);
 });
 
+test("excerpt stays well-formed and within its cap when both boundaries touch astral characters", () => {
+  let state = createResearchNotebook("Excerpt boundary");
+  const body = "😀" + "x".repeat(178) + " " + "needle" + " " + "x".repeat(411) + "😀tail";
+  state = reviseResearchNotebook(state, { type: "add-note", title: "Boundary", text: body });
+  const result = searchResearchNotebooks([state], "needle", { kinds: ["note"] });
+  const hit = result.hits[0];
+  assert.equal(hit.excerpt.start, 0);
+  assert.ok(hit.excerpt.end - hit.excerpt.start <= 600);
+  assert.equal(hit.excerpt.text.isWellFormed(), true);
+  assert.equal(hit.excerpt.text, body.slice(hit.excerpt.start, hit.excerpt.end));
+  const matched = hit.matches.find((range) => range.field === "text" && range.text === "needle");
+  assert.ok(matched);
+  assert.ok(hit.excerpt.start <= matched.start && matched.start < hit.excerpt.end,
+    "the excerpt retains the first match while keeping valid UTF-16 boundaries");
+});
+
 test("latest/all note versions and exact offline reopen preserve the selected old version", () => {
   let state = notebook();
   const note = state.notes[0];

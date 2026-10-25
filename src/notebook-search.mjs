@@ -96,11 +96,9 @@ const tokenize = (value) => value.match(/[\p{L}\p{N}]+/gu) ?? [];
 
 function excerpt(value, anchor) {
   let start = Math.max(0, anchor - 180);
-  let end = Math.min(value.length, start + caps.excerptUtf16Units);
-  if (end === value.length && end - start > caps.excerptUtf16Units) start = end - caps.excerptUtf16Units;
   if (start > 0 && /[\uDC00-\uDFFF]/u.test(value[start]) && /[\uD800-\uDBFF]/u.test(value[start - 1])) start--;
+  let end = Math.min(value.length, start + caps.excerptUtf16Units);
   if (end < value.length && /[\uD800-\uDBFF]/u.test(value[end - 1]) && /[\uDC00-\uDFFF]/u.test(value[end])) end--;
-  if (end - start > caps.excerptUtf16Units) end--;
   return { start, end, text: value.slice(start, end), truncatedBefore: start > 0, truncatedAfter: end < value.length };
 }
 
