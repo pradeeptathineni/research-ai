@@ -19,3 +19,4 @@ export { prepareTableQuery, queryTables, validateTableQueryResult, tableQueryLim
 export { researchNotebookLimits, createResearchNotebook, validateResearchNotebook, reviseResearchNotebook,
   prepareNotebookQuestion, recordNotebookQuestion, saveNotebookQuestionAsNote, getNotebookCitation,
   renderResearchNotebook } from './notebook.mjs';
+export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from './notebook-search.mjs';

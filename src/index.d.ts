@@ -921,6 +921,39 @@ export function getNotebookCitation(notebook: ResearchNotebook, questionId: stri
 /** Reopens complete notebook JSON or safe Markdown without inference. */
 export function renderResearchNotebook(notebook: ResearchNotebook, options?: { format?: "json" | "markdown" }): string;
 
+export type NotebookSearchKind = "document" | "note";
+export interface NotebookSearchOptions {
+  mode?: "exact" | "prefix" | "fuzzy";
+  kinds?: NotebookSearchKind[];
+  noteVersions?: "latest" | "all";
+  limit?: number;
+}
+export interface NotebookSearchMatch { field: "title" | "text"; start: number; end: number; text: string }
+export interface NotebookSearchHit {
+  id: string; notebookId: string; kind: NotebookSearchKind; recordId: string;
+  version: number | null; documentId: string | null; page: number | null; title: string;
+  sourceDigest: string; score: number; matchedTerms: string[]; matches: NotebookSearchMatch[];
+  omittedMatchCount: number;
+  excerpt: { start: number; end: number; text: string; truncatedBefore: boolean; truncatedAfter: boolean };
+}
+export interface NotebookSearchResult {
+  version: "research-notebook-search-v1"; inputDigest: string;
+  query: { text: string; mode: "exact" | "prefix" | "fuzzy"; kinds: NotebookSearchKind[]; noteVersions: "latest" | "all"; limit: number };
+  scope: Array<{ id: string; sha256: string }>;
+  engine: { name: "minisearch"; version: "7.2.0"; sha256: string };
+  counts: { notebooks: number; records: number; utf16Units: number; totalHits: number; returnedHits: number };
+  hits: NotebookSearchHit[]; qualifications: string[]; sha256: string;
+}
+/** Fresh in-memory lexical search over only explicitly selected, validated notebooks. */
+export function searchResearchNotebooks(notebooks: ResearchNotebook[], query: string, options?: NotebookSearchOptions): NotebookSearchResult;
+/** Revalidates and replays a result, then opens the exact source page or retained note version. */
+export function openNotebookSearchHit(notebooks: ResearchNotebook[], result: NotebookSearchResult, hitId: string): {
+  hit: NotebookSearchHit;
+  source: { kind: "document"; notebookId: string; recordId: string; digest: string; document: ResearchDocumentInput; page: ResearchDocumentInput["pages"][number] }
+    | { kind: "note"; notebookId: string; recordId: string; digest: string; version: ResearchNotebookNoteVersion };
+};
+export const notebookSearchLimits: Readonly<{ notebooks: 8; records: 8000; utf16Units: 4000000; queryUtf16Units: 200; hits: 50; matches: 64; excerptUtf16Units: 600; resultBytes: 8388608; engine: NotebookSearchResult["engine"] }>;
+
 
 export interface TableQueryBinding { name: string; table: ResearchTable }
 export interface TableQuery { sql: string; parameters: Array<string | number | boolean | null> }

@@ -84,6 +84,17 @@ version bindings, explicit question selection, offline citation reopen and
 export, and append-only answer notes. See the [notice](src/notebook-NOTICE.txt)
 and [exact license](src/notebook-MIT-LICENSE.txt).
 
+# Notebook search
+
+The scoped source/note discovery workflow independently reproduces concepts
+from `lfnovo/open-notebook` at revision
+`a0f6f3081ae06328f0a451b3a3ef2959ca25721d`; it includes no donor implementation
+or schema. MiniSearch 7.2.0 is shipped intact under MIT at
+[`src/vendor/minisearch-LICENSE.txt`](src/vendor/minisearch-LICENSE.txt). Its
+SHA-256 is `0393b3ba253b809d5e55707c7b0875ef9b518a296a006c6739b28876e154edb3`.
+See [`src/notebook-search-NOTICE.txt`](src/notebook-search-NOTICE.txt) for the
+source and provenance qualification.
+
 # Outline refinement method
 
 `src/outline.mjs` adapts the evidence-driven organization and refinement

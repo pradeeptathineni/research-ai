@@ -125,3 +125,11 @@ const notebookSpec: ResearchNotebookQuestionSpec = { id: 'question:4f7d831d-fb2b
 const notebookPreview: PreparedNotebookQuestion = prepareNotebookQuestion(noteBookWithNote, notebookSpec);
 const reopenedNotebook: ResearchNotebook = validateResearchNotebook(noteBookWithNote);
 void [renderResearchNotebook(reopenedNotebook), notebookPreview.preview.planDigest, researchNotebookLimits.bytes];
+
+import { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from '@pradeeptathineni/research-ai';
+import type { NotebookSearchResult, NotebookSearchOptions, NotebookSearchHit } from '@pradeeptathineni/research-ai';
+const searchOptions: NotebookSearchOptions = { mode: 'fuzzy', kinds: ['document', 'note'], noteVersions: 'all', limit: 8 };
+const searchResult: NotebookSearchResult = searchResearchNotebooks([reopenedNotebook], 'retained', searchOptions);
+const searchHit: NotebookSearchHit | undefined = searchResult.hits[0];
+if (searchHit) openNotebookSearchHit([reopenedNotebook], searchResult, searchHit.id);
+void notebookSearchLimits.engine.sha256;

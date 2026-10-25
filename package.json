@@ -20,7 +20,8 @@
     "research-table-csv": "bin/research-table-csv.mjs",
     "research-documents": "bin/research-documents.mjs",
     "research-table-query": "bin/research-table-query.mjs",
-    "research-notebook": "bin/research-notebook.mjs"
+    "research-notebook": "bin/research-notebook.mjs",
+    "research-notebook-search": "bin/research-notebook-search.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -50,7 +51,11 @@
     "docs/table-query.md",
     "docs/notebook.md",
     "src/notebook-MIT-LICENSE.txt",
-    "src/notebook-NOTICE.txt"
+    "src/notebook-NOTICE.txt",
+    "docs/notebook-search.md",
+    "src/notebook-search-NOTICE.txt",
+    "src/vendor/minisearch-7.2.0.mjs",
+    "src/vendor/minisearch-LICENSE.txt"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

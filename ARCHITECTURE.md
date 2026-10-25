@@ -6,6 +6,12 @@ assessments. A support estimate does not become a consumer confidence score.
 
 ## Modules
 
+`src/notebook-search.mjs` validates an explicit notebook selection and creates
+a fresh in-memory MiniSearch index over complete source pages and selected note
+versions. It returns deterministic lexical hits with exact UTF-16 ranges and
+digest-bound offline reopen. No persistent index, inference, source acquisition,
+or question-scope expansion is provided. See `docs/notebook-search.md`.
+
 `src/investigation.mjs` owns guided investigation state, identity validation,
 editable bounded question trees, explicit clarify/expand/investigate/synthesize
 actions and offline rendering. Callers retain and resume JSON state. It runs

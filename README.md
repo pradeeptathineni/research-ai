@@ -523,3 +523,10 @@ the original source or note version, and saved answers become editable notes
 with question origin. Validation, reading, editing, citation lookup and export
 work offline. See [notebook usage and limits](docs/notebook.md). The standalone
 entry point is `research-notebook --action ...`.
+
+`searchResearchNotebooks(notebooks, query, options)` searches only the explicit
+validated notebook selection for retained source pages and note versions.
+`openNotebookSearchHit` revalidates and replays a result before returning the
+exact retained page or version. The standalone `research-notebook-search`
+command supports offline `search` and `open` actions. See
+[notebook search](docs/notebook-search.md).
