@@ -168,3 +168,11 @@ generalise. They would move only once a second consumer (Deep or Principles
 furnishing) needs the same contract, and without Signals' scores or record
 types. Evidence, entailment, provenance/independence and currentness would stay
 separate fields. Until then, Signals keeps acquisition.
+
+
+`table-query.mjs` extends registered-table analysis to explicit named multi-table
+SELECTs. It owns input identity, preview, native worker supervision, result
+representation and pure artifact validation. `table-query-worker.mjs` uses the
+optional installed DuckDB parser and engine, with external access/extensions off,
+locked configuration and finite memory/time/output bounds. Consumers retain exact
+registered inputs/results; this module creates no store and starts no provider.

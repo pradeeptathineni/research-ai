@@ -13,7 +13,7 @@ import { fakeCodex, message } from './fake-codex.mjs';
 const exact = '  Café ✓ 😀\n\nFallible evidence.\n';
 const success = { type: 'turn.completed' };
 const sources = [{ uri: 'https://example.org/frozen', text: 'Naïve ✓ 😀\nCaptured text.\n', observedAt: 'caller note', omissions: ['coverage unknown'] }];
-const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch', 'exportReportHtml', 'compareInvestigation', 'validateComparison', 'comparisonCurrentness', 'renderComparison', 'validateReferenceList', 'formatBibliography', 'exportReportWithReferences', 'registerTable', 'analyzeTable', 'tableAnalysisLimits', 'importTableCsv', 'documentResearchLimits', 'prepareDocumentResearch', 'researchDocuments', 'renderDocumentResearch', 'validateDocumentResearch', 'documentCoverageLimits', 'prepareDocumentCoverage', 'researchDocumentCoverage', 'validateDocumentCoverage', 'renderDocumentCoverage'].sort();
+const expectedExports = ['advanceInvestigation', 'assessGroundedAnswer', 'basicFacts', 'chooseLenses', 'codexReadiness', 'createEvidenceTable', 'createInvestigation', 'createReport', 'draftReportSection', 'evidenceTableResearch', 'groundedAnswer', 'groundedResearchQuestion', 'ordinaryResearchPrompt', 'outlineResearch', 'perspectiveCandidates', 'perspectiveResearch', 'profiles', 'renderEvidenceTable', 'renderInvestigation', 'renderOutline', 'renderReport', 'researchActivity', 'researchQuestion', 'reviseEvidenceTable', 'reviseInvestigation', 'reviseOutline', 'reviseReport', 'sessionCompleted', 'validateEvidenceTable', 'validateGrounding', 'validateInvestigation', 'validateOutline', 'validateReport', 'withCodexWorkspace', 'mindMapLimits', 'createMindMap', 'validateMindMap', 'reviseMindMap', 'renderMindMap', 'mindMapResearch', 'exportReportHtml', 'compareInvestigation', 'validateComparison', 'comparisonCurrentness', 'renderComparison', 'validateReferenceList', 'formatBibliography', 'exportReportWithReferences', 'registerTable', 'analyzeTable', 'tableAnalysisLimits', 'importTableCsv', 'documentResearchLimits', 'prepareDocumentResearch', 'researchDocuments', 'renderDocumentResearch', 'validateDocumentResearch', 'documentCoverageLimits', 'prepareDocumentCoverage', 'researchDocumentCoverage', 'validateDocumentCoverage', 'renderDocumentCoverage', 'prepareTableQuery', 'queryTables', 'validateTableQueryResult', 'tableQueryLimits'].sort();
 const pageText = 'Retained synthetic page.';
 const pageHash = createHash('sha256').update(pageText).digest('hex');
 const preparedDocuments = api.prepareDocumentResearch('What is retained?', [{ id: 'doc-a', title: 'Synthetic note', sha256: 'a'.repeat(64), pages: [{ number: 1, text: pageText, sha256: pageHash }] }]);
@@ -34,6 +34,20 @@ assert.deepEqual(Object.keys(api).sort(), expectedExports);
 const registeredTable = api.registerTable({ version: 'research-table-v1', id: 'table-4f7d831d-fb2b-4a4b-89f4-c06c8cf08699', columns: [{ id: 'c0', label: 'Kind', type: 'text' }], rows: [['synthetic']], origin: { type: 'caller-authored', label: 'Offline package probe' } });
 assert.match(registeredTable.sha256, /^[0-9a-f]{64}$/);
 assert.equal(api.tableAnalysisLimits.rows, 1000);
+const registeredInputs = [{ name: 'sample', table: registeredTable }];
+const tableSql = {sql:'SELECT c0 FROM sample ORDER BY _row',parameters:[]};
+const sqlPreview = api.prepareTableQuery(registeredInputs, tableSql);
+assert.equal(sqlPreview.inputs[0].columns[0].sql_name, 'c0');
+assert.equal(sqlPreview.inputs[0].row_column, '_row');
+const sqlBin = join(process.cwd(), 'node_modules/.bin/research-table-query');
+const sqlHelp = spawnSync(sqlBin, ['--help'], {encoding:'utf8',env:process.env,timeout:10000});
+assert.equal(sqlHelp.status, 0); assert.match(sqlHelp.stdout, /--preview/);
+if (process.env.RESEARCH_TABLE_TEST_ENGINE_ROOT) {
+  const sqlResult = await api.queryTables(registeredInputs, tableSql, {engineRoot:process.env.RESEARCH_TABLE_TEST_ENGINE_ROOT});
+  assert.equal(sqlResult.status, 'complete', JSON.stringify(sqlResult)); assert.deepEqual(sqlResult.rows, [['synthetic']]);
+  assert.deepEqual(api.validateTableQueryResult(sqlResult, {tables:registeredInputs}), sqlResult);
+}
+
 assert.equal(typeof api.importTableCsv, 'function');
 assert.equal(api.profiles.quick.searches, 8);
 assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);

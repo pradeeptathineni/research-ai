@@ -864,3 +864,24 @@ export function researchDocumentCoverage(question: string, documents: ResearchDo
 export function validateDocumentCoverage(value: unknown): DocumentCoverageResult;
 /** Validates first; never turns titles into links. */
 export function renderDocumentCoverage(value: DocumentCoverageResult, options?: { format?: "markdown" | "json" }): string;
+
+
+export interface TableQueryBinding { name: string; table: ResearchTable }
+export interface TableQuery { sql: string; parameters: Array<string | number | boolean | null> }
+export interface TableQueryInput {
+  name: string; id: string; sha256: string; row_count: number; row_column: '_row';
+  origin: {type: 'caller-authored' | 'caller-supplied'; label: string};
+  columns: Array<{id: string; label: string; type: 'text' | 'number' | 'boolean'; sql_name: string}>;
+}
+export interface TableQueryColumn {id: string; label: string; sql_type: string; representation: 'number' | 'text' | 'boolean' | 'integer-string' | 'decimal-string' | 'temporal-string' | 'null'}
+export interface TableQueryPreview {version: 'research-table-query-preview-v1'; input_digest: string; query_digest: string; inputs: TableQueryInput[]; query: TableQuery; limits: typeof tableQueryLimits}
+export interface TableQueryComplete {
+  version: 'research-table-query-result-v1'; status: 'complete'; input_digest: string; query_digest: string;
+  inputs: TableQueryInput[]; query: TableQuery; engine: {package: '@duckdb/node-api'; version: '2.0.0-r.1'; nativeVersion: string};
+  columns: TableQueryColumn[]; rows: Array<Array<string | number | boolean | null>>; qualifications: string[]; result_sha256: string;
+}
+export type TableQueryResult = TableQueryComplete | {version: 'research-table-query-result-v1'; status: 'failed'; input_digest: string; query_digest: string; error: string} | {version: 'research-table-query-result-v1'; status: 'unknown'; input_digest: string; query_digest: string; reason: 'deadline' | 'aborted' | 'worker_cleanup_unconfirmed'};
+export function prepareTableQuery(tables: TableQueryBinding[], query: TableQuery): TableQueryPreview;
+export function queryTables(tables: TableQueryBinding[], query: TableQuery, options: {engineRoot: string; signal?: AbortSignal; timeoutMs?: number}): Promise<TableQueryResult>;
+export function validateTableQueryResult(value: unknown, options?: {tables?: TableQueryBinding[]}): TableQueryComplete;
+export const tableQueryLimits: Readonly<{tables: 4; inputBytes: 2000000; sqlUnits: 8000; parameters: 32; rows: 1000; columns: 32; resultBytes: 2000000; timeoutMs: 2000; cleanupGraceMs: 300}>;

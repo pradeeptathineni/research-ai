@@ -18,7 +18,8 @@
     "research-branches": "bin/research-branches.mjs",
     "research-table-analysis": "bin/research-table-analysis.mjs",
     "research-table-csv": "bin/research-table-csv.mjs",
-    "research-documents": "bin/research-documents.mjs"
+    "research-documents": "bin/research-documents.mjs",
+    "research-table-query": "bin/research-table-query.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -44,7 +45,8 @@
     "docs/table-analysis.md",
     "docs/table-csv.md",
     "docs/document-research.md",
-    "docs/document-coverage.md"
+    "docs/document-coverage.md",
+    "docs/table-query.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

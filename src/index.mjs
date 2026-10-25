@@ -14,3 +14,5 @@ export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analys
 export { importTableCsv } from './table-csv.mjs';
 export { documentResearchLimits, prepareDocumentResearch, researchDocuments, validateDocumentResearch, renderDocumentResearch } from './document-research.mjs';
 export { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from './document-coverage.mjs';
+
+export { prepareTableQuery, queryTables, validateTableQueryResult, tableQueryLimits } from './table-query.mjs';

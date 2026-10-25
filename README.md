@@ -500,3 +500,14 @@ setup, and numeric qualifications.
 bounded text-only table. It requires a host-configured optional CSV parser and
 does not infer types or evaluate formulas. See [CSV import](docs/table-csv.md)
 for parser setup and refusal limits.
+
+
+### Cross-dataset queries
+
+`prepareTableQuery` previews named registered tables, their SQL column mapping,
+and a SELECT with bound parameters. `queryTables` runs it in an optional isolated
+DuckDB worker: join datasets, compare missing records, group results or use window
+functions. Exact input/query/result digests accompany the output. Big integers
+and decimals remain strings. `validateTableQueryResult` reopens a completed
+artifact offline, optionally checking its original registered tables, without
+running SQL. Consumers own persistence. See [query examples and limits](docs/table-query.md).

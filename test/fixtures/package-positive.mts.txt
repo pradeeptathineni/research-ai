@@ -104,3 +104,15 @@ function coverageUse(value: unknown): string {
   return renderDocumentCoverage(result);
 }
 void [coveragePlan, coverageRun, coverageUse, documentCoverageLimits.totalPages];
+
+
+import {prepareTableQuery, queryTables, validateTableQueryResult, tableQueryLimits} from '@pradeeptathineni/research-ai';
+import type {TableQueryPreview, TableQueryResult, TableQueryComplete} from '@pradeeptathineni/research-ai';
+declare const queryEngineRoot: string;
+const sqlBindings = [{name:'sample',table:suppliedTable}];
+const sqlQuery = {sql:'SELECT c0 FROM sample',parameters:[]};
+const sqlPreview: TableQueryPreview = prepareTableQuery(sqlBindings, sqlQuery);
+const sqlResult: Promise<TableQueryResult> = queryTables(sqlBindings, sqlQuery, {engineRoot:queryEngineRoot});
+declare const savedSqlResult: unknown;
+const reopenedSql: TableQueryComplete = validateTableQueryResult(savedSqlResult, {tables:sqlBindings});
+void [sqlPreview.inputs[0]?.row_column,sqlResult,reopenedSql.result_sha256,tableQueryLimits.rows];
