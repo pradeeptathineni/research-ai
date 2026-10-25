@@ -780,3 +780,87 @@ export function renderDocumentResearch(value: DocumentResearchDraft, options?: {
 export const documentResearchLimits: Readonly<{
   documents: 4; pagesPerDocument: 50; totalUtf16Units: 48000; answers: 24; evidence: 48; evidenceQuoteUtf16Units: 4000;
 }>;
+
+/** Conservative host policy; values are integers. Not measured provider limits. */
+export interface DocumentCoveragePolicy { maxCalls: number; passUtf16Units: number; maxSeconds: number }
+/** One ordered page range; `sha256` is of the exact substring. Empty pages have one zero-length window. */
+export interface DocumentCoverageWindow { id: string; documentId: string; page: number; start: number; end: number; sha256: string }
+export interface DocumentCoveragePass { id: string; windowIds: string[]; utf16Units: number }
+export interface PreparedDocumentCoverage {
+  version: "research-document-coverage-plan-v1"; question: string; documents: ResearchDocumentInput[];
+  /** Binds question and complete documents. */
+  inputDigest: string;
+  /** Also binds policy, windows and passes; required as `confirmedPlanDigest` to run. */
+  planDigest: string;
+  policy: DocumentCoveragePolicy;
+  counts: { documents: number; pages: number; utf16Units: number; windows: number; reviewCalls: number; maximumCalls: number };
+  windows: DocumentCoverageWindow[]; passes: DocumentCoveragePass[]; limits: string[];
+}
+/** Same shape as single-session evidence; IDs are `pNN-eNN`, offsets are derived by the host. */
+export type DocumentCoverageEvidence = DocumentResearchEvidence;
+export interface DocumentCoverageFindings {
+  answer: DocumentAnswerParagraph[]; evidence: DocumentCoverageEvidence[];
+  coverage: "answered" | "partial" | "insufficient"; gaps: string[];
+}
+export interface DocumentCoverageSessionReceipt { mode: "frozen"; profile: Profile; outcome: SessionOutcome }
+export interface DocumentCoveragePassResult {
+  id: string; status: "complete" | "failed" | "cancelled" | "not_run"; windowIds: string[];
+  /** Present only for a complete, validated pass. */
+  findings: DocumentCoverageFindings | null;
+  receipt: DocumentCoverageSessionReceipt | null; failure: string | null;
+}
+export interface DocumentCoverageDraft {
+  version: "research-document-coverage-answer-v1"; question: string; documents: ResearchDocumentInput[];
+  inputDigest: string; planDigest: string; answer: DocumentAnswerParagraph[];
+  /** Exactly the cited validated evidence, in pass order. */
+  evidence: DocumentCoverageEvidence[];
+  coverage: "answered" | "partial" | "insufficient"; gaps: string[]; limits: string[];
+}
+export interface DocumentCoverageResult {
+  version: "research-document-coverage-result-v1";
+  /** `complete` needs every pass and synthesis complete with confirmed cleanup. */
+  status: "complete" | "partial" | "failed" | "cancelled";
+  plan: PreparedDocumentCoverage;
+  passes: DocumentCoveragePassResult[];
+  synthesis: { status: "complete" | "failed" | "cancelled" | "not_run"; reason: string | null; receipt: DocumentCoverageSessionReceipt | null };
+  /** Execution coverage: windows with a completed validated review, not model understanding. */
+  inputCoverage: {
+    complete: boolean; reviewedWindows: string[]; unreviewedWindows: string[];
+    /** A page appears only when all its windows were reviewed. */
+    reviewedPages: { documentId: string; page: number }[];
+    reviewedUtf16Units: number; totalUtf16Units: number;
+  };
+  draft: DocumentCoverageDraft | null;
+  receipt: {
+    mode: "frozen"; profile: Profile; plannedMaximumCalls: number;
+    /** Receipts whose native process started. */
+    startedCalls: number;
+    cleanup: "complete" | "unconfirmed" | "not_started"; elapsedMs: number;
+    stopReason: null | "cancelled" | "deadline" | "cleanup_unconfirmed" | "review_failed" | "workspace_error" | "synthesis_input_exceeds_bound";
+    /** SHA-256 of the canonical result without this field; integrity only, not authenticated origin. */
+    contentSha256: string;
+  };
+  limits: string[];
+}
+/** Observers are synchronous as in SessionOptions. */
+export interface DocumentCoverageOptions extends Partial<DocumentCoveragePolicy> {
+  /** Must equal the plan digest recomputed from the same question, documents and policy. */
+  confirmedPlanDigest: string;
+  profile?: Profile | undefined; model?: string | undefined; effort?: string | undefined; lease?: string | undefined;
+  signal?: AbortSignal | undefined; progress?: ((event: string) => void) | undefined;
+  activity?: ((event: ResearchActivity) => void) | undefined;
+}
+export const documentCoverageLimits: Readonly<{
+  documents: 8; totalPages: 2000; totalUtf16Units: 1000000; windowsPerPass: 32; answers: 24;
+  answerParagraphUtf16Units: 1200; evidencePerPass: 48; evidenceQuoteUtf16Units: 4000; gaps: 12;
+  synthesisInputUtf16Units: 48000; policyDefaults: Readonly<DocumentCoveragePolicy>;
+  policyRanges: Readonly<Record<keyof DocumentCoveragePolicy, readonly [number, number]>>;
+}>;
+/** Validates input and returns deterministic windows and passes; refuses plans above maxCalls. No inference. */
+export function prepareDocumentCoverage(question: string, documents: ResearchDocumentInput[], policy?: Partial<DocumentCoveragePolicy>): PreparedDocumentCoverage;
+/** One frozen session per pass in order, then one synthesis; refuses before any lease without a matching confirmation. */
+export function researchDocumentCoverage(question: string, documents: ResearchDocumentInput[], options: DocumentCoverageOptions): Promise<DocumentCoverageResult>;
+/** Offline replay of plan, hashes, exact quotes, statuses, accounting and content digest. */
+export function validateDocumentCoverage(value: unknown): DocumentCoverageResult;
+/** Validates first; never turns titles into links. */
+export function renderDocumentCoverage(value: DocumentCoverageResult, options?: { format?: "markdown" | "json" }): string;

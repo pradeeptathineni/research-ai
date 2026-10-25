@@ -13,3 +13,4 @@ export { compareInvestigation, validateComparison, comparisonCurrentness, render
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';
 export { importTableCsv } from './table-csv.mjs';
 export { documentResearchLimits, prepareDocumentResearch, researchDocuments, validateDocumentResearch, renderDocumentResearch } from './document-research.mjs';
+export { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from './document-coverage.mjs';

@@ -43,7 +43,8 @@
     "docs/independent-branches.md",
     "docs/table-analysis.md",
     "docs/table-csv.md",
-    "docs/document-research.md"
+    "docs/document-research.md",
+    "docs/document-coverage.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

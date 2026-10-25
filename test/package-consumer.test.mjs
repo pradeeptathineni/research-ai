@@ -77,6 +77,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
       'src/table-analysis.mjs', 'src/table-analysis-worker.mjs');
     expected.push('bin/research-table-csv.mjs', 'docs/table-csv.md', 'src/table-csv.mjs');
     expected.push('bin/research-documents.mjs', 'docs/document-research.md', 'src/document-research.mjs');
+    expected.push('bin/research-document-coverage.mjs', 'docs/document-coverage.md', 'src/document-coverage.mjs');
     assert.deepEqual(members, expected.map(name => `package/${name}`).sort());
     report.memberEvidence = [];
     for (const name of expected) {

@@ -89,3 +89,18 @@ const onActivity = (event: ResearchActivity): void => {
   if (event.kind === 'session.settled') { const done: boolean = event.detail.completed; void [done, event.sequence, event.observedAt]; }
 };
 void [researchQuestion('Typed activity', { activity: onActivity }), researchActivity.kinds, researchActivity.version];
+
+import { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from '@pradeeptathineni/research-ai';
+import type { PreparedDocumentCoverage, DocumentCoverageResult } from '@pradeeptathineni/research-ai';
+const coveragePlan: PreparedDocumentCoverage = prepareDocumentCoverage('Question', [frozenDocument], { maxCalls: 4, passUtf16Units: 24000, maxSeconds: 60 });
+const coverageRun: Promise<DocumentCoverageResult> = researchDocumentCoverage('Question', [frozenDocument], { confirmedPlanDigest: coveragePlan.planDigest, activity: documentActivity });
+function coverageUse(value: unknown): string {
+  const result: DocumentCoverageResult = validateDocumentCoverage(value);
+  const reviewed: string[] = result.inputCoverage.reviewedWindows;
+  const calls: number = result.receipt.startedCalls;
+  const cleanup: 'complete' | 'unconfirmed' | 'not_started' = result.receipt.cleanup;
+  const answer: 'answered' | 'partial' | 'insufficient' | undefined = result.draft?.coverage;
+  void [reviewed, calls, cleanup, answer];
+  return renderDocumentCoverage(result);
+}
+void [coveragePlan, coverageRun, coverageUse, documentCoverageLimits.totalPages];
