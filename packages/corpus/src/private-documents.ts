@@ -148,6 +148,13 @@ function privateDocumentError(error: unknown): never {
     'Private document state is invalid or unavailable. Inspect the owner store before retrying.',
   );
 }
+function parserStartupError(error: Error) {
+  const reason =
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
+      ? 'Python is unavailable. Install pypdf 6.15.0 into the selected Python environment.'
+      : 'PDF parser could not start.';
+  return new PrivateDocumentError(503, 'pdf_parser_unavailable', reason);
+}
 function validateDocument(record: PrivateDocumentRecord) {
   if (
     !Value.Check(uuid, record.id) ||
@@ -341,15 +348,7 @@ async function extractPdf(bytes: Buffer, python: string) {
       } else output.push(chunk);
     });
     child.on('error', (error) => {
-      finish(
-        new PrivateDocumentError(
-          503,
-          'pdf_parser_unavailable',
-          (error as NodeJS.ErrnoException).code === 'ENOENT'
-            ? 'Python is unavailable. Install pypdf 6.15.0 into the selected Python environment.'
-            : 'PDF parser could not start.',
-        ),
-      );
+      finish(parserStartupError(error));
     });
     child.on('close', (code) => {
       if (settled) return;
@@ -489,15 +488,7 @@ async function extractPdfSections(bytes: Buffer, python: string): Promise<PdfOut
       } else output.push(chunk);
     });
     child.on('error', (error) => {
-      finish(
-        new PrivateDocumentError(
-          503,
-          'pdf_parser_unavailable',
-          (error as NodeJS.ErrnoException).code === 'ENOENT'
-            ? 'Python is unavailable. Install pypdf 6.15.0 into the selected Python environment.'
-            : 'PDF parser could not start.',
-        ),
-      );
+      finish(parserStartupError(error));
     });
     child.on('close', (code) => {
       if (settled) return;

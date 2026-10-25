@@ -262,9 +262,23 @@ it('refuses malformed, encrypted, image-only, oversized and unavailable-parser P
       bytes_base64: Buffer.alloc(4 * 1024 * 1024 + 1).toString('base64'),
     }),
   ).rejects.toMatchObject({ code: 'invalid_private_document' });
+  const retained = await importPrivateDocument(root, encoded(pdf(['Retained text'])));
+  await expect(
+    privateDocumentSections(
+      root,
+      { document_ref: retained.ref, raw_sha256: retained.document.raw_sha256 },
+      { python: join(root, 'missing-python') },
+    ),
+  ).rejects.toMatchObject({
+    code: 'pdf_parser_unavailable',
+    reason: 'Python is unavailable. Install pypdf 6.15.0 into the selected Python environment.',
+  });
   await expect(
     importPrivateDocument(root, encoded(pdf(['Text'])), { python: join(root, 'missing-python') }),
-  ).rejects.toMatchObject({ code: 'pdf_parser_unavailable' });
+  ).rejects.toMatchObject({
+    code: 'pdf_parser_unavailable',
+    reason: 'Python is unavailable. Install pypdf 6.15.0 into the selected Python environment.',
+  });
 });
 
 it('imports, reopens and returns a valid PDF at the original-byte limit', async () => {
