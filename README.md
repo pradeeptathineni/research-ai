@@ -598,6 +598,12 @@ the embedded evidence snapshots, while `checkResearchStudyOrigins` separately
 reports whether current notebooks still match. See [study sessions](docs/research-study.md)
 and the standalone `research-study --action ...` CLI.
 
+For metadata-only literature sets, `resolveLiteratureSet` stays strict about
+the exact notebook snapshot. `rebindLiteratureSet` is an explicit pure action
+for advancing notebook digests only when every retained source ID, source
+digest, document ID, and document digest still matches. It refuses changed or
+missing sources and preserves the prior set identity in its receipt.
+
 `prepareDocumentRecoverySynthesis` adds one bounded, cited synthesis across a
 settled hierarchical recovery artifact. It preserves original page quotes,
 known unreviewed scope and declared extraction gaps, and cold-reopens offline.

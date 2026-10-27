@@ -25,6 +25,13 @@ export function addLiteraturePaper(value: LiteratureSet, paper: LiteraturePaper)
 export function validateLiteratureSet(value: unknown): LiteratureSet;
 export function deduplicateLiteraturePapers(papers: LiteraturePaper[]): { schema: "research-literature-dedupe-v1"; duplicates: Array<{ papers: string[]; basis: string; qualification: string }>; ambiguities: Array<{ papers: string[]; basis: string; similarity: number; qualification: string }> };
 export function resolveLiteratureSet(value: LiteratureSet, notebooks: unknown[]): { schema: "research-literature-resolution-v1"; literatureSetId: string; literatureSetSha256: string; resolved: Array<{ paperId: string; availability: "available" | "missing" | "retracted"; notebookId?: string; sourceId?: string; sourceDigest?: string; document: unknown | null; qualification?: string[] }> };
+export function rebindLiteratureSet(value: LiteratureSet, notebooks: unknown[]): {
+  schema: "research-literature-rebind-v1";
+  previous: { id: LiteratureSet["id"]; revision: number; sha256: string };
+  literatureSet: LiteratureSet;
+  changedPapers: Array<{ paperId: LiteraturePaper["id"]; fromNotebookSha256: string; toNotebookSha256: string }>;
+  sourceChecks: Array<{ paperId: LiteraturePaper["id"]; notebookId: string; sourceId: string; sourceDigest: string; documentId: string; documentSha256: string }>;
+};
 export function prepareLiteratureQuestion(value: LiteratureSet, notebook: unknown, question: string, policy?: object, options?: { includeRetracted?: boolean }): { schema: "research-literature-question-v1"; literatureSetId: string; literatureSetSha256: string; prepared: unknown; includedPapers: Array<{ paperId: string; sourceId: string; sourceDigest: string; statusEvidence: LiteraturePaper["statusEvidence"] }>; coverage: Array<{ paperId: string; availability: LiteraturePaper["availability"]; source: LiteraturePaper["source"] | null; disposition: "included" | "not-searched-source-missing" | "excluded-retracted-by-default" | "outside-selected-notebook-cross-notebook-not-joined"; statusEvidence: LiteraturePaper["statusEvidence"]; qualification: string[] }> };
 export function exportLiteratureSet(value: LiteratureSet): string;
 export function formatLiteratureSet(value: LiteratureSet): string;

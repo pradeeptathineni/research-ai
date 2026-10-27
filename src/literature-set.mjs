@@ -108,6 +108,42 @@ export function resolveLiteratureSet(value, notebooks) {
   return { schema: "research-literature-resolution-v1", literatureSetId: state.id, literatureSetSha256: state.sha256, resolved };
 }
 
+/** Explicitly advances exact source pointers to a newer notebook snapshot without replacing sources. */
+export function rebindLiteratureSet(value, notebooks) {
+  const state = validateState(value);
+  if (!Array.isArray(notebooks) || notebooks.length > 8) fail("notebook snapshots must be an array of at most 8 entries");
+  const owners = new Map();
+  for (const snapshot of notebooks) {
+    const notebook = validateResearchNotebook(snapshot);
+    if (owners.has(notebook.id)) fail("notebook snapshot IDs must be unique");
+    owners.set(notebook.id, notebook);
+  }
+
+  const changedPapers = [];
+  const sourceChecks = [];
+  const papers = state.papers.map((paper) => {
+    if (paper.availability === "missing") return paper;
+    const ref = paper.source;
+    const notebook = owners.get(ref.notebookId);
+    if (!notebook) fail(`source notebook is unavailable for ${paper.id}`);
+    const source = notebook.sources.find((entry) => entry.id === ref.sourceId);
+    if (!source || source.digest !== ref.sourceDigest || source.document.id !== ref.documentId
+        || source.document.sha256 !== ref.documentSha256) fail(`exact retained source changed for ${paper.id}`);
+    sourceChecks.push({ paperId: paper.id, notebookId: notebook.id, sourceId: source.id,
+      sourceDigest: source.digest, documentId: source.document.id, documentSha256: source.document.sha256 });
+    if (ref.notebookSha256 === notebook.sha256) return paper;
+    changedPapers.push({ paperId: paper.id, fromNotebookSha256: ref.notebookSha256, toNotebookSha256: notebook.sha256 });
+    return { ...paper, source: { ...ref, notebookSha256: notebook.sha256 } };
+  });
+
+  const updated = changedPapers.length
+    ? validateState(seal({ ...state, revision: state.revision + 1, papers }))
+    : state;
+  return { schema: "research-literature-rebind-v1",
+    previous: { id: state.id, revision: state.revision, sha256: state.sha256 },
+    literatureSet: updated, changedPapers, sourceChecks };
+}
+
 /** Thin path into the existing notebook question and coverage machinery for one exact notebook. */
 export function prepareLiteratureQuestion(value, notebookValue, question, policy = {}, { includeRetracted = false } = {}) {
   const state = validateState(value), notebook = validateResearchNotebook(notebookValue);
