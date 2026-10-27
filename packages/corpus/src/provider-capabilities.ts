@@ -14,6 +14,7 @@ import { importedAnswers } from './research-receipts.js';
 import { loadProjects } from './projects.js';
 import { searchLibrary, type LibraryFinding } from '../../domain/src/library-search.js';
 import { sourceCaptureRecordBytes, SourceCaptureError } from './source-captures.js';
+import { sourceChangeReviewRecordBytes, SourceChangeReviewError } from './source-change-reviews.js';
 import { planResearchRetention, type ResearchAnswer } from './research-answer.js';
 import {
   buildLibraryExploreSnapshot,
@@ -84,6 +85,7 @@ const recordSchema = Type.Object(
       'source_capture_record',
       'source_capture_render_record',
       'source_annotation_record',
+      'source_change_review_record',
     ]),
   },
   closed,
@@ -188,6 +190,7 @@ export async function providerCapabilities(
       ...['K01', 'K12', 'K13', 'K14', 'K15'].map((id) => ({ id, versions: ['1.0'] })),
       { id: 'library-explore', versions: ['1.0'] },
       { id: 'source-capture', versions: ['1.0'] },
+      { id: 'source-change-review', versions: ['1.0'] },
       { id: 'source-capture-render', versions: ['1.0'] },
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
@@ -315,6 +318,18 @@ export async function providerCapabilities(
         authority_required: false,
       },
       {
+        name: 'review_source_change',
+        target_kinds: ['source_capture', 'entity', 'source_change_review'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
+        name: 'read_source_change_reviews',
+        target_kinds: ['source_change_review', 'source_capture', 'entity'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
         name: 'search_private_collection',
         target_kinds: ['private_document'],
         mutating: true,
@@ -411,6 +426,7 @@ export async function providerCapabilities(
       'source_capture',
       'source_capture_render',
       'source_annotation',
+      'source_change_review',
       'private_pdf_reader',
       'private_pdf_annotation',
     ],
@@ -605,6 +621,16 @@ async function ownedBytes(
       return await sourceCaptureRecordBytes(root, kind, id);
     } catch (error) {
       if (error instanceof SourceCaptureError) fail(error.status, error.code, error.reason);
+      throw error;
+    }
+  }
+  if (kind === 'source_change_review') {
+    if (!uuid.test(id))
+      fail(400, 'invalid_provider_reference', 'Source-change review IDs must be UUIDs.');
+    try {
+      return await sourceChangeReviewRecordBytes(root, id);
+    } catch (error) {
+      if (error instanceof SourceChangeReviewError) fail(error.status, error.code, error.reason);
       throw error;
     }
   }

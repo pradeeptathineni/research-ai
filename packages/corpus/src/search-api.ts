@@ -12,6 +12,13 @@ import {
   type RecordRef,
 } from './source-captures.js';
 import {
+  createSourceChangeReview,
+  listSourceChangeReviews,
+  previewSourceChange,
+  readSourceChangeReview,
+  SourceChangeReviewError,
+} from './source-change-reviews.js';
+import {
   compareSourceRenderAttachments,
   openSourceRender,
   readSourceRenderBlob,
@@ -646,6 +653,53 @@ export function searchApi(
               'Annotation creation does not accept query fields.',
             );
           json(201, await annotateSource(root, body));
+        } else {
+          json(404, { code: 'unknown_operation' });
+        }
+      } else if (route === 'source-change-reviews' || route.startsWith('source-change-reviews/')) {
+        await validateProcessObserver(
+          root,
+          request.headers['x-signals-provider-version'],
+          request.headers['x-signals-instance-id'],
+          request.headers['x-signals-owner-epoch'],
+        );
+        const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        if (route === 'source-change-reviews' && mutation) {
+          if (params.size)
+            throw new SourceChangeReviewError(
+              400,
+              'invalid_source_change_review',
+              'Review creation does not accept query fields.',
+            );
+          json(201, await createSourceChangeReview(root, body));
+        } else if (route === 'source-change-reviews' && !mutation) {
+          if (params.size)
+            throw new SourceChangeReviewError(
+              400,
+              'invalid_source_change_review',
+              'Review listing does not accept query fields.',
+            );
+          json(200, await listSourceChangeReviews(root));
+        } else if (route === 'source-change-reviews/compare' && !mutation) {
+          if (
+            [...params.keys()].some((key) => key !== 'prior' && key !== 'next') ||
+            params.getAll('prior').length !== 1 ||
+            params.getAll('next').length !== 1
+          )
+            throw new SourceChangeReviewError(
+              400,
+              'invalid_source_change_review',
+              'Compare requires one prior and one next capture UUID.',
+            );
+          json(200, await previewSourceChange(root, params.get('prior')!, params.get('next')!));
+        } else if (/^source-change-reviews\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (params.size)
+            throw new SourceChangeReviewError(
+              400,
+              'invalid_source_change_review',
+              'Review reopen does not accept query fields.',
+            );
+          json(200, await readSourceChangeReview(root, route.split('/')[1]!));
         } else {
           json(404, { code: 'unknown_operation' });
         }
@@ -1788,6 +1842,10 @@ export function searchApi(
         json(200, { cleaned: true, retainedHistory: 'preserved' });
       } else json(404, { code: 'unknown_operation' });
     } catch (failure) {
+      if (failure instanceof SourceChangeReviewError) {
+        json(failure.status, { code: failure.code, reason: failure.reason });
+        return true;
+      }
       if (failure instanceof SourceCaptureError) {
         json(failure.status, { code: failure.code, reason: failure.reason });
         return true;

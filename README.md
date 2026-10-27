@@ -107,7 +107,7 @@ Manual personal saving accepts unassessed leads. Optional automatic personal sav
 
 Cards distinguish intrinsic Signal, query relevance, contextual priority and saved state. Evidence strength is a versioned policy judgment, not probability or demonstrated usefulness. Native brief v7 uses `signal-strength-v10`; older records replay their declared numerical policies, while current admission retains unresolved decisive history across refresh formats. The [assessment contract](docs/signals-contract.md) defines these meanings.
 
-Notes, feedback, dismissals, followed sources, inbox entries and saved question/interest associations remain private under `.signals/`. Personal novelty stays unknown until you supply feedback. A source scan records acquisition and newly exposed links; repeated scans do not invent discoveries or usefulness. Changed source content requires assessment before becoming a meaningful claim change.
+Notes, feedback, dismissals, followed sources, inbox entries and saved question/interest associations remain private under `.signals/`. Personal novelty stays unknown until you supply feedback. A source scan records acquisition and newly exposed links; repeated scans do not invent discoveries or usefulness. Changed source content requires assessment before becoming a meaningful claim change. [Source change review](docs/source-change-review.md) compares retained versions and records explicit human impact decisions against exact saved confidence observations.
 
 Primary checks and refresh target the selected card's public or private store. An ambiguous duplicate requires an explicit destination:
 
