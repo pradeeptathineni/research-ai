@@ -205,3 +205,10 @@ representation and pure artifact validation. `table-query-worker.mjs` uses the
 optional installed DuckDB parser and engine, with external access/extensions off,
 locked configuration and finite memory/time/output bounds. Consumers retain exact
 registered inputs/results; this module creates no store and starts no provider.
+
+`document-recovery-synthesis.mjs` composes only validated page-quote evidence
+from the exact selected attempts in one R05 recovery artifact. It owns the
+bounded synthesis prompt/schema, deterministic execution identity, evidence
+closure, host coverage qualification and portable result validation. A durable
+consumer owns write-ahead intent and readback through the dispatch callback;
+this module adds no journal, corpus or cross-artifact query engine.

@@ -586,3 +586,10 @@ Question previews and answers are retained in the study; cold reopen validates
 the embedded evidence snapshots, while `checkResearchStudyOrigins` separately
 reports whether current notebooks still match. See [study sessions](docs/research-study.md)
 and the standalone `research-study --action ...` CLI.
+
+`prepareDocumentRecoverySynthesis` adds one bounded, cited synthesis across a
+settled hierarchical recovery artifact. It preserves original page quotes,
+known unreviewed scope and declared extraction gaps, and cold-reopens offline.
+It is limited to one recovery artifact and does not provide a durable dispatch
+journal. See [the synthesis contract](docs/document-recovery-synthesis.md) and
+`research-document-recovery-synthesis --action ...` CLI.

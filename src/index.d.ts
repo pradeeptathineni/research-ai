@@ -91,6 +91,45 @@ export function retryDocumentRecovery(value: ResearchDocumentRecovery, sectionId
 export function renderDocumentRecovery(value: ResearchDocumentRecovery, options?: { format?: "json" | "markdown" }): string;
 export function renderDocumentRecoverySection(value: ResearchDocumentRecovery, sectionId: string): string;
 
+export interface DocumentRecoverySynthesisEvidence {
+  evidenceId: string; kind: "page_quote"; sectionId: string; sectionTitle: string;
+  documentId: string; documentSha256: string; page: number; pageSha256: string;
+  start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context";
+}
+export interface DocumentRecoverySynthesisPlan {
+  version: "research-document-recovery-synthesis-plan-v1"; question: string; recoveryId: string; recoverySha256: string;
+  policy: { maxSeconds: number; maxResponseBytes: number }; counts: { calls: 1; inputUtf16Units: number };
+  sections: Array<{ sectionId: string; title: string; status: string; inputCoverage: string; answerCoverage: string;
+    reviewGaps: string[]; evidenceIds: string[]; extractionGapIds: string[] }>;
+  evidence: DocumentRecoverySynthesisEvidence[];
+  missingWindows: Array<{ sectionId: string; documentId: string; documentSha256: string; page: number; pageSha256: string; start: number; end: number; reason: string }>;
+  extractionGaps: Array<{ sectionId: string; id: string; kind: string; documentId: string; page: number; detail: string; assertedBy: string; observedAt: string; qualification: "caller-asserted-unverified-extraction-metadata" }>;
+  mandatoryGaps: string[]; planDigest: string;
+}
+export interface DocumentRecoverySynthesisDraft {
+  answer: Array<{ text: string; evidenceIds: string[] }>;
+  conflicts: Array<{ text: string; sides: Array<{ position: string; evidenceIds: string[] }> }>;
+  evidence: DocumentRecoverySynthesisEvidence[]; modelReportedCoverage: "answered" | "partial" | "insufficient";
+  coverage: "answered" | "partial" | "insufficient"; gaps: string[]; qualification: string;
+}
+export interface DocumentRecoverySynthesis {
+  version: "research-document-recovery-synthesis-v1"; id: `recovery-synthesis:${string}`;
+  status: "complete" | "failed" | "cancelled" | "unknown"; recovery: ResearchDocumentRecovery;
+  plan: DocumentRecoverySynthesisPlan; synthesis: { status: "complete" | "failed" | "cancelled" | "unknown"; reason: string | null };
+  draft: DocumentRecoverySynthesisDraft | null;
+  receipt: { mode: "frozen"; profile: Profile; executionId: string; outcome: SessionOutcome } | null; sha256: string;
+}
+export interface DocumentRecoverySynthesisDispatchRequest {
+  executionId: string; plan: DocumentRecoverySynthesisPlan; prompt: string; outputSchema: Record<string, unknown>;
+  profile: Profile; model?: string; effort?: string;
+}
+export type DocumentRecoverySynthesisDispatch = (request: DocumentRecoverySynthesisDispatchRequest) => Promise<SessionOutcome | { status: "unknown"; reason: string }>;
+export function prepareDocumentRecoverySynthesis(value: ResearchDocumentRecovery, policy?: { maxSeconds?: number; maxResponseBytes?: number }): DocumentRecoverySynthesisPlan;
+export function runDocumentRecoverySynthesis(value: ResearchDocumentRecovery, plan: DocumentRecoverySynthesisPlan,
+  options: { confirmedPlanSha256: string; dispatchSynthesis?: DocumentRecoverySynthesisDispatch; profile?: Profile; lease?: string; signal?: AbortSignal; model?: string; effort?: string }): Promise<DocumentRecoverySynthesis>;
+export function validateDocumentRecoverySynthesis(value: unknown): DocumentRecoverySynthesis;
+export function renderDocumentRecoverySynthesis(value: DocumentRecoverySynthesis, options?: { format?: "json" | "markdown" }): string;
+
 export interface ReadinessProbe {
   source: "codex --version" | "codex login status" | "codex exec --help";
   /** UTC ISO timestamp; null if not probed. */
