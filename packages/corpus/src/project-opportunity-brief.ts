@@ -34,6 +34,20 @@ const briefBindingSchema = Type.Object(
   },
   closed,
 );
+const reassessmentBindingSchema = Type.Object(
+  {
+    schema: Type.Literal('signals-provider-contract-binding.v1'),
+    owner: Type.Literal('signals-ai'),
+    contract_id: Type.Literal('project-opportunity-brief-reassessment'),
+    contract_version: Type.Literal('1.0'),
+    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
+    contract_digest: digestSchema,
+    instance_id: uuid,
+    owner_epoch: uuid,
+    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
+  },
+  closed,
+);
 const exactRefSchema = Type.Object(
   {
     owner: Type.Literal('signals-ai'),
@@ -115,12 +129,46 @@ const retainSchema = Type.Object(
   },
   closed,
 );
+const reassessmentRequestSchema = Type.Object(
+  {
+    request_id: uuid,
+    parent_ref: exactRefSchema,
+    selection: selectionSchema,
+    rationale: Type.String({ minLength: 10, maxLength: 1000 }),
+    evidence_updates: Type.Array(
+      Type.Object(
+        {
+          ref: exactRefSchema,
+          position: evidenceSchema.properties.position,
+          confidence: evidenceSchema.properties.confidence,
+          rationale: evidenceSchema.properties.rationale,
+        },
+        closed,
+      ),
+      { maxItems: 12 },
+    ),
+    basis: projectOpportunityBriefSchema.properties.basis,
+    preview_digest: digestSchema,
+  },
+  closed,
+);
+const reassessmentPreviewInputSchema = Type.Object(
+  {
+    parent_ref: exactRefSchema,
+    selection: selectionSchema,
+    rationale: Type.String({ minLength: 10, maxLength: 1000 }),
+    evidence_updates: reassessmentRequestSchema.properties.evidence_updates,
+  },
+  closed,
+);
 type Selection = Static<typeof selectionSchema>;
 type Content = Static<typeof contentSchema>;
 type Binding = Static<typeof briefBindingSchema>;
 type Basis = Static<typeof projectOpportunityBriefSchema.properties.basis>;
 type Brief = Static<typeof projectOpportunityBriefSchema>;
 type ExactRef = Static<typeof exactRefSchema>;
+type ReassessmentRequest = Static<typeof reassessmentRequestSchema>;
+type ReassessmentBinding = Static<typeof reassessmentBindingSchema>;
 
 export class ProjectOpportunityBriefError extends Error {
   constructor(
@@ -209,6 +257,77 @@ export async function projectOpportunityBriefProviderBinding(root: string): Prom
     schema: 'signals-provider-contract-binding.v1',
     owner: 'signals-ai',
     contract_id: 'project-opportunity-brief',
+    contract_version: '1.0',
+    digest_kind: bindingDigestKind,
+    contract_digest: sha256(canonical(metadata)),
+    instance_id: scope.identity,
+    owner_epoch: scope.epoch,
+    ...(typeof capabilities.source_commit === 'string' &&
+    /^[a-f0-9]{40,64}$/.test(capabilities.source_commit)
+      ? { source_commit: capabilities.source_commit }
+      : {}),
+  };
+}
+
+async function projectOpportunityBriefReassessmentBinding(
+  root: string,
+): Promise<ReassessmentBinding> {
+  const scope = await requestStore(root)
+    .scope()
+    .catch(() =>
+      fail(
+        503,
+        'project_opportunity_brief_unavailable',
+        'The Signals owner binding is unavailable.',
+      ),
+    );
+  const response = await providerCapabilities(root, '1.0', scope.identity, scope.epoch);
+  const capabilities = response.capabilities as {
+    contracts?: Array<{ id: string; versions: string[] }>;
+    operations?: Array<{
+      name: string;
+      target_kinds: string[];
+      mutating: boolean;
+      authority_required: boolean;
+    }>;
+    record_kinds?: string[];
+    source_commit?: string;
+  };
+  const contract = capabilities.contracts?.find(
+    (row) => row.id === 'project-opportunity-brief-reassessment' && row.versions.includes('1.0'),
+  );
+  const preview = capabilities.operations?.find(
+    (row) => row.name === 'preview_project_opportunity_brief_reassessment',
+  );
+  const save = capabilities.operations?.find(
+    (row) => row.name === 'reassess_project_opportunity_brief',
+  );
+  if (
+    !contract ||
+    !preview ||
+    preview.mutating ||
+    preview.authority_required ||
+    !preview.target_kinds.includes('project_opportunity_brief') ||
+    !save ||
+    !save.mutating ||
+    !save.authority_required ||
+    !save.target_kinds.includes('project_opportunity_brief') ||
+    !capabilities.record_kinds?.includes('project_opportunity_brief')
+  )
+    fail(
+      503,
+      'project_opportunity_brief_reassessment_unavailable',
+      'The connected Signals provider lacks the complete reassessment v1 contract.',
+    );
+  const metadata = {
+    contract,
+    operations: [preview, save],
+    record_kinds: ['project_opportunity_brief'],
+  };
+  return {
+    schema: 'signals-provider-contract-binding.v1',
+    owner: 'signals-ai',
+    contract_id: 'project-opportunity-brief-reassessment',
     contract_version: '1.0',
     digest_kind: bindingDigestKind,
     contract_digest: sha256(canonical(metadata)),
@@ -435,6 +554,7 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
     preview_digest: string;
   };
   const current = await currentBasis(root, request.selection);
+  const providerBinding = await projectOpportunityBriefReassessmentBinding(root);
   if (!same(request.basis, current.basis))
     fail(
       409,
@@ -486,7 +606,11 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
     if (error instanceof ProjectOpportunityBriefError) throw error;
     const code = error instanceof Error ? error.message : 'project_opportunity_brief_unavailable';
     if (code === 'unknown_opportunity')
-      fail(404, 'project_opportunity_brief_opportunity_missing', 'The exact opportunity is missing.');
+      fail(
+        404,
+        'project_opportunity_brief_opportunity_missing',
+        'The exact opportunity is missing.',
+      );
     if (code === 'project_opportunity_brief_capacity')
       fail(409, code, 'This opportunity reached its retained brief limit.');
     if (code.startsWith('project_opportunity_brief_'))
@@ -494,6 +618,201 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
     fail(503, 'project_opportunity_brief_unavailable', 'The brief could not be retained safely.');
   }
   return { ref: briefRef(retained), brief: retained, replay: retained !== brief };
+}
+
+/** Produces a successor preview against a freshly reviewed current basis. */
+export async function previewProjectOpportunityBriefReassessment(root: string, input: unknown) {
+  const raw = input as Record<string, unknown>;
+  const previewInput = {
+    parent_ref: raw?.parent_ref,
+    selection: raw?.selection,
+    rationale: raw?.rationale,
+    evidence_updates: raw?.evidence_updates,
+  };
+  if (!Value.Check(reassessmentPreviewInputSchema, previewInput))
+    fail(
+      400,
+      'invalid_project_opportunity_brief_reassessment',
+      'The reassessment preview input is invalid.',
+    );
+  const request = previewInput as {
+    parent_ref: ExactRef;
+    selection: Selection;
+    rationale: string;
+    evidence_updates: ReassessmentRequest['evidence_updates'];
+  };
+  const parent = await readProjectOpportunityBrief(root, request.parent_ref.id);
+  if (!same(parent.ref, request.parent_ref))
+    fail(
+      409,
+      'project_opportunity_brief_parent_changed',
+      'The exact retained parent brief changed.',
+    );
+  if (
+    parent.brief.basis.project_id !== request.selection.project_id ||
+    parent.brief.basis.opportunity_id !== request.selection.opportunity_id ||
+    parent.brief.basis.topic_id !== request.selection.topic_id
+  )
+    fail(
+      409,
+      'project_opportunity_brief_parent_scope',
+      'Reassessment must preserve the parent project, opportunity, and topic.',
+    );
+  const current = await currentBasis(root, request.selection);
+  const providerBinding = await projectOpportunityBriefReassessmentBinding(root);
+  const evidence = parent.brief.evidence.map((item) => {
+    const update = request.evidence_updates.find((row) => same(row.ref, item.ref));
+    return update
+      ? {
+          ...item,
+          position: update.position,
+          confidence: update.confidence,
+          rationale: update.rationale,
+        }
+      : item;
+  });
+  if (
+    request.evidence_updates.some(
+      (update) => !parent.brief.evidence.some((item) => same(item.ref, update.ref)),
+    )
+  )
+    fail(
+      409,
+      'project_opportunity_brief_reassessment_ref',
+      'Evidence updates must refer to exact rows in the parent brief.',
+    );
+  if (
+    new Set(request.evidence_updates.map((row) => canonical(row.ref))).size !==
+    request.evidence_updates.length
+  )
+    fail(
+      400,
+      'project_opportunity_brief_reassessment_duplicate',
+      'Each evidence row can be revised only once.',
+    );
+  const changes = request.evidence_updates.flatMap((update) => {
+    const before = parent.brief.evidence.find((item) => same(item.ref, update.ref))!;
+    const after = {
+      position: update.position,
+      confidence: update.confidence,
+      rationale: update.rationale,
+    };
+    const prior = {
+      position: before.position,
+      confidence: before.confidence,
+      rationale: before.rationale,
+    };
+    return same(prior, after) ? [] : [{ ref: update.ref, before: prior, after }];
+  });
+  const preview = {
+    schema_version: 'project-opportunity-brief-reassessment-preview-v1',
+    parent_ref: parent.ref,
+    provider_binding: providerBinding,
+    parent_basis_status: parent.basis_status,
+    basis: current.basis,
+    rationale: request.rationale,
+    changes,
+    content: {
+      ...parent.brief,
+      basis: undefined,
+      reassessment: undefined,
+      id: undefined,
+      created_at: undefined,
+      request_digest: undefined,
+      ...{ evidence },
+    },
+  };
+  return { ...preview, preview_digest: sha256(canonical(preview)) };
+}
+
+/** Appends an immutable successor; lock-time checks prevent stale previews and lost-reply replacement. */
+export async function reassessProjectOpportunityBrief(root: string, input: unknown) {
+  if (!Value.Check(reassessmentRequestSchema, input))
+    fail(
+      400,
+      'invalid_project_opportunity_brief_reassessment',
+      'The reassessment request is invalid.',
+    );
+  const request = input as ReassessmentRequest;
+  const preview = await previewProjectOpportunityBriefReassessment(root, request);
+  if (!same(preview.basis, request.basis) || preview.preview_digest !== request.preview_digest)
+    fail(
+      409,
+      'project_opportunity_brief_reassessment_preview_changed',
+      'The parent, current basis, rationale, or human edits changed after preview. Preview again.',
+    );
+  const parent = await readProjectOpportunityBrief(root, request.parent_ref.id);
+  const digest = sha256(
+    canonical({
+      request_id: request.request_id,
+      parent_ref: request.parent_ref,
+      basis: request.basis,
+      rationale: request.rationale,
+      changes: preview.changes,
+    }),
+  );
+  const successor: Brief = {
+    ...preview.content,
+    schema_version: 'project-opportunity-brief-v1',
+    id: request.request_id,
+    created_at: new Date().toISOString(),
+    request_digest: digest,
+    basis: request.basis,
+    reassessment: {
+      parent_ref: request.parent_ref,
+      provider_binding: preview.provider_binding,
+      rationale: request.rationale,
+      changes: preview.changes,
+    },
+    qualifications: [
+      ...parent.brief.qualifications,
+      'This immutable successor records a human reassessment; unchanged evidence judgments remain inherited, and evidence currentness is evaluated separately.',
+    ],
+  } as Brief;
+  let retained: Brief;
+  try {
+    retained = await appendProjectOpportunityBrief(
+      root,
+      request.selection.opportunity_id,
+      successor,
+      async () => {
+        const latestParent = await projectOpportunityBriefRecordBytes(root, request.parent_ref.id);
+        if (sha256(latestParent.bytes) !== request.parent_ref.digest)
+          fail(
+            409,
+            'project_opportunity_brief_parent_changed',
+            'The exact retained parent changed during reassessment.',
+          );
+        const latest = await currentBasis(root, request.selection);
+        if (!same(latest.basis, request.basis))
+          fail(
+            409,
+            'project_opportunity_brief_basis_changed',
+            'The fresh basis changed during reassessment. Preview again.',
+          );
+        const latestBinding = await projectOpportunityBriefReassessmentBinding(root);
+        if (!same(latestBinding, preview.provider_binding))
+          fail(
+            409,
+            'project_opportunity_brief_basis_changed',
+            'The reassessment provider binding changed during save. Preview again.',
+          );
+      },
+    );
+  } catch (error) {
+    if (error instanceof ProjectOpportunityBriefError) throw error;
+    const code = error instanceof Error ? error.message : 'project_opportunity_brief_unavailable';
+    if (code === 'project_opportunity_brief_uuid_conflict')
+      fail(409, code, 'This request ID already names a different successor.');
+    if (code.startsWith('project_opportunity_brief_'))
+      fail(409, code, 'The exact parent or current basis changed during reassessment.');
+    fail(
+      503,
+      'project_opportunity_brief_unavailable',
+      'The successor could not be retained safely.',
+    );
+  }
+  return { ref: briefRef(retained), brief: retained, replay: retained !== successor };
 }
 
 function findBrief(state: Awaited<ReturnType<typeof loadProjects>>, id: string) {

@@ -197,6 +197,7 @@ export async function providerCapabilities(
       { id: 'source-change-review', versions: ['1.0'] },
       { id: 'project-topic-relevance', versions: ['1.0'] },
       { id: 'project-opportunity-brief', versions: ['1.0'] },
+      { id: 'project-opportunity-brief-reassessment', versions: ['1.0'] },
       { id: 'source-capture-render', versions: ['1.0'] },
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
@@ -348,6 +349,18 @@ export async function providerCapabilities(
         authority_required: true,
       },
       {
+        name: 'preview_project_opportunity_brief_reassessment',
+        target_kinds: ['project_opportunity_brief'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'reassess_project_opportunity_brief',
+        target_kinds: ['project_opportunity_brief'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
         name: 'read_project_opportunity_brief',
         target_kinds: ['project_opportunity_brief'],
         mutating: false,
@@ -458,7 +471,7 @@ export async function providerCapabilities(
       'source_annotation',
       'source_change_review',
       'project_topic_relevance',
-          'project_opportunity_brief',
+      'project_opportunity_brief',
       'project_opportunity_brief',
       'private_pdf_reader',
       'private_pdf_annotation',
@@ -692,7 +705,9 @@ async function ownedBytes(
         fail(
           Number((error as { status: number }).status),
           String((error as { code?: string }).code ?? 'project_opportunity_brief_unavailable'),
-          String((error as { reason?: string }).reason ?? 'Project opportunity brief is unavailable.'),
+          String(
+            (error as { reason?: string }).reason ?? 'Project opportunity brief is unavailable.',
+          ),
         );
       throw error;
     }

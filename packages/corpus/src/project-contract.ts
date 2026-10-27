@@ -28,6 +28,20 @@ const opportunityBriefBindingSchema = Type.Object(
   },
   closed,
 );
+const opportunityBriefReassessmentBindingSchema = Type.Object(
+  {
+    schema: Type.Literal('signals-provider-contract-binding.v1'),
+    owner: Type.Literal('signals-ai'),
+    contract_id: Type.Literal('project-opportunity-brief-reassessment'),
+    contract_version: Type.Literal('1.0'),
+    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
+    contract_digest: digest,
+    instance_id: Type.String({ format: 'uuid' }),
+    owner_epoch: Type.String({ format: 'uuid' }),
+    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
+  },
+  closed,
+);
 const opportunityBriefBasisSchema = Type.Object(
   {
     project_id: Type.String({ pattern: '^project-[a-f0-9]{24}$' }),
@@ -82,6 +96,46 @@ const briefEvidenceSchema = Type.Object(
   },
   closed,
 );
+const reassessmentSchema = Type.Object(
+  {
+    parent_ref: Type.Object(
+      {
+        ...exactRefSchema.properties,
+        kind: Type.Literal('project_opportunity_brief'),
+        id: Type.String({ format: 'uuid' }),
+      },
+      closed,
+    ),
+    provider_binding: opportunityBriefReassessmentBindingSchema,
+    rationale: Type.String({ minLength: 10, maxLength: 1000 }),
+    changes: Type.Array(
+      Type.Object(
+        {
+          ref: exactRefSchema,
+          before: Type.Object(
+            {
+              position: briefEvidenceSchema.properties.position,
+              confidence: briefEvidenceSchema.properties.confidence,
+              rationale: briefEvidenceSchema.properties.rationale,
+            },
+            closed,
+          ),
+          after: Type.Object(
+            {
+              position: briefEvidenceSchema.properties.position,
+              confidence: briefEvidenceSchema.properties.confidence,
+              rationale: briefEvidenceSchema.properties.rationale,
+            },
+            closed,
+          ),
+        },
+        closed,
+      ),
+      { maxItems: 12 },
+    ),
+  },
+  closed,
+);
 export const projectOpportunityBriefSchema = Type.Object(
   {
     schema_version: Type.Literal('project-opportunity-brief-v1'),
@@ -89,6 +143,7 @@ export const projectOpportunityBriefSchema = Type.Object(
     created_at: Type.String({ format: 'date-time' }),
     request_digest: digest,
     basis: opportunityBriefBasisSchema,
+    reassessment: Type.Optional(reassessmentSchema),
     title: short,
     observed_need: Type.String({ minLength: 1, maxLength: 3000 }),
     options: Type.Array(

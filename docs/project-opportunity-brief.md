@@ -31,3 +31,21 @@ reports one.
 An opportunity brief is not a verified claim, a numerical ranking, proof of
 project impact, or authority to execute or publish an intervention. Planning
 receives a typed exact reference; the referenced bytes remain owned by Signals.
+
+## Human reassessment
+
+When the project or evidence basis changes, an operator can retain a successor
+brief after reviewing a fresh current project, opportunity, topic and
+relevance basis. The successor links the exact parent brief reference and hash,
+requires a concise rationale, and may revise individual evidence positions,
+confidence labels or explanations. Unedited rows and narrative are inherited
+exactly. The parent remains immutable, and each revision has a new stable UUID.
+
+Reassessment uses the additive `project-opportunity-brief-reassessment` v1
+contract. Its binding covers only that contract and its preview/save
+operations, leaving the original brief binding digest unchanged. Save checks
+the exact parent, current basis and contract binding again under the existing
+Projects writer lock. A changed basis rejects the save; read the exact saved
+successor UUID after an uncertain reply rather than issuing a replacement.
+Reassessment does not acquire new sources, infer truth, assign scores or alter
+the independent source-currentness result.

@@ -34,6 +34,8 @@ import {
   projectOpportunityBriefRecordBytes,
   readProjectOpportunityBrief,
   retainProjectOpportunityBrief,
+  previewProjectOpportunityBriefReassessment,
+  reassessProjectOpportunityBrief,
 } from './project-opportunity-brief.js';
 
 it('binds human relevance to exact topic, project and S04 change bases; preserves old records and cold reopens', async () => {
@@ -433,12 +435,93 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       cold_read: true,
       evidence_currentness: [{ state: 'current' }, { state: 'current' }],
     });
+    await updateProject(root, {
+      id: projectPreview.project.id,
+      name: projectPreview.project.name,
+      purpose: projectPreview.project.purpose,
+      constraints: projectPreview.project.constraints,
+    });
+    const parentRef = coldBrief.ref;
+    const reassessmentInput = {
+      parent_ref: parentRef,
+      selection,
+      rationale: 'Reconsidered the retained interpretation after reviewing the project context.',
+      evidence_updates: [
+        {
+          ref: briefContent.evidence[0]!.ref,
+          position: 'context' as const,
+          confidence: 'low' as const,
+          rationale:
+            'This source frames the question but does not directly support the proposed comparison.',
+        },
+      ],
+    };
+    const reassessmentPreview = await previewProjectOpportunityBriefReassessment(
+      root,
+      reassessmentInput,
+    );
+    const successorId = randomUUID();
+    const successor = await reassessProjectOpportunityBrief(root, {
+      request_id: successorId,
+      ...reassessmentInput,
+      basis: reassessmentPreview.basis,
+      preview_digest: reassessmentPreview.preview_digest,
+    });
+    const replayedSuccessor = await reassessProjectOpportunityBrief(root, {
+      request_id: successorId,
+      ...reassessmentInput,
+      basis: reassessmentPreview.basis,
+      preview_digest: reassessmentPreview.preview_digest,
+    });
+    expect(replayedSuccessor).toMatchObject({
+      replay: true,
+      ref: successor.ref,
+      brief: successor.brief,
+    });
+    expect(successor.brief.reassessment).toMatchObject({
+      parent_ref: parentRef,
+      rationale: reassessmentInput.rationale,
+      changes: [{ ref: briefContent.evidence[0]!.ref }],
+    });
+    expect(successor.brief.evidence[1]).toEqual(brief.brief.evidence[1]);
+    expect((await readProjectOpportunityBrief(root, briefId)).ref).toEqual(parentRef);
+    const coldSuccessor = await readProjectOpportunityBrief(root, successorId);
+    expect(coldSuccessor).toMatchObject({
+      brief: { id: successorId, reassessment: { parent_ref: parentRef } },
+      cold_read: true,
+    });
+    expect(coldSuccessor.brief.evidence[0]).toMatchObject({
+      position: 'context',
+      confidence: 'low',
+    });
+    const stalePreview = await previewProjectOpportunityBriefReassessment(root, {
+      ...reassessmentInput,
+      rationale: 'Reassess after checking the current project context again.',
+      evidence_updates: [],
+    });
+    await updateProject(root, {
+      id: projectPreview.project.id,
+      name: projectPreview.project.name,
+      purpose: 'Concurrent edit after reassessment preview.',
+      constraints: projectPreview.project.constraints,
+    });
+    await expect(
+      reassessProjectOpportunityBrief(root, {
+        request_id: randomUUID(),
+        parent_ref: parentRef,
+        selection,
+        rationale: 'Reassess after checking the current project context again.',
+        evidence_updates: [],
+        basis: stalePreview.basis,
+        preview_digest: stalePreview.preview_digest,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
     const cold = await readProjectTopicRelevance(root, created.review.id);
     expect(cold.cold_read).toBe(true);
     expect(cold.review).toEqual(created.review);
     expect((await listTopics(root)).topics[0]).toEqual(savedTopic);
     expect((await loadProjects(root)).projects[0]!.purpose).toBe(
-      'Observe staff handoffs instead of queue time.',
+      'Concurrent edit after reassessment preview.',
     );
   } finally {
     await rm(root, { recursive: true, force: true });
