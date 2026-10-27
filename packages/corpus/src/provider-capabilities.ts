@@ -16,6 +16,7 @@ import { searchLibrary, type LibraryFinding } from '../../domain/src/library-sea
 import { sourceCaptureRecordBytes, SourceCaptureError } from './source-captures.js';
 import { sourceChangeReviewRecordBytes, SourceChangeReviewError } from './source-change-reviews.js';
 import { projectTopicRelevanceRecordBytes } from './project-topic-relevance.js';
+import { projectOpportunityBriefRecordBytes } from './project-opportunity-brief.js';
 import { planResearchRetention, type ResearchAnswer } from './research-answer.js';
 import {
   buildLibraryExploreSnapshot,
@@ -88,6 +89,7 @@ const recordSchema = Type.Object(
       'source_annotation_record',
       'source_change_review_record',
       'project_topic_relevance_record',
+      'project_opportunity_brief_record',
     ]),
   },
   closed,
@@ -194,6 +196,7 @@ export async function providerCapabilities(
       { id: 'source-capture', versions: ['1.0'] },
       { id: 'source-change-review', versions: ['1.0'] },
       { id: 'project-topic-relevance', versions: ['1.0'] },
+      { id: 'project-opportunity-brief', versions: ['1.0'] },
       { id: 'source-capture-render', versions: ['1.0'] },
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
@@ -345,6 +348,18 @@ export async function providerCapabilities(
         authority_required: true,
       },
       {
+        name: 'read_project_opportunity_brief',
+        target_kinds: ['project_opportunity_brief'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'retain_project_opportunity_brief',
+        target_kinds: ['project_opportunity_brief'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
         name: 'search_private_collection',
         target_kinds: ['private_document'],
         mutating: true,
@@ -443,6 +458,8 @@ export async function providerCapabilities(
       'source_annotation',
       'source_change_review',
       'project_topic_relevance',
+          'project_opportunity_brief',
+      'project_opportunity_brief',
       'private_pdf_reader',
       'private_pdf_annotation',
     ],
@@ -661,6 +678,21 @@ async function ownedBytes(
           Number((error as { status: number }).status),
           String((error as { code?: string }).code ?? 'project_topic_relevance_unavailable'),
           String((error as { reason?: string }).reason ?? 'Project-topic review is unavailable.'),
+        );
+      throw error;
+    }
+  }
+  if (kind === 'project_opportunity_brief') {
+    if (!uuid.test(id))
+      fail(400, 'invalid_provider_reference', 'Project opportunity brief IDs must be UUIDs.');
+    try {
+      return await projectOpportunityBriefRecordBytes(root, id);
+    } catch (error) {
+      if (error instanceof Error && 'status' in error)
+        fail(
+          Number((error as { status: number }).status),
+          String((error as { code?: string }).code ?? 'project_opportunity_brief_unavailable'),
+          String((error as { reason?: string }).reason ?? 'Project opportunity brief is unavailable.'),
         );
       throw error;
     }

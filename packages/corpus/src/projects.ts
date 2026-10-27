@@ -21,6 +21,7 @@ import {
   type Project,
   type ProjectState,
   type Opportunity,
+  projectOpportunityBriefSchema,
 } from './project-contract.js';
 
 export async function loadProjects(root: string): Promise<ProjectState> {
@@ -169,8 +170,9 @@ export async function listOpportunities(root: string) {
   const state = await loadProjects(root);
   return state.opportunities.map((item) => {
     const project = state.projects.find((entry) => entry.id === item.projectId);
+    const { briefs: _briefHistory, ...opportunity } = item;
     return {
-      ...item,
+      ...opportunity,
       needsReview:
         !!item.projectId &&
         (!project?.connected ||
@@ -238,6 +240,89 @@ export async function updateOpportunity(root: string, input: unknown) {
     item.note = request.note;
     return item;
   });
+}
+/** Retains a closed immutable brief inside the existing project-opportunity owner record. */
+export async function appendProjectOpportunityBrief(
+  root: string,
+  opportunityId: string,
+  input: unknown,
+  validateBasis: () => Promise<void>,
+) {
+  const brief = checked<Static<typeof projectOpportunityBriefSchema>>(
+    projectOpportunityBriefSchema,
+    input,
+  );
+  if (brief.basis.opportunity_id !== opportunityId || brief.id !== brief.id.toLowerCase())
+    throw new Error('invalid_project_opportunity_brief_basis');
+  let retained = brief;
+  await change(root, async (state) => {
+    const opportunity = state.opportunities.find((entry) => entry.id === opportunityId);
+    if (!opportunity) throw new Error('unknown_opportunity');
+    const project = state.projects.find((entry) => entry.id === opportunity.projectId);
+    if (
+      !project?.connected ||
+      project.id !== brief.basis.project_id ||
+      project.snapshot.digest !== brief.basis.project_snapshot_sha256 ||
+      projectContextFingerprint(project) !== brief.basis.project_context_sha256
+    )
+      throw new Error('project_opportunity_brief_project_changed');
+    const { briefs: _briefs, ...opportunityWithoutBriefHistory } = opportunity;
+    const currentOpportunity = {
+      ...opportunityWithoutBriefHistory,
+      needsReview:
+        !!opportunity.projectId &&
+        (!project.connected ||
+          project.snapshot.digest !== opportunity.projectSnapshotDigest ||
+          projectContextFingerprint(project) !== opportunity.projectContextDigest),
+    };
+    const canonicalOpportunityDigest = digest(canonicalProjectValue(currentOpportunity));
+    if (
+      opportunity.projectId !== project.id ||
+      canonicalOpportunityDigest !== brief.basis.opportunity_sha256
+    )
+      throw new Error('project_opportunity_brief_opportunity_changed');
+    // Recheck topic/relevance/source/provider bindings while project writes are locked.
+    // The callback is read-only and retains no source bytes.
+    await validateBasis();
+    appendBrief(opportunity, brief, (value) => {
+      retained = value;
+    });
+  });
+  return retained;
+}
+
+function appendBrief(
+  opportunity: Opportunity,
+  brief: Static<typeof projectOpportunityBriefSchema>,
+  retain: (brief: Static<typeof projectOpportunityBriefSchema>) => void,
+) {
+  opportunity.briefs ??= [];
+  const previous = opportunity.briefs.find((entry) => entry.id === brief.id);
+  if (previous) {
+    if (previous.request_digest !== brief.request_digest)
+      throw new Error('project_opportunity_brief_uuid_conflict');
+    retain(previous);
+    return previous;
+  }
+  if (opportunity.briefs.length >= 100) throw new Error('project_opportunity_brief_capacity');
+  opportunity.briefs.push(brief);
+  retain(brief);
+  return brief;
+}
+
+function canonicalProjectValue(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(canonicalProjectValue).join(',') + ']';
+  if (value && typeof value === 'object')
+    return (
+      '{' +
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, child]) => child !== undefined)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, child]) => JSON.stringify(key) + ':' + canonicalProjectValue(child))
+        .join(',') +
+      '}'
+    );
+  return JSON.stringify(value) ?? 'null';
 }
 /** The imported observation is retained unchanged; personal status is a separate annotation. */
 export async function importContextOpportunities(root: string, input: unknown) {

@@ -4,6 +4,137 @@ import { Value } from 'typebox/value';
 const closed = { additionalProperties: false };
 const short = Type.String({ minLength: 1, maxLength: 200 });
 const digest = Type.String({ pattern: '^[a-f0-9]{64}$' });
+const exactRefSchema = Type.Object(
+  {
+    owner: Type.Literal('signals-ai'),
+    kind: Type.String({ minLength: 1, maxLength: 100 }),
+    id: Type.String({ minLength: 1, maxLength: 200 }),
+    revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
+    digest,
+  },
+  closed,
+);
+const opportunityBriefBindingSchema = Type.Object(
+  {
+    schema: Type.Literal('signals-provider-contract-binding.v1'),
+    owner: Type.Literal('signals-ai'),
+    contract_id: Type.Literal('project-opportunity-brief'),
+    contract_version: Type.Literal('1.0'),
+    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
+    contract_digest: digest,
+    instance_id: Type.String({ format: 'uuid' }),
+    owner_epoch: Type.String({ format: 'uuid' }),
+    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
+  },
+  closed,
+);
+const opportunityBriefBasisSchema = Type.Object(
+  {
+    project_id: Type.String({ pattern: '^project-[a-f0-9]{24}$' }),
+    project_snapshot_sha256: digest,
+    project_context_sha256: digest,
+    opportunity_id: Type.String({ minLength: 1, maxLength: 200 }),
+    opportunity_sha256: digest,
+    topic_id: Type.String({ format: 'uuid' }),
+    topic_revision: Type.Integer({ minimum: 1 }),
+    topic_sha256: digest,
+    relevance_ref: Type.Object(
+      {
+        ...exactRefSchema.properties,
+        kind: Type.Literal('project_topic_relevance'),
+        id: Type.String({ format: 'uuid' }),
+      },
+      closed,
+    ),
+    source_change_review_ref: Type.Optional(
+      Type.Object(
+        {
+          ...exactRefSchema.properties,
+          kind: Type.Literal('source_change_review'),
+          id: Type.String({ format: 'uuid' }),
+        },
+        closed,
+      ),
+    ),
+    source_capture_refs: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            ...exactRefSchema.properties,
+            kind: Type.Literal('source_capture'),
+            id: Type.String({ format: 'uuid' }),
+          },
+          closed,
+        ),
+        { minItems: 2, maxItems: 2 },
+      ),
+    ),
+    provider_binding: opportunityBriefBindingSchema,
+  },
+  closed,
+);
+const briefEvidenceSchema = Type.Object(
+  {
+    ref: exactRefSchema,
+    position: Type.Enum(['supports', 'challenges', 'context', 'unknown']),
+    confidence: Type.Enum(['high', 'moderate', 'low', 'unknown']),
+    rationale: Type.String({ minLength: 1, maxLength: 1000 }),
+  },
+  closed,
+);
+export const projectOpportunityBriefSchema = Type.Object(
+  {
+    schema_version: Type.Literal('project-opportunity-brief-v1'),
+    id: Type.String({ format: 'uuid' }),
+    created_at: Type.String({ format: 'date-time' }),
+    request_digest: digest,
+    basis: opportunityBriefBasisSchema,
+    title: short,
+    observed_need: Type.String({ minLength: 1, maxLength: 3000 }),
+    options: Type.Array(
+      Type.Object(
+        {
+          kind: Type.Enum(['existing', 'no_action']),
+          title: short,
+          description: Type.String({ minLength: 1, maxLength: 1500 }),
+        },
+        closed,
+      ),
+      { minItems: 2, maxItems: 6 },
+    ),
+    reversible_intervention: Type.String({ minLength: 1, maxLength: 2000 }),
+    responsible_party: Type.String({ minLength: 1, maxLength: 300 }),
+    falsifiable_outcome: Type.String({ minLength: 1, maxLength: 1000 }),
+    evidence: Type.Array(briefEvidenceSchema, { minItems: 1, maxItems: 12 }),
+    contradictions_reviewed: Type.Literal(true),
+    contradictions: Type.Array(
+      Type.Object(
+        {
+          statement: Type.String({ minLength: 1, maxLength: 1000 }),
+          refs: Type.Array(exactRefSchema, { minItems: 1, maxItems: 6 }),
+        },
+        closed,
+      ),
+      { maxItems: 10 },
+    ),
+    missing_evidence_reviewed: Type.Literal(true),
+    missing_evidence: Type.Array(
+      Type.Object(
+        {
+          question: Type.String({ minLength: 1, maxLength: 500 }),
+          why_it_matters: Type.String({ minLength: 1, maxLength: 500 }),
+        },
+        closed,
+      ),
+      { maxItems: 10 },
+    ),
+    qualifications: Type.Array(Type.String({ minLength: 1, maxLength: 600 }), {
+      minItems: 1,
+      maxItems: 8,
+    }),
+  },
+  closed,
+);
 const contextRecordSchema = Type.Object(
   {
     profile: short,
@@ -119,6 +250,7 @@ const opportunityInputSchema = Type.Object(
 const opportunitySchema = Type.Object(
   {
     ...opportunityInputSchema.properties,
+    briefs: Type.Optional(Type.Array(projectOpportunityBriefSchema, { maxItems: 100 })),
     projectId: Type.Optional(projectSchema.properties.id),
     projectSnapshotDigest: Type.Optional(digest),
     projectContextDigest: Type.Optional(digest),

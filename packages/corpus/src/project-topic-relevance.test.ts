@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
@@ -26,6 +27,14 @@ import { createSourceCapture, type RecordRef } from './source-captures.js';
 import { createSourceChangeReview } from './source-change-reviews.js';
 import { loadEntities } from './search-store.js';
 import { requestStore } from './search-request-store.js';
+import {
+  listProjectOpportunityBriefs,
+  previewProjectOpportunityBrief,
+  projectOpportunityBriefProviderBinding,
+  projectOpportunityBriefRecordBytes,
+  readProjectOpportunityBrief,
+  retainProjectOpportunityBrief,
+} from './project-opportunity-brief.js';
 
 it('binds human relevance to exact topic, project and S04 change bases; preserves old records and cold reopens', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-project-topic-relevance-')));
@@ -281,6 +290,133 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       }),
     ).rejects.toMatchObject({ status: 409 });
     expect((await readProjectTopicRelevance(root, created.review.id)).basis_status).toBe('current');
+    const briefContent = {
+      title: 'Measure queue handoffs with a short observation',
+      observed_need:
+        'The team needs a low-disruption way to compare service time across two counters.',
+      options: [
+        {
+          kind: 'no_action' as const,
+          title: 'No action',
+          description: 'Keep the current process and make no measurement change.',
+        },
+        {
+          kind: 'existing' as const,
+          title: 'Long observation',
+          description: 'Observe both counters over a longer time window.',
+        },
+      ],
+      reversible_intervention:
+        'Run one short, staff-approved observation and stop if the queue is disrupted.',
+      responsible_party: 'The project operator with staff consent.',
+      falsifiable_outcome:
+        'The two-counter sample produces a repeatable time difference without increasing queue disruption.',
+      evidence: [
+        {
+          ref: member.ref,
+          position: 'supports' as const,
+          confidence: 'moderate' as const,
+          rationale:
+            'This retained source frames a relevant measurement question; the interpretation remains human.',
+        },
+        {
+          ref: next.ref,
+          position: 'challenges' as const,
+          confidence: 'low' as const,
+          rationale:
+            'The changed capture records a shorter window, which may not support a stable comparison.',
+        },
+      ],
+      contradictions_reviewed: true as const,
+      contradictions: [
+        {
+          statement:
+            'The retained source suggests a comparison is useful, while the newer capture shortens the observation window.',
+          refs: [member.ref, next.ref],
+        },
+      ],
+      missing_evidence_reviewed: true as const,
+      missing_evidence: [
+        {
+          question: 'Would staff accept a short observation during peak service?',
+          why_it_matters:
+            'Without staff acceptance, the reversible test may still disrupt service.',
+        },
+      ],
+    };
+    const selection = {
+      project_id: projectPreview.project.id,
+      opportunity_id: opportunity.id,
+      topic_id: savedTopic.id,
+      relevance_id: created.review.id,
+    };
+    const briefPreview = await previewProjectOpportunityBrief(root, {
+      selection,
+      content: briefContent,
+    });
+    expect(briefPreview).toMatchObject({
+      project: { id: projectPreview.project.id },
+      opportunity: { id: opportunity.id },
+      topic: { id: savedTopic.id, revision: savedTopic.revision },
+      relevance: { judgment: 'uncertain' },
+      evidence: [{ currentness: 'current' }, { currentness: 'current' }],
+    });
+    expect(briefPreview.basis.provider_binding).toEqual(
+      await projectOpportunityBriefProviderBinding(root),
+    );
+    const briefId = randomUUID();
+    const brief = await retainProjectOpportunityBrief(root, {
+      request_id: briefId,
+      selection,
+      basis: briefPreview.basis,
+      content: briefContent,
+      preview_digest: briefPreview.preview_digest,
+    });
+    expect(brief.ref.kind).toBe('project_opportunity_brief');
+    const briefBytes = await projectOpportunityBriefRecordBytes(root, briefId);
+    expect(createHash('sha256').update(briefBytes.bytes).digest('hex')).toBe(brief.ref.digest);
+    expect(existsSync(join(root, '.signals/project-opportunity-briefs.json'))).toBe(false);
+    expect(await listProjectOpportunityBriefs(root)).toMatchObject({
+      briefs: [
+        { ref: brief.ref, project_id: projectPreview.project.id, opportunity_id: opportunity.id },
+      ],
+    });
+    expect((await readProjectOpportunityBrief(root, briefId)).basis_status).toBe('current');
+    expect((await readProjectTopicRelevance(root, created.review.id)).basis_status).toBe('current');
+    const sameBrief = await retainProjectOpportunityBrief(root, {
+      request_id: briefId,
+      selection,
+      basis: briefPreview.basis,
+      content: briefContent,
+      preview_digest: briefPreview.preview_digest,
+    });
+    expect(sameBrief).toMatchObject({ replay: true, brief: brief.brief });
+    const changedContent = { ...briefContent, title: 'Changed under the same request ID' };
+    const changedPreview = await previewProjectOpportunityBrief(root, {
+      selection,
+      content: changedContent,
+    });
+    await expect(
+      retainProjectOpportunityBrief(root, {
+        request_id: briefId,
+        selection,
+        basis: changedPreview.basis,
+        content: changedContent,
+        preview_digest: changedPreview.preview_digest,
+      }),
+    ).rejects.toMatchObject({ code: 'project_opportunity_brief_uuid_conflict' });
+    await expect(
+      previewProjectOpportunityBrief(root, {
+        selection,
+        content: {
+          ...briefContent,
+          evidence: [
+            { ...briefContent.evidence[0]!, ref: { ...member.ref, digest: '0'.repeat(64) } },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect((await readProjectOpportunityBrief(root, briefId)).brief).toEqual(brief.brief);
     await updateProject(root, {
       id: projectPreview.project.id,
       name: projectPreview.project.name,
@@ -290,6 +426,13 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
     expect((await readProjectTopicRelevance(root, created.review.id)).basis_status).toBe(
       'needs-review',
     );
+    const coldBrief = await readProjectOpportunityBrief(root, briefId);
+    expect(coldBrief).toMatchObject({
+      basis_status: 'needs-review',
+      brief: { id: briefId, title: briefContent.title },
+      cold_read: true,
+      evidence_currentness: [{ state: 'current' }, { state: 'current' }],
+    });
     const cold = await readProjectTopicRelevance(root, created.review.id);
     expect(cold.cold_read).toBe(true);
     expect(cold.review).toEqual(created.review);

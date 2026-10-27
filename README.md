@@ -20,6 +20,8 @@ Other installed applications can use the [local provider interface](docs/provide
 
 [Connected knowledge](docs/connected-knowledge.md) adds explicit Planning/Principles export readers and private named topics. Search across retained owners, select exact records, keep links and open questions, then reopen after restart with visible changed, missing or unavailable source status. [Project-topic relevance](docs/project-topic-relevance.md) records a human judgment against exact topic and project versions. These deterministic operations require no model service.
 
+[Opportunity briefs](docs/project-opportunity-brief.md) retain a human-authored opportunity plan inside an existing project opportunity, bound to exact topic, project, relevance and evidence references. Source currentness remains separate from human confidence.
+
 Library returns immediate phrase, prefix and typo matches over retained metadata. In Settings → Personal Library, you can permit one no-web meaning match per submitted question. Its disclosure lists the metadata sent to your authenticated AI host; notes, projects, source text and credentials are excluded. Literal results remain available if matching is disabled, unavailable or cancelled. Public Pages uses literal retrieval only.
 
 ```sh
