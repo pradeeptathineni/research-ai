@@ -8,7 +8,7 @@ import { openSourceCapture, type RecordRef } from './source-captures.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
 
 const closed = { additionalProperties: false };
-const uuid = Type.String({ format: 'uuid' });
+const uuid = Type.String({ pattern: '^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$' });
 const digest = Type.String({ pattern: '^[a-f0-9]{64}$' });
 const refSchema = Type.Object(
   {
