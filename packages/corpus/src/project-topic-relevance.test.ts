@@ -10,6 +10,7 @@ import { saveLibraryLead } from './library-leads.js';
 import { previewProject } from './project-preview.js';
 import {
   attachOpportunity,
+  associateOpportunity,
   loadProjects,
   projectHistory,
   registerProject,
@@ -435,16 +436,28 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       cold_read: true,
       evidence_currentness: [{ state: 'current' }, { state: 'current' }],
     });
-    await updateProject(root, {
-      id: projectPreview.project.id,
-      name: projectPreview.project.name,
-      purpose: projectPreview.project.purpose,
-      constraints: projectPreview.project.constraints,
+    await associateOpportunity(root, {
+      id: opportunity.id,
+      projectId: projectPreview.project.id,
     });
+    const refreshedRelevancePreview = await previewProjectTopicRelevance(root, {
+      ...previewRequest,
+      provider_binding: await projectTopicRelevanceProviderBinding(root),
+    });
+    const refreshedRelevance = await createProjectTopicRelevance(root, {
+      request_id: randomUUID(),
+      basis: refreshedRelevancePreview.basis,
+      relevance: 'uncertain',
+      rationale: 'Reassess the same topic against the updated project context.',
+    });
+    const reassessmentSelection = {
+      ...selection,
+      relevance_id: refreshedRelevance.review.id,
+    };
     const parentRef = coldBrief.ref;
     const reassessmentInput = {
       parent_ref: parentRef,
-      selection,
+      selection: reassessmentSelection,
       rationale: 'Reconsidered the retained interpretation after reviewing the project context.',
       evidence_updates: [
         {
@@ -509,7 +522,7 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       reassessProjectOpportunityBrief(root, {
         request_id: randomUUID(),
         parent_ref: parentRef,
-        selection,
+        selection: reassessmentSelection,
         rationale: 'Reassess after checking the current project context again.',
         evidence_updates: [],
         basis: stalePreview.basis,
