@@ -5,8 +5,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   checkResearchStudyOrigins, createResearchNotebook, createResearchStudy, getResearchStudyCitation,
-  prepareResearchStudyQuestion, recordResearchStudyQuestion, renderResearchStudy, reviseResearchNotebook,
+  prepareResearchStudyQuestion, recordResearchStudyQuestion, renderResearchStudy, renderResearchNotebook, reviseResearchNotebook,
   reviseResearchStudy, researchDocumentCoverage, searchResearchNotebooks, validateResearchStudy,
+  saveResearchStudyQuestionAsNotebookNote,
 } from "../src/index.mjs";
 import { fakeCodex, message } from "./fake-codex.mjs";
 
@@ -81,6 +82,21 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.match(citation.selection.document.title, /^Unverified note:/);
   assert.equal(citation.source.noteVersion.text, noteQuote);
   assert.equal(citation.page.text, noteQuote);
+
+  const destination = createResearchNotebook("Answer notebook");
+  const saved = saveResearchStudyQuestionAsNotebookNote(reopened, destination, spec.id);
+  const savedVersion = saved.notes[0].versions[0];
+  assert.equal(savedVersion.origin.kind, "study");
+  assert.equal(savedVersion.origin.studyId, reopened.id);
+  assert.equal(savedVersion.origin.questionId, spec.id);
+  assert.equal(savedVersion.origin.studySha256, reopened.sha256);
+  assert.match(savedVersion.text, /No independent replication was selected/);
+  assert.match(savedVersion.text, /unverified note: Scope memo/);
+  assert.deepEqual(JSON.parse(renderResearchNotebook(saved)).notes[0].versions[0], savedVersion);
+  assert.deepEqual(getResearchStudyCitation(reopened, spec.id, "p01-e02"), citation, "study citation remains reopenable after note projection");
+  const edited = reviseResearchNotebook(saved, { type: "edit-note", id: saved.notes[0].id, title: "Edited", text: "A later editorial revision." });
+  assert.deepEqual(edited.notes[0].versions[0].origin, savedVersion.origin);
+  assert.deepEqual(edited.notes[0].versions[1].origin, savedVersion.origin, "later versions cannot retarget provenance");
 
   const changedOrigin = reviseResearchNotebook(notebooks[1], { type: "edit-note", id: notebooks[1].notes[0].id,
     title: "Scope memo revised", text: "Changed unrelated current origin version." });

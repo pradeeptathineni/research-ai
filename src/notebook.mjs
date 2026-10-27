@@ -48,12 +48,19 @@ function sourceDocument(value) {
 function noteVersion(value, expectedVersion, noteId, questionIds) {
   sealed(value, ["version", "title", "text", "origin", "sha256"], "note version");
   if (value.version !== expectedVersion || !text(value.title, 200) || !text(value.text, 20000, true)) invalid("invalid note version content");
-  sealed(value.origin, ["kind", "questionId"], "note origin");
+  if (!plain(value.origin)) invalid("note origin must be an object");
   if (value.origin.kind === "human") {
+    sealed(value.origin, ["kind", "questionId"], "note origin");
     if (value.origin.questionId !== null) invalid("human note cannot name a question");
   } else if (value.origin.kind === "question") {
+    sealed(value.origin, ["kind", "questionId"], "note origin");
     recordId("question", value.origin.questionId);
     if (!questionIds.has(value.origin.questionId)) invalid("note origin names a missing question");
+  } else if (value.origin.kind === "study") {
+    sealed(value.origin, ["kind", "studyId", "questionId", "studySha256", "resultSha256"], "study note origin");
+    if (!/^study:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.origin.studyId)
+        || !/^study-question:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.origin.questionId)
+        || !digestPattern.test(value.origin.studySha256) || !digestPattern.test(value.origin.resultSha256)) invalid("invalid study note provenance");
   } else invalid("invalid note origin kind");
   const content = { version: value.version, title: value.title, text: value.text, origin: value.origin };
   if (value.sha256 !== hash(canonical(content))) invalid("note version digest mismatch");
@@ -234,6 +241,15 @@ export function reviseResearchNotebook(value, edit) {
     const version = { ...content, sha256: hash(canonical(content)) };
     return changed(notebook, { notes: [...notebook.notes, { id, versions: [version] }] });
   }
+  if (edit.type === "add-study-note" && allowed(edit, ["type", "title", "text", "origin"], ["id"])) {
+    if (notebook.notes.length >= caps.notes) invalid("notebook note capacity reached");
+    const id = recordId("note", edit.id);
+    if (notebook.notes.some((entry) => entry.id === id)) invalid("note ID already exists");
+    if (!text(edit.title, 200) || !text(edit.text, 20000, true)) invalid("invalid note content");
+    const content = { version: 1, title: edit.title, text: edit.text, origin: clone(edit.origin) };
+    const version = noteVersion({ ...content, sha256: hash(canonical(content)) }, 1, id, new Set(notebook.questions.map((entry) => entry.id)));
+    return changed(notebook, { notes: [...notebook.notes, { id, versions: [version] }] });
+  }
   if (edit.type === "edit-note" && keys(edit, ["type", "id", "title", "text"])) {
     const id = recordId("note", edit.id);
     if (!text(edit.title, 200) || !text(edit.text, 20000, true)) invalid("invalid note content");
@@ -359,9 +375,11 @@ export function renderResearchNotebook(value, { format = "json" } = {}) {
   }
   out.push("## Notes", "");
   for (const note of notebook.notes) for (const version of note.versions) {
-    const label = version.origin.kind === "question" ? `Unverified answer note: ${version.title}` : version.title;
+    const label = version.origin.kind === "question" || version.origin.kind === "study" ? `Unverified answer note: ${version.title}` : version.title;
+    const origin = version.origin.kind === "study" ? `study ${version.origin.studyId}, question ${version.origin.questionId}, study SHA-256 ${version.origin.studySha256}, result SHA-256 ${version.origin.resultSha256}`
+      : `${version.origin.kind}${version.origin.questionId ? ` (${escapeText(version.origin.questionId)})` : ""}`;
     out.push(`### ${escapeText(label)} — ${escapeText(note.id)} v${version.version}`, "", escapeText(version.text), "",
-      `Origin: ${version.origin.kind}${version.origin.questionId ? ` (${escapeText(version.origin.questionId)})` : ""}`, "");
+      `Origin: ${origin}`, "");
   }
   out.push("## Questions", "");
   for (const question of notebook.questions) out.push(`### ${escapeText(question.question)}`, "",

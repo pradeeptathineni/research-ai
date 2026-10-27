@@ -21,4 +21,4 @@ export { researchNotebookLimits, createResearchNotebook, validateResearchNoteboo
   renderResearchNotebook } from './notebook.mjs';
 export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from './notebook-search.mjs';
 
-export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, renderResearchStudy, researchStudyLimits } from './study.mjs';
+export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';

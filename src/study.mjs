@@ -1,7 +1,7 @@
 // Original Research implementation: portable composition over selected notebook evidence; no donor code is included.
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { validateResearchNotebook } from "./notebook.mjs";
+import { reviseResearchNotebook, validateResearchNotebook } from "./notebook.mjs";
 import { openNotebookSearchHit } from "./notebook-search.mjs";
 import { prepareDocumentCoverage, validateDocumentCoverage } from "./document-coverage.mjs";
 
@@ -259,6 +259,41 @@ export function getResearchStudyCitation(value, questionId, evidenceId) {
   return { evidence: clone(evidence), page: clone(page), document: clone(selection.document), selection: clone(selection),
     source: selection.origin.kind === "note" ? { kind: "note", noteVersion: clone(selection.noteVersion) }
       : { kind: "document", notebookId: selection.origin.notebookId, recordId: selection.origin.recordId, digest: selection.origin.sourceDigest } };
+}
+
+/** Saves a qualified answer as a versioned note with immutable study/result provenance. */
+export function saveResearchStudyQuestionAsNotebookNote(studyValue, notebookValue, questionId, { title, id: noteId } = {}) {
+  const study = validateState(studyValue), notebook = validateResearchNotebook(notebookValue);
+  id("study-question", questionId);
+  const question = study.questions.find((entry) => entry.id === questionId);
+  if (!question) invalid("question is not retained in this study");
+  const draft = question.result.draft;
+  if (question.result.status !== "complete" || !draft || !Array.isArray(draft.answer) || draft.answer.length === 0)
+    invalid("study question has no complete synthesized answer");
+  const evidence = new Map([...(draft.evidence ?? []), ...question.result.passes.filter((pass) => pass.findings)
+    .flatMap((pass) => pass.findings.evidence)].map((item) => [item.id, item]));
+  const answer = draft.answer.map((row) => {
+    if (typeof row.text !== "string" || !row.text.trim() || !Array.isArray(row.evidenceIds) || row.evidenceIds.length === 0
+        || row.evidenceIds.some((evidenceId) => !evidence.has(evidenceId))) invalid("study answer contains an unqualified claim");
+    const qualifiers = row.evidenceIds.map((evidenceId) => {
+      const item = evidence.get(evidenceId), source = question.sourceMap.find((entry) => entry.documentId === item.documentId);
+      const selection = study.selections.find((entry) => entry.id === source?.selectionId);
+      if (!source || !selection) invalid("study answer citation has no retained source");
+      const sourceTitle = selection.origin.kind === "note" ? selection.document.title.replace(/^Unverified note: /, "") : selection.document.title;
+      return `${selection.origin.kind === "note" ? "unverified note" : "source"}: ${sourceTitle}`;
+    });
+    return `- ${row.text} [${[...new Set(qualifiers)].join("; ")}]`;
+  });
+  const gaps = Array.isArray(draft.gaps) ? draft.gaps : [];
+  if (draft.coverage !== "complete" && gaps.length === 0) invalid("partial study answer has no stated qualification");
+  const projection = [`Unverified study answer to: ${question.question}`, "", ...answer, "", `Coverage reported: ${draft.coverage}.`,
+    ...(gaps.length ? ["Qualifications and gaps:", ...gaps.map((gap) => `- ${gap}`)] : [])].join("\n");
+  if (!projection.isWellFormed() || projection.length > 20000) invalid("qualified study answer exceeds the note text limit");
+  const noteTitle = title ?? `Study answer: ${question.question}`.slice(0, 200);
+  if (typeof noteTitle !== "string" || !noteTitle.trim() || noteTitle.length > 200) invalid("invalid note title");
+  const origin = { kind: "study", studyId: study.id, questionId, studySha256: study.sha256,
+    resultSha256: hash(canonical(question.result)) };
+  return reviseResearchNotebook(notebook, { type: "add-study-note", title: noteTitle, text: projection, id: noteId, origin });
 }
 /** Exports the validated portable study and its retained exact evidence. */
 const safeMarkdown = (value) => String(value).replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char])

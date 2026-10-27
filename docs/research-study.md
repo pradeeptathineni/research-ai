@@ -31,7 +31,7 @@ this workflow makes no model call by itself.
 import {
   createResearchStudy, reviseResearchStudy, searchResearchNotebooks,
   prepareResearchStudyQuestion, researchDocumentCoverage,
-  recordResearchStudyQuestion, getResearchStudyCitation, validateResearchStudy,
+  recordResearchStudyQuestion, getResearchStudyCitation, saveResearchStudyQuestionAsNotebookNote, validateResearchStudy,
 } from "@pradeeptathineni/research-ai";
 
 const notebooks = [methodsNotebook, resultsNotebook];
@@ -54,11 +54,23 @@ study = recordResearchStudyQuestion(study, prepared, result);
 const reopened = validateResearchStudy(JSON.parse(JSON.stringify(study)));
 const evidenceId = reopened.questions[0].result.draft?.evidence[0]?.id;
 if (evidenceId) console.log(getResearchStudyCitation(reopened, prepared.spec.id, evidenceId));
+const destination = saveResearchStudyQuestionAsNotebookNote(reopened, answerNotebook, prepared.spec.id);
 ```
+
+`saveResearchStudyQuestionAsNotebookNote(study, notebook, questionId, options)`
+adds a versioned note to the chosen notebook. It requires a complete synthesized
+answer whose every claim cites retained evidence, labels cited source titles,
+and carries the reported coverage and gaps into the note. Its typed `study`
+origin records the study ID, question ID, study SHA-256, and a digest of the
+complete retained result. Editing later note versions preserves that origin;
+the original study JSON still contains its source snapshots and remains able to
+reopen every citation independently. The note stores a concise answer projection,
+not copied source documents. `research-study --action save-note` accepts
+`{study, notebook, questionId, title?, id?}` and returns the revised notebook.
 
 ## CLI
 
-`research-study --action create|select|deselect|validate|origins|preview|record|citation|render`
+`research-study --action create|select|deselect|validate|origins|preview|record|citation|save-note|render`
 reads one JSON request from stdin. `select` needs explicit current notebooks,
 the retained search result and one hit ID; it validates and opens that hit before
 copying its bounded selected evidence. `origins` needs current notebook values.

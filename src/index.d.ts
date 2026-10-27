@@ -865,7 +865,8 @@ export function validateDocumentCoverage(value: unknown): DocumentCoverageResult
 /** Validates first; never turns titles into links. */
 export function renderDocumentCoverage(value: DocumentCoverageResult, options?: { format?: "markdown" | "json" }): string;
 
-export interface ResearchNotebookOrigin { kind: "human" | "question"; questionId: string | null }
+export type ResearchNotebookOrigin = { kind: "human"; questionId: null } | { kind: "question"; questionId: string }
+  | { kind: "study"; studyId: string; questionId: string; studySha256: string; resultSha256: string };
 export interface ResearchNotebookNoteVersion {
   version: number; title: string; text: string; origin: ResearchNotebookOrigin; sha256: string;
 }
@@ -1007,6 +1008,8 @@ export function getResearchStudyCitation(study: ResearchStudy, questionId: strin
   evidence: DocumentCoverageEvidence; page: ResearchDocumentInput["pages"][number]; document: ResearchDocumentInput;
   selection: ResearchStudySelection; source: { kind: "note"; noteVersion: ResearchNotebookNoteVersion } | { kind: "document"; notebookId: string; recordId: string; digest: string };
 };
+/** Projects a complete, evidence-qualified study answer into a chosen notebook with immutable study and result digests. */
+export function saveResearchStudyQuestionAsNotebookNote(study: ResearchStudy, notebook: ResearchNotebook, questionId: string, options?: { title?: string; id?: string }): ResearchNotebook;
 /** Exports the validated portable study as JSON or Markdown. */
 export function renderResearchStudy(study: ResearchStudy, options?: { format?: "json" | "markdown" }): string;
 
