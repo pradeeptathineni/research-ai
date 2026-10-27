@@ -136,6 +136,89 @@ const reassessmentSchema = Type.Object(
   },
   closed,
 );
+const reviewContextSchema = Type.Object(
+  {
+    schema_version: Type.Literal('project-opportunity-brief-review-context-v1'),
+    relevance: Type.Object(
+      {
+        ref: Type.Object(
+          {
+            ...exactRefSchema.properties,
+            kind: Type.Literal('project_topic_relevance'),
+            id: Type.String({ format: 'uuid' }),
+          },
+          closed,
+        ),
+        judgment: Type.Enum(['relevant', 'not-relevant', 'uncertain']),
+        rationale: Type.String({ minLength: 1, maxLength: 3000 }),
+      },
+      closed,
+    ),
+    source_change: Type.Optional(
+      Type.Object(
+        {
+          ref: Type.Object(
+            {
+              ...exactRefSchema.properties,
+              kind: Type.Literal('source_change_review'),
+              id: Type.String({ format: 'uuid' }),
+            },
+            closed,
+          ),
+          meaningfulness: Type.Enum(['unchanged', 'meaningful', 'not-meaningful', 'uncertain']),
+          change_rationale: Type.String({ minLength: 1, maxLength: 1600 }),
+          prior_capture_ref: Type.Object(
+            {
+              ...exactRefSchema.properties,
+              kind: Type.Literal('source_capture'),
+              id: Type.String({ format: 'uuid' }),
+            },
+            closed,
+          ),
+          new_capture_ref: Type.Object(
+            {
+              ...exactRefSchema.properties,
+              kind: Type.Literal('source_capture'),
+              id: Type.String({ format: 'uuid' }),
+            },
+            closed,
+          ),
+          observed_change: Type.Object(
+            {
+              state: Type.Enum(['changed', 'unchanged']),
+              removed_sha256: digest,
+              added_sha256: digest,
+              omitted_removed_lines: Type.Integer({ minimum: 0 }),
+              omitted_added_lines: Type.Integer({ minimum: 0 }),
+              truncated_removed_line: Type.Boolean(),
+              truncated_added_line: Type.Boolean(),
+            },
+            closed,
+          ),
+          assertions: Type.Array(
+            Type.Object(
+              {
+                entity_ref: exactRefSchema,
+                observation_id: Type.String({ minLength: 1, maxLength: 200 }),
+                currentness: Type.Enum(['current', 'needs-review']),
+                decision: Type.Enum(['retain', 'revise']),
+                revised_status: Type.Optional(
+                  Type.Enum(['supported', 'contradicted', 'uncertain']),
+                ),
+                rationale: Type.String({ minLength: 1, maxLength: 1600 }),
+                observation_sha256: digest,
+              },
+              closed,
+            ),
+            { minItems: 1, maxItems: 40 },
+          ),
+        },
+        closed,
+      ),
+    ),
+  },
+  closed,
+);
 export const projectOpportunityBriefSchema = Type.Object(
   {
     schema_version: Type.Literal('project-opportunity-brief-v1'),
@@ -144,6 +227,7 @@ export const projectOpportunityBriefSchema = Type.Object(
     request_digest: digest,
     basis: opportunityBriefBasisSchema,
     reassessment: Type.Optional(reassessmentSchema),
+    review_context: Type.Optional(reviewContextSchema),
     title: short,
     observed_need: Type.String({ minLength: 1, maxLength: 3000 }),
     options: Type.Array(

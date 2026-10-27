@@ -198,6 +198,7 @@ export async function providerCapabilities(
       { id: 'project-topic-relevance', versions: ['1.0'] },
       { id: 'project-opportunity-brief', versions: ['1.0'] },
       { id: 'project-opportunity-brief-reassessment', versions: ['1.0'] },
+      { id: 'project-opportunity-brief-confidence-packet', versions: ['1.0'] },
       { id: 'source-capture-render', versions: ['1.0'] },
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
@@ -347,6 +348,12 @@ export async function providerCapabilities(
         target_kinds: ['topic', 'project', 'project_topic_relevance'],
         mutating: true,
         authority_required: true,
+      },
+      {
+        name: 'export_project_opportunity_brief_packet',
+        target_kinds: ['project_opportunity_brief'],
+        mutating: false,
+        authority_required: false,
       },
       {
         name: 'preview_project_opportunity_brief_reassessment',

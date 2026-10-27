@@ -169,6 +169,9 @@ type Brief = Static<typeof projectOpportunityBriefSchema>;
 type ExactRef = Static<typeof exactRefSchema>;
 type ReassessmentRequest = Static<typeof reassessmentRequestSchema>;
 type ReassessmentBinding = Static<typeof reassessmentBindingSchema>;
+type ReviewContext = Static<
+  NonNullable<typeof projectOpportunityBriefSchema.properties.review_context>
+>;
 
 export class ProjectOpportunityBriefError extends Error {
   constructor(
@@ -424,6 +427,7 @@ async function currentBasis(root: string, selection: Selection) {
 
   let sourceChangeReviewRef: Basis['source_change_review_ref'];
   let sourceCaptureRefs: Basis['source_capture_refs'];
+  let sourceReviewContext: ReviewContext['source_change'];
   if (review.basis.source_change_review_ref) {
     const sourceRef = review.basis.source_change_review_ref;
     const sourceReview = await readSourceChangeReview(root, sourceRef.id);
@@ -435,6 +439,23 @@ async function currentBasis(root: string, selection: Selection) {
       );
     sourceChangeReviewRef = sourceRef;
     sourceCaptureRefs = review.basis.source_capture_refs;
+    sourceReviewContext = {
+      ref: sourceRef,
+      meaningfulness: sourceReview.review.meaningfulness,
+      change_rationale: sourceReview.review.change_rationale,
+      prior_capture_ref: sourceCaptureRefs![0]!,
+      new_capture_ref: sourceCaptureRefs![1]!,
+      observed_change: {
+        state: sourceReview.review.observed_change.state,
+        removed_sha256: sourceReview.review.observed_change.removed_sha256,
+        added_sha256: sourceReview.review.observed_change.added_sha256,
+        omitted_removed_lines: sourceReview.review.observed_change.omitted_removed_lines,
+        omitted_added_lines: sourceReview.review.observed_change.omitted_added_lines,
+        truncated_removed_line: sourceReview.review.observed_change.truncated_removed_line,
+        truncated_added_line: sourceReview.review.observed_change.truncated_added_line,
+      },
+      assertions: sourceReview.review.assertions,
+    };
   }
 
   const allowedRefs = [
@@ -472,6 +493,11 @@ async function currentBasis(root: string, selection: Selection) {
     },
     topic: { id: opened.topic.id, revision: opened.topic.revision, name: opened.topic.name },
     relevance: { ref: relevance.ref, judgment: review.relevance, rationale: review.rationale },
+    review_context: {
+      schema_version: 'project-opportunity-brief-review-context-v1' as const,
+      relevance: { ref: relevance.ref, judgment: review.relevance, rationale: review.rationale },
+      ...(sourceReviewContext ? { source_change: sourceReviewContext } : {}),
+    },
     allowedRefs,
   };
 }
@@ -520,7 +546,13 @@ export async function previewProjectOpportunityBrief(root: string, input: unknow
   const value = input as { selection: Selection; content: Content };
   const current = await currentBasis(root, value.selection);
   validateContent(value.content, current.allowedRefs);
-  const previewDigest = sha256(canonical({ basis: current.basis, content: value.content }));
+  const previewDigest = sha256(
+    canonical({
+      basis: current.basis,
+      review_context: current.review_context,
+      content: value.content,
+    }),
+  );
   return {
     schema_version: 'project-opportunity-brief-preview-v1',
     basis: current.basis,
@@ -529,6 +561,7 @@ export async function previewProjectOpportunityBrief(root: string, input: unknow
     opportunity: current.opportunity,
     topic: current.topic,
     relevance: current.relevance,
+    review_context: current.review_context,
     evidence: value.content.evidence.map((item) => ({ ...item, currentness: 'current' as const })),
     content: value.content,
     qualifications: [
@@ -554,7 +587,6 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
     preview_digest: string;
   };
   const current = await currentBasis(root, request.selection);
-  const providerBinding = await projectOpportunityBriefReassessmentBinding(root);
   if (!same(request.basis, current.basis))
     fail(
       409,
@@ -566,7 +598,14 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
     canonical({ request_id: request.request_id, basis: request.basis, content: request.content }),
   );
   if (
-    request.preview_digest !== sha256(canonical({ basis: request.basis, content: request.content }))
+    request.preview_digest !==
+    sha256(
+      canonical({
+        basis: request.basis,
+        review_context: current.review_context,
+        content: request.content,
+      }),
+    )
   )
     fail(
       409,
@@ -580,6 +619,7 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
     request_digest: digest,
     basis: request.basis,
     ...request.content,
+    review_context: current.review_context,
     qualifications: [
       'This brief records human judgments and exact retained references; it does not verify the underlying claims.',
       'Confidence is independent of source currentness. Changed, missing, unavailable, contradictory, and unknown evidence remain visible.',
@@ -720,6 +760,7 @@ export async function previewProjectOpportunityBriefReassessment(root: string, i
       created_at: undefined,
       request_digest: undefined,
       ...{ evidence },
+      review_context: current.review_context,
     },
   };
   return { ...preview, preview_digest: sha256(canonical(preview)) };
@@ -915,4 +956,115 @@ export async function projectOpportunityBriefRecordBytes(root: string, id: strin
   const found = findBrief(await loadProjects(root), id);
   if (!found) fail(404, 'project_opportunity_brief_missing', 'No retained brief has that UUID.');
   return { bytes: briefBytes(found.brief), storage: 'project_opportunity_brief_record' as const };
+}
+
+/** Deterministic offline JSON/Markdown export from one exact retained snapshot; performs no live source reads. */
+export async function exportProjectOpportunityBriefPacket(
+  root: string,
+  id: string,
+  format: 'json' | 'markdown',
+) {
+  if (!Value.Check(uuid, id))
+    fail(400, 'invalid_project_opportunity_brief_id', 'Brief identity must be a UUID.');
+  if (format !== 'json' && format !== 'markdown')
+    fail(400, 'invalid_project_opportunity_brief_packet_format', 'Choose JSON or Markdown export.');
+  const found = findBrief(await loadProjects(root), id);
+  if (!found) fail(404, 'project_opportunity_brief_missing', 'No retained brief has that UUID.');
+  const ref = briefRef(found.brief);
+  const packet = {
+    schema_version: 'signals-project-opportunity-brief-confidence-packet-v1',
+    packet_ref: ref,
+    brief: found.brief,
+    brief_record_json: briefBytes(found.brief).toString('utf8'),
+    qualifications: [
+      'This is an offline copy of one exact immutable Signals brief record; the packet reference hashes the included brief bytes.',
+      'Evidence position, confidence, rationale, relevance and source-change decisions are human assertions, not verified claims or numerical scores.',
+      'Source currentness is not refreshed by this export. Stored S04 assertion currentness is the review-time observation preserved in the exact referenced record.',
+      ...(found.brief.review_context
+        ? []
+        : [
+            'This older brief has no embedded S04/S07 judgment snapshot; exact basis references are preserved and no newer review was substituted.',
+          ]),
+    ],
+  };
+  if (format === 'json')
+    return {
+      content_type: 'application/json',
+      filename: `signals-confidence-packet-${id}.json`,
+      content: `${JSON.stringify(packet, null, 2)}\n`,
+      packet_ref: ref,
+    };
+  const context = found.brief.review_context;
+  const markdown = [
+    `# ${found.brief.title}`,
+    '',
+    `Signals confidence packet · ${id}`,
+    `Record SHA-256: ${ref.digest}`,
+    `Project: ${found.brief.basis.project_id} · snapshot ${found.brief.basis.project_snapshot_sha256}`,
+    `Opportunity: ${found.brief.basis.opportunity_id} · snapshot ${found.brief.basis.opportunity_sha256}`,
+    `Topic: ${found.brief.basis.topic_id} · revision ${found.brief.basis.topic_revision} · ${found.brief.basis.topic_sha256}`,
+    `S07 relevance record: ${found.brief.basis.relevance_ref.id} · ${found.brief.basis.relevance_ref.digest}`,
+    ...(found.brief.basis.source_change_review_ref
+      ? [
+          `S04 source-change record: ${found.brief.basis.source_change_review_ref.id} · ${found.brief.basis.source_change_review_ref.digest}`,
+        ]
+      : []),
+    '',
+    '## Human review context',
+    ...(context
+      ? [
+          `Relevance judgment (${context.relevance.ref.id} · ${context.relevance.ref.digest}): **${context.relevance.judgment}** — ${context.relevance.rationale}`,
+          ...(context.source_change
+            ? [
+                `Source change: **${context.source_change.meaningfulness}** — ${context.source_change.change_rationale}`,
+                `Capture hashes: before ${context.source_change.prior_capture_ref.digest}; after ${context.source_change.new_capture_ref.digest}`,
+                `Observed delta hashes: removed ${context.source_change.observed_change.removed_sha256}; added ${context.source_change.observed_change.added_sha256}; state ${context.source_change.observed_change.state}.`,
+                ...context.source_change.assertions.map(
+                  (assertion) =>
+                    `- ${assertion.entity_ref.id} · observation ${assertion.observation_id} · ${assertion.decision}${assertion.revised_status ? ` → ${assertion.revised_status}` : ''} · review-time currentness ${assertion.currentness} · ${assertion.rationale} · observation ${assertion.observation_sha256}`,
+                ),
+              ]
+            : []),
+        ]
+      : [
+          'No embedded S04/S07 review snapshot is available in this retained brief. The exact basis refs above are preserved; no latest review was substituted.',
+        ]),
+    '',
+    '## Human evidence judgments',
+    `Observed need: ${found.brief.observed_need}`,
+    'Options considered:',
+    ...found.brief.options.map(
+      (option) => `- ${option.title} (${option.kind}): ${option.description}`,
+    ),
+    `Reversible intervention: ${found.brief.reversible_intervention}`,
+    `Responsible party: ${found.brief.responsible_party}`,
+    `Falsifiable outcome: ${found.brief.falsifiable_outcome}`,
+    ...found.brief.evidence.map(
+      (item) =>
+        `- ${item.ref.kind} ${item.ref.id} · SHA-256 ${item.ref.digest} · **${item.position}** · human confidence **${item.confidence}** — ${item.rationale}`,
+    ),
+    '',
+    '## Contradictions',
+    ...(found.brief.contradictions.length
+      ? found.brief.contradictions.map(
+          (item) =>
+            `- ${item.statement} (${item.refs.map((ref) => `${ref.kind}:${ref.id}:${ref.digest}`).join('; ')})`,
+        )
+      : ['None recorded after review.']),
+    '',
+    '## Missing evidence and limitations',
+    ...(found.brief.missing_evidence.length
+      ? found.brief.missing_evidence.map((item) => `- ${item.question} — ${item.why_it_matters}`)
+      : ['No missing evidence questions recorded; this does not establish that none exist.']),
+    ...found.brief.qualifications.map((item) => `- ${item}`),
+    '',
+    'Source currentness is not refreshed by this offline export. The stored S04 assertion status is the review-time observation, not a claim about current source state. No inference, acquisition, scoring or publication is performed.',
+    '',
+  ].join('\n');
+  return {
+    content_type: 'text/markdown',
+    filename: `signals-confidence-packet-${id}.md`,
+    content: markdown,
+    packet_ref: ref,
+  };
 }

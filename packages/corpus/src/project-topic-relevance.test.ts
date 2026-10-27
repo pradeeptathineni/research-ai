@@ -34,6 +34,7 @@ import {
   projectOpportunityBriefProviderBinding,
   projectOpportunityBriefRecordBytes,
   readProjectOpportunityBrief,
+  exportProjectOpportunityBriefPacket,
   retainProjectOpportunityBrief,
   previewProjectOpportunityBriefReassessment,
   reassessProjectOpportunityBrief,
@@ -375,6 +376,47 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       content: briefContent,
       preview_digest: briefPreview.preview_digest,
     });
+    const packetJson = await exportProjectOpportunityBriefPacket(root, briefId, 'json');
+    const packetJsonRepeat = await exportProjectOpportunityBriefPacket(root, briefId, 'json');
+    expect(packetJson).toEqual(packetJsonRepeat);
+    const packet = JSON.parse(packetJson.content) as {
+      packet_ref: typeof brief.ref;
+      brief: typeof brief.brief;
+      brief_record_json: string;
+    };
+    expect(packet.packet_ref).toEqual(brief.ref);
+    expect(packet.brief.review_context).toMatchObject({
+      relevance: { ref: created.ref, judgment: 'uncertain' },
+      source_change: {
+        ref: changeReview.ref,
+        meaningfulness: 'meaningful',
+        prior_capture_ref: prior.ref,
+        new_capture_ref: next.ref,
+        assertions: [{ observation_sha256: expect.any(String), currentness: 'needs-review' }],
+      },
+    });
+    expect(createHash('sha256').update(packet.brief_record_json).digest('hex')).toBe(
+      brief.ref.digest,
+    );
+    const offlinePacketRoot = join(root, 'offline-packet-reader');
+    await mkdir(join(offlinePacketRoot, '.signals'), { recursive: true });
+    await copyFile(
+      join(root, '.signals/projects.json'),
+      join(offlinePacketRoot, '.signals/projects.json'),
+    );
+    expect(await exportProjectOpportunityBriefPacket(offlinePacketRoot, briefId, 'json')).toEqual(
+      packetJson,
+    );
+    const packetMarkdown = await exportProjectOpportunityBriefPacket(root, briefId, 'markdown');
+    expect(packetMarkdown.content).toContain(`Relevance judgment (${created.ref.id}`);
+    expect(packetMarkdown.content).toContain(
+      `before ${prior.ref.digest}; after ${next.ref.digest}`,
+    );
+    expect(packetMarkdown.content).toContain('review-time currentness needs-review');
+    expect(packetMarkdown.content).toContain(
+      'Source currentness is not refreshed by this offline export.',
+    );
+    expect(packetMarkdown.content).not.toContain('http://');
     expect(brief.ref.kind).toBe('project_opportunity_brief');
     const briefBytes = await projectOpportunityBriefRecordBytes(root, briefId);
     expect(createHash('sha256').update(briefBytes.bytes).digest('hex')).toBe(brief.ref.digest);

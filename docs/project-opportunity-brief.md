@@ -14,6 +14,13 @@ evidence remain explicit. A later read reports source currentness independently
 from those confidence judgments. Changed, missing, and unavailable sources do
 not cause a replacement to be selected.
 
+New brief snapshots also copy the exact S07 relevance judgment and rationale
+and, when selected, the exact S04 meaningfulness judgment, rationale, capture
+hashes and assertion decisions. This bounded `review_context` is retained
+inside the existing brief record. It distinguishes S04 assertion currentness
+observed at review time from the brief's human confidence; export does not
+refresh or interpret either judgment.
+
 Brief snapshots are immutable entries nested in the existing private Projects
 opportunity records. They do not create a second project or evidence store,
 change the opportunity itself, rewrite a topic or review, or copy source
@@ -27,6 +34,14 @@ record kind `project_opportunity_brief`. Its reference hashes the immutable
 brief bytes. The provider binding includes the canonical contract digest,
 instance and owner epoch; it includes a source commit only when the owner
 reports one.
+
+The separate `project-opportunity-brief-confidence-packet` v1 contract
+provides deterministic JSON and Markdown downloads from one exact retained
+brief UUID. Export embeds the exact record JSON and its hash reference and
+does not fetch sources or substitute newer reviews. Older brief records remain
+unchanged; their export states when the embedded S04/S07 snapshot is absent.
+The existing exact brief read reopens that same saved record after restart,
+including when current sources are unavailable.
 
 An opportunity brief is not a verified claim, a numerical ranking, proof of
 project impact, or authority to execute or publish an intervention. Planning
