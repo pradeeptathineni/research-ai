@@ -162,7 +162,9 @@ session. It does not choose passages or fetch links. Limits are four documents,
 against their UTF-8 text; a document's raw-byte digest remains caller-asserted.
 
 `validateDocumentResearch` checks the retained page closure, answer evidence IDs
-and exact page-local UTF-16 spans. `renderDocumentResearch` exports JSON or
+and exact page-local UTF-16 spans. The model returns exact quotes and explicit
+document/page identity; the host derives UTF-16 bounds from those frozen pages,
+refusing missing or ambiguous quotes. `renderDocumentResearch` exports JSON or
 Markdown. A complete answer requires a valid citation for every answer paragraph;
 insufficient source coverage returns an empty answer and explicit gaps. Citation
 relations are fallible model judgments, not verification. Non-complete sessions

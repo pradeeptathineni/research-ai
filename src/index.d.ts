@@ -988,7 +988,7 @@ export interface ResearchDocumentPage { number: number; text: string; sha256: st
 /** Caller-frozen extracted document pages; sha256 identifies raw source bytes but is not checked here. */
 export interface ResearchDocumentInput { id: string; title: string; sha256: string; pages: ResearchDocumentPage[] }
 export interface PreparedDocumentResearch {
-  schema: "research-document-input-v1"; question: string; documents: ResearchDocumentInput[]; inputDigest: string;
+  schema: "research-document-input-v2-quoted-evidence"; question: string; documents: ResearchDocumentInput[]; inputDigest: string;
   counts: { documents: number; pages: number; utf16Units: number }; limits: string[];
 }
 export interface DocumentAnswerParagraph { text: string; evidenceIds: string[] }
@@ -1010,7 +1010,7 @@ export type DocumentResearchResult = {
   status: "partial" | "failed" | "cancelled"; draft: null;
   receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string };
 };
-/** Validates complete ordered pages and their extracted-text hashes before any session. */
+/** Validates complete ordered pages and their extracted-text hashes before any session. The input digest binds the quoted-evidence-v2 model contract. */
 export function prepareDocumentResearch(question: string, documents: ResearchDocumentInput[]): PreparedDocumentResearch;
 /** Replays document hashes, answer-to-evidence links and exact UTF-16 page spans without a model. */
 export function validateDocumentResearch(value: unknown): DocumentResearchDraft;
