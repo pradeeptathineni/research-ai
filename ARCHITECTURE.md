@@ -20,6 +20,13 @@ searches, reads, monotonic duration and calls cumulatively. Historical attempts
 retain their original identity; edits invalidate the current report without
 rewriting prior findings. Output remains fallible research.
 
+`src/perspective-workflow.mjs` composes the existing perspective,
+independent-investigation, branch-comparison and outline owners into one
+cold-open portable closure. It validates exact source snapshots and phase
+bindings; it adds no execution method, provider, or store. Comparison
+disagreements remain attributed and separate from the source-only outline
+generator.
+
 `src/grounding.mjs` owns the additive `claim-support-v1` frozen-answer contract.
 It checks exact span occurrence and derives qualified support/contribution labels
 from explicit judgments; it does not verify source truth. Consumers retain its
@@ -32,6 +39,7 @@ structured output is failed, never promoted from interim narrative.
 | `src/codex.mjs`       | Codex readiness probes, the exclusive lease, the ephemeral working directory, model/effort selection, the hardened argument vector, the minimal environment, JSONL stream supervision, checkpoints, limits, deadline/abort and process-group kill |
 | `src/research.mjs`    | Ordinary research: profiles, a generic prompt with the question as labelled data, and mapping one session to `complete`/`partial`/`failed`                                                                                                        |
 | `src/perspectives.mjs` | `perspectives-v1`: heading-grounded lens candidates, a basic-facts lens first, one frozen schema-bound session per lens in order, exact-span validation and comparable assembly with omissions, unanswered questions and partial/cancelled states |
+| `src/perspective-workflow.mjs` | `research-perspective-workflow-v1`: ordered composition over existing perspective, independent-investigation, comparison and outline owners; exact-span set differences; cold portable closure |
 | `src/outline.mjs` | `research-outline-v1`: one frozen schema-bound session, source-bound editable points and gaps, offline replay validation and Markdown/JSON export |
 | `src/evidence-table.mjs` | `research-evidence-table-v1`: source-indexed question columns, row-local exact spans, offline validation/revision and Markdown/JSON export |
 | `src/document-research.mjs` | `research-document-answer-v1`: complete ordered caller-extracted page input, one frozen schema-bound answer, exact document/page spans, explicit coverage/gaps and offline replay |

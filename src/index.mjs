@@ -23,3 +23,4 @@ export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } 
 
 export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';
 export { createLiteratureSet, addLiteraturePaper, validateLiteratureSet, deduplicateLiteraturePapers, resolveLiteratureSet, prepareLiteratureQuestion, exportLiteratureSet, formatLiteratureSet } from './literature-set.mjs';
+export { createPerspectiveWorkflow, validatePerspectiveWorkflow, runWorkflowPerspectives, perspectiveSpanContribution, startWorkflowInvestigation, runWorkflowBranches, compareWorkflowBranches, draftWorkflowOutline, reviseWorkflowOutline, reviewWorkflowOutlineCitations, workflowComparisonCurrentness, renderPerspectiveWorkflow } from './perspective-workflow.mjs';

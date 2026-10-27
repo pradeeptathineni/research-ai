@@ -274,6 +274,24 @@ curated-conversation outline refinement to frozen caller text and user edits;
 it omits STORM's unconstrained parametric draft and Wikipedia fetching. See
 [notices](THIRD-PARTY-NOTICES.md).
 
+### Question-centered perspective workflow
+
+`research-perspective-workflow` composes the existing perspective, independent
+investigation, branch comparison and cited-outline owners into one portable
+JSON closure. It keeps exact frozen source identities, withholds sibling
+findings from independent branches, preserves branch/source attribution for
+disagreements, and keeps each outline edit as a new version. Exact-span
+contribution is a source-offset set difference, not a quality or confidence
+score. Failed and cancelled lens runs remain distinct from completed lenses
+with no unique citation. Disagreements remain beside the source-grounded
+outline with a reason; the existing outline engine does not consume comparison
+output as evidence. See [workflow contract](docs/perspective-workflow.md).
+
+```sh
+node bin/research-perspective-workflow.mjs --action create < setup.json > workflow.json
+node bin/research-perspective-workflow.mjs --action render < workflow.json
+```
+
 ### Evidence-linked mind maps
 
 `createMindMap(question, { sources, root })` creates an explanatory concept

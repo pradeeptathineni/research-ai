@@ -9,6 +9,13 @@ const literature = addLiteraturePaper(createLiteratureSet('Synthetic set'), lite
 const dedupe = deduplicateLiteraturePapers(literature.papers);
 const literatureExport: string = formatLiteratureSet(literature);
 void [dedupe, literatureExport, prepareLiteratureQuestion];
+import { createPerspectiveWorkflow, validatePerspectiveWorkflow, perspectiveSpanContribution, renderPerspectiveWorkflow, reviewWorkflowOutlineCitations } from '@pradeeptathineni/research-ai';
+import type { ResearchPerspectiveWorkflow } from '@pradeeptathineni/research-ai';
+const workflowSources: FrozenSource[] = [{ uri: 'https://example.org/frozen', text: 'A frozen source.' }];
+const workflow: ResearchPerspectiveWorkflow = createPerspectiveWorkflow('A question', { sources: workflowSources, perspectives: 'auto' });
+const checkedWorkflow: ResearchPerspectiveWorkflow = validatePerspectiveWorkflow(workflow);
+const workflowJson: string = renderPerspectiveWorkflow(checkedWorkflow, { format: 'json' });
+void [perspectiveSpanContribution, workflowJson, reviewWorkflowOutlineCitations];
 import { importTableCsv, registerTable } from '@pradeeptathineni/research-ai';
 import type { ResearchTableCsvResult } from '@pradeeptathineni/research-ai';
 declare const hostParserRoot: string;
