@@ -19,6 +19,7 @@ import {
   createProjectTopicRelevance,
   projectTopicRelevanceRecordBytes,
   previewProjectTopicRelevance,
+  projectTopicRelevanceProviderBinding,
   readProjectTopicRelevance,
 } from './project-topic-relevance.js';
 import { createSourceCapture, type RecordRef } from './source-captures.js';
@@ -149,6 +150,7 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       topic_revision: savedTopic.revision,
       member_selections: [member],
       project_id: projectPreview.project.id,
+      provider_binding: await projectTopicRelevanceProviderBinding(root),
       opportunity_id: opportunity.id,
       source_change_review_ref: changeReview.ref,
     };
@@ -166,6 +168,20 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       },
     });
     expect(JSON.stringify(preview)).not.toContain(projectFolder);
+    await expect(
+      createProjectTopicRelevance(root, {
+        request_id: randomUUID(),
+        basis: {
+          ...preview.basis,
+          provider_binding: {
+            ...preview.basis.provider_binding,
+            owner_epoch: randomUUID(),
+          },
+        },
+        relevance: 'uncertain',
+        rationale: 'The provider epoch no longer matches the preview.',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
     await expect(
       previewProjectTopicRelevance(root, {
         ...previewRequest,

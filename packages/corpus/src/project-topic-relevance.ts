@@ -3,14 +3,29 @@ import { resolve } from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
 import { openTopic } from './knowledge.js';
-import { exactOwnerRecord, ProviderError } from './provider-capabilities.js';
+import { exactOwnerRecord, providerCapabilities, ProviderError } from './provider-capabilities.js';
 import { listOpportunities, loadProjects, projectContextFingerprint } from './projects.js';
 import { atomicJson, readPrivateJson, withWriter } from './search-store.js';
+import { requestStore } from './search-request-store.js';
 import { SourceChangeReviewError } from './source-change-reviews.js';
 
 const closed = { additionalProperties: false };
 const uuid = Type.String({ pattern: '^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$' });
 const digestSchema = Type.String({ pattern: '^[a-f0-9]{64}$' });
+const providerBindingSchema = Type.Object(
+  {
+    schema: Type.Literal('signals-provider-contract-binding.v1'),
+    owner: Type.Literal('signals-ai'),
+    contract_id: Type.Literal('project-topic-relevance'),
+    contract_version: Type.Literal('1.0'),
+    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
+    contract_digest: digestSchema,
+    instance_id: uuid,
+    owner_epoch: uuid,
+    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
+  },
+  closed,
+);
 const selectionSchema = Type.Object(
   {
     ref: Type.Object(
@@ -37,6 +52,7 @@ const basisSchema = Type.Object(
     project_id: Type.String({ pattern: '^project-[a-f0-9]{24}$' }),
     project_snapshot_sha256: digestSchema,
     project_context_sha256: digestSchema,
+    provider_binding: providerBindingSchema,
     opportunity_id: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     opportunity_sha256: Type.Optional(digestSchema),
     source_change_review_ref: Type.Optional(
@@ -75,6 +91,7 @@ const basisInputSchema = Type.Object(
     topic_revision: Type.Integer({ minimum: 1 }),
     member_selections: Type.Array(selectionSchema, { minItems: 1, maxItems: 100 }),
     project_id: Type.String({ pattern: '^project-[a-f0-9]{24}$' }),
+    provider_binding: Type.Optional(providerBindingSchema),
     opportunity_id: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     source_change_review_ref: Type.Optional(
       Type.Object(
@@ -103,6 +120,7 @@ const requestSchema = Type.Object(
 type Selection = Static<typeof selectionSchema>;
 type Basis = Static<typeof basisSchema>;
 type BasisInput = Static<typeof basisInputSchema>;
+type ProviderBinding = Static<typeof providerBindingSchema>;
 type Request = Static<typeof requestSchema>;
 type RecordRef = {
   owner: 'signals-ai';
@@ -161,6 +179,61 @@ const canonical = (value: unknown): string => {
   return JSON.stringify(value) ?? 'null';
 };
 const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+const providerBindingDigestKind = 'sha256-canonical-contract-json-v1';
+export async function projectTopicRelevanceProviderBinding(root: string): Promise<ProviderBinding> {
+  const scope = await requestStore(root)
+    .scope()
+    .catch(() =>
+      fail(503, 'project_topic_relevance_unavailable', 'The Signals owner binding is unavailable.'),
+    );
+  const response = await providerCapabilities(root, '1.0', scope.identity, scope.epoch);
+  const capabilities = response.capabilities as {
+    contracts?: Array<{ id: string; versions: string[] }>;
+    operations?: Array<{
+      name: string;
+      target_kinds: string[];
+      mutating: boolean;
+      authority_required: boolean;
+    }>;
+    record_kinds?: string[];
+    source_commit?: string;
+  };
+  const contract = capabilities.contracts?.find(
+    (row) => row.id === 'project-topic-relevance' && row.versions.includes('1.0'),
+  );
+  const operations = ['read_project_topic_relevance', 'review_project_topic_relevance'].map(
+    (name) => capabilities.operations?.find((row) => row.name === name),
+  );
+  if (
+    !contract ||
+    operations.some((row) => !row) ||
+    !capabilities.record_kinds?.includes('project_topic_relevance')
+  )
+    fail(
+      503,
+      'project_topic_relevance_unavailable',
+      'The connected Signals provider has no complete project-topic relevance contract.',
+    );
+  const metadata = {
+    contract,
+    operations,
+    record_kinds: ['project_topic_relevance'],
+  };
+  return {
+    schema: 'signals-provider-contract-binding.v1',
+    owner: 'signals-ai',
+    contract_id: 'project-topic-relevance',
+    contract_version: '1.0',
+    digest_kind: providerBindingDigestKind,
+    contract_digest: sha256(canonical(metadata)),
+    instance_id: scope.identity,
+    owner_epoch: scope.epoch,
+    ...(typeof capabilities.source_commit === 'string' &&
+    /^[a-f0-9]{40,64}$/.test(capabilities.source_commit)
+      ? { source_commit: capabilities.source_commit }
+      : {}),
+  };
+}
 const reviewBytes = (review: Review) => Buffer.from(JSON.stringify(review), 'utf8');
 function reviewRef(review: Review): RecordRef {
   const hash = sha256(reviewBytes(review));
@@ -293,10 +366,14 @@ async function currentBasis(
     | 'topic_revision'
     | 'member_selections'
     | 'project_id'
+    | 'provider_binding'
     | 'opportunity_id'
     | 'source_change_review_ref'
   >,
 ) {
+  const binding = await projectTopicRelevanceProviderBinding(root);
+  if (input.provider_binding && canonical(binding) !== canonical(input.provider_binding))
+    changed('The Signals provider contract or owner epoch changed; reopen the exact basis.');
   let opened;
   try {
     opened = await openTopic(root, input.topic_id);
@@ -335,6 +412,7 @@ async function currentBasis(
     project_id: project.id,
     project_snapshot_sha256: project.snapshot.digest,
     project_context_sha256: projectContextSha,
+    provider_binding: binding,
   };
   const preview: Record<string, unknown> = {
     topic: { id: topic.id, revision: topic.revision, name: topic.name },
@@ -424,6 +502,7 @@ export async function createProjectTopicRelevance(root: string, input: unknown) 
     topic_revision: request.basis.topic_revision,
     member_selections: request.basis.member_selections,
     project_id: request.basis.project_id,
+    provider_binding: request.basis.provider_binding,
     ...(request.basis.opportunity_id ? { opportunity_id: request.basis.opportunity_id } : {}),
     ...(request.basis.source_change_review_ref
       ? { source_change_review_ref: request.basis.source_change_review_ref }
@@ -510,6 +589,7 @@ export async function readProjectTopicRelevance(root: string, id: string) {
       topic_revision: review.basis.topic_revision,
       member_selections: review.basis.member_selections,
       project_id: review.basis.project_id,
+      provider_binding: review.basis.provider_binding,
       ...(review.basis.opportunity_id ? { opportunity_id: review.basis.opportunity_id } : {}),
       ...(sourceReviewRef ? { source_change_review_ref: sourceReviewRef } : {}),
     });

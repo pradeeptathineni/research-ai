@@ -6,8 +6,10 @@ registered project purpose, optionally narrowed to a saved opportunity. It recor
 change a Signal, or infer project impact from source changes.
 
 The review binds the exact topic revision and chosen member identities, project source
-snapshot and purpose/constraints fingerprint, and optional opportunity. It may also bind
-one exact S04 source-change review with its two retained capture references. The source
+snapshot and purpose/constraints fingerprint, the canonical project-topic provider
+contract digest kind, and the active Signals instance and owner epoch. A source commit is
+included only when the provider reports one. It also binds an optional opportunity and
+may bind one exact S04 source-change review with its two retained capture references. The source
 change is context supplied by the reviewer; Signals does not infer whether it matters to
 the project. Project paths and file excerpts are not copied into this review store.
 
@@ -24,7 +26,9 @@ is copied as the complete `selection` object from the opened topic. Preview retu
 closed `basis` object; `REVIEW_JSON` contains that exact `basis`, a caller-generated
 `request_id`, `relevance`, and `rationale`. A changed basis between preview and create is
 refused and needs a new preview. Use a
-stable UUID for a write; after an uncertain reply open that UUID. Repeating the same UUID
+stable UUID for a write; after an uncertain reply open that UUID under the same provider
+binding. A changed instance, epoch, or contract digest is reported as needing review.
+Repeating the same UUID
 and request is idempotent, while different content under that UUID conflicts.
 
 `open` preserves the original record and reports basis state as `current`, `needs-review`,
