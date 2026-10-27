@@ -26,7 +26,8 @@
     "research-perspective-workflow": "bin/research-perspective-workflow.mjs",
     "research-document-recovery": "bin/research-document-recovery.mjs",
     "research-document-recovery-synthesis": "bin/research-document-recovery-synthesis.mjs",
-    "research-table-notebook": "bin/research-table-notebook.mjs"
+    "research-table-notebook": "bin/research-table-notebook.mjs",
+    "research-investigation": "bin/research-investigation.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -67,7 +68,8 @@
     "docs/document-recovery.md",
     "docs/document-recovery-synthesis.md",
     "bin/research-table-notebook.mjs",
-    "docs/table-notebook.md"
+    "docs/table-notebook.md",
+    "docs/investigation-adaptive.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",
