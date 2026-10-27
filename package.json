@@ -57,7 +57,8 @@
     "src/notebook-search-NOTICE.txt",
     "src/vendor/minisearch-7.2.0.mjs",
     "src/vendor/minisearch-LICENSE.txt",
-    "docs/research-study.md"
+    "docs/research-study.md",
+    "docs/literature-set.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

@@ -1,5 +1,14 @@
 import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, planInvestigation, renderInvestigation, advanceInvestigation, resumeInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
 import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, InvestigationPlan, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
+import { createLiteratureSet, addLiteraturePaper, deduplicateLiteraturePapers, prepareLiteratureQuestion, formatLiteratureSet } from '@pradeeptathineni/research-ai';
+import type { LiteraturePaper } from '@pradeeptathineni/research-ai';
+const literaturePaper: LiteraturePaper = { id: 'paper:fixture', metadata: { title: 'Synthetic paper' }, availability: 'missing', source: null,
+  statusEvidence: { kind: 'missing-source', assertedBy: 'fixture', observedAt: '2026-10-27T12:00:00Z', verification: 'asserted-unverified', detail: 'Synthetic absence.' },
+  finding: null, stance: null, claimKey: null, qualification: ['Source missing from fixture.'] };
+const literature = addLiteraturePaper(createLiteratureSet('Synthetic set'), literaturePaper);
+const dedupe = deduplicateLiteraturePapers(literature.papers);
+const literatureExport: string = formatLiteratureSet(literature);
+void [dedupe, literatureExport, prepareLiteratureQuestion];
 import { importTableCsv, registerTable } from '@pradeeptathineni/research-ai';
 import type { ResearchTableCsvResult } from '@pradeeptathineni/research-ai';
 declare const hostParserRoot: string;

@@ -3,6 +3,32 @@ export interface Readable {
   text: string;
 }
 
+export interface LiteraturePaper {
+  id: `paper:${string}`;
+  metadata: { title: string; authors?: string[]; year?: number; containerTitle?: string; publisher?: string; doi?: string; url?: string; type?: "article" | "book" | "report" | "webpage" };
+  availability: "available" | "missing" | "retracted";
+  statusEvidence: { kind: "missing-source" | "retraction" | "expression-of-concern" | "correction"; assertedBy: string; observedAt: string; verification: "asserted-unverified"; detail: string } | null;
+  /** Exact pointer to an existing notebook-owned source; never contains article text. */
+  source: { notebookId: string; notebookSha256: string; sourceId: string; sourceDigest: string; documentId: string; documentSha256: string } | null;
+  /** Caller-supplied finding note; not independently synthesized or verified. */
+  finding: string | null;
+  stance: "supports" | "opposes" | "mixed" | "unclear" | null;
+  claimKey: string | null;
+  qualification: string[];
+}
+export interface LiteratureSet {
+  schema: "research-literature-set-v1"; id: `literature-set:${string}`; title: string; revision: number;
+  papers: LiteraturePaper[]; sha256: string;
+}
+export function createLiteratureSet(title: string, options?: { id?: string }): LiteratureSet;
+export function addLiteraturePaper(value: LiteratureSet, paper: LiteraturePaper): LiteratureSet;
+export function validateLiteratureSet(value: unknown): LiteratureSet;
+export function deduplicateLiteraturePapers(papers: LiteraturePaper[]): { schema: "research-literature-dedupe-v1"; duplicates: Array<{ papers: string[]; basis: string; qualification: string }>; ambiguities: Array<{ papers: string[]; basis: string; similarity: number; qualification: string }> };
+export function resolveLiteratureSet(value: LiteratureSet, notebooks: unknown[]): { schema: "research-literature-resolution-v1"; literatureSetId: string; literatureSetSha256: string; resolved: Array<{ paperId: string; availability: "available" | "missing" | "retracted"; notebookId?: string; sourceId?: string; sourceDigest?: string; document: unknown | null; qualification?: string[] }> };
+export function prepareLiteratureQuestion(value: LiteratureSet, notebook: unknown, question: string, policy?: object, options?: { includeRetracted?: boolean }): { schema: "research-literature-question-v1"; literatureSetId: string; literatureSetSha256: string; prepared: unknown; includedPapers: Array<{ paperId: string; sourceId: string; sourceDigest: string; statusEvidence: LiteraturePaper["statusEvidence"] }>; coverage: Array<{ paperId: string; availability: LiteraturePaper["availability"]; source: LiteraturePaper["source"] | null; disposition: "included" | "not-searched-source-missing" | "excluded-retracted-by-default" | "outside-selected-notebook-cross-notebook-not-joined"; statusEvidence: LiteraturePaper["statusEvidence"]; qualification: string[] }> };
+export function exportLiteratureSet(value: LiteratureSet): string;
+export function formatLiteratureSet(value: LiteratureSet): string;
+
 export interface ReadinessProbe {
   source: "codex --version" | "codex login status" | "codex exec --help";
   /** UTC ISO timestamp; null if not probed. */
