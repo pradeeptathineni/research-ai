@@ -59,3 +59,24 @@ independently reproduced from concepts in `lfnovo/open-notebook`, pinned at
 See [`src/notebook-search-NOTICE.txt`](../src/notebook-search-NOTICE.txt) and
 [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md). Vector/semantic search,
 provider calls, persistence, acquisition, and UI are outside this owner.
+
+## Frozen retrieval arm export
+
+`exportResearchRetrievalArm(notebooks, questions, { mode, researchRevision })`
+exports one exact, prefix, or fuzzy lexical arm for offline comparison. Supply
+the exact validated notebook corpus, an ordered list of unique `{ id, text }`
+questions, and the pinned Research revision string. Run it once per mode, then
+combine the returned `corpus`, `questions`, and `arm` objects in the Sandbox
+retrieval comparison input. Its shape uses Sandbox's `corpus.source_ids`,
+question IDs, provenance, and per-question ordered `rankings` fields.
+
+The corpus contains every selected retained document page and every retained
+note version. Stable `notebook-hit-…` IDs identify these records; a canonical
+SHA-256 over the ordered IDs and exact record hashes forms `corpus.id`. Thus
+changing only the retrieval mode preserves corpus identity, while changing a
+page or note-version hash changes it. Each question returns all matching hits
+up to the existing 50-hit search bound; an over-bound ranking is refused.
+Question lists are limited to 32, and the existing notebook count, record, text,
+and query limits apply. No query expansion, model, network, judgment, ground
+truth, or metric is involved. This is a producer arm, not a comparison result;
+the caller and Sandbox own evaluation.

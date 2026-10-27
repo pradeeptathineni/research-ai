@@ -1087,6 +1087,20 @@ export function openNotebookSearchHit(notebooks: ResearchNotebook[], result: Not
 };
 export const notebookSearchLimits: Readonly<{ notebooks: 8; records: 8000; utf16Units: 4000000; queryUtf16Units: 200; hits: 50; matches: 64; excerptUtf16Units: 600; resultBytes: 8388608; engine: NotebookSearchResult["engine"] }>;
 
+export interface ResearchRetrievalQuestion { id: string; text: string }
+export interface ResearchRetrievalArmExport {
+  format: "research-retrieval-arm-1";
+  corpus: { id: string; source_ids: string[]; source_sha256: Array<{ id: string; sha256: string }> };
+  questions: ResearchRetrievalQuestion[];
+  arm: { strategy: string; provenance: { producer: string; version: string; reference: string; engine: NotebookSearchResult["engine"] };
+    corpus_id: string; question_ids: string[]; rankings: Record<string, string[]> };
+  qualifications: string[];
+}
+/** Exports one bounded frozen exact, prefix, or fuzzy lexical arm over explicit retained notebook sources. */
+export function exportResearchRetrievalArm(notebooks: ResearchNotebook[], questions: ResearchRetrievalQuestion[], options: {
+  mode?: "exact" | "prefix" | "fuzzy"; researchRevision: string;
+}): ResearchRetrievalArmExport;
+
 export interface ResearchStudySelection {
   id: string;
   origin: { notebookId: string; notebookSha256: string; searchScope: Array<{ id: string; sha256: string }>; query: string; searchOptions: NotebookSearchOptions;
