@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   checkResearchStudyOrigins, createResearchNotebook, createResearchStudy, exportResearchStudyPlanningSource, getResearchStudyCitation,
+  createResearchStudyReportBasis, createReport, exportReportHtml, renderReport, reviseReport, validateReport,
   prepareResearchStudyQuestion, recordResearchStudyQuestion, renderResearchStudy, renderResearchNotebook, reviseResearchNotebook,
   reviseResearchStudy, researchDocumentCoverage, searchResearchNotebooks, validateResearchStudy,
   saveResearchStudyQuestionAsNotebookNote, validateResearchStudyPlanningSource,
@@ -78,6 +79,37 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.deepEqual(recordResearchStudyQuestion(study, prepared, result), study, "repeated identical result is idempotent");
   const reopened = validateResearchStudy(JSON.parse(renderResearchStudy(study, { format: "json" })));
   assert.deepEqual(reopened, study);
+  const reportBasis = createResearchStudyReportBasis(reopened, spec.id);
+  assert.equal(reportBasis.origin.type, "caller-authored");
+  assert.equal(reportBasis.sections.reduce((count, section) => count + section.points.length, 0), 1);
+  assert.equal(reportBasis.sections[0].points[0].text, result.draft.answer[0].text);
+  assert.equal(reportBasis.sources.length, 2);
+  assert.ok(reportBasis.sources.every((source) => source.uri.startsWith("research-notebook://source/") && source.retainedOrigin?.studyId === reopened.id));
+  assert.equal(reportBasis.sections[0].points[0].citations[1].quote, noteQuote);
+  assert.deepEqual(reportBasis.sources.map((source) => source.retainedOrigin.kind), ["document", "note"]);
+  const originalReport = createReport(reportBasis);
+  const editableReport = reviseReport(originalReport, {
+    sectionId: originalReport.sections[0].id,
+    paragraphs: [{ text: "Human-edited report sentence from the retained answer.", citations: originalReport.basis.sections[0].points[0].citations }],
+  });
+  const coldReport = validateReport(JSON.parse(renderReport(editableReport, { format: "json" })));
+  assert.match(renderReport(coldReport), /Human-edited report sentence/);
+  assert.match(exportReportHtml(coldReport), /research-notebook:\/\/source/);
+  assert.match(renderReport(coldReport), /frozen Research Study/);
+  const reportCli = fileURLToPath(new URL("../bin/research-study-report.mjs", import.meta.url));
+  const cliReport = spawnSync(process.execPath, [reportCli, "--action", "create"], {
+    input: JSON.stringify({ study: reopened, questionId: spec.id }), encoding: "utf8", timeout: 30000,
+  });
+  assert.equal(cliReport.status, 0, cliReport.stderr);
+  assert.deepEqual(validateReport(JSON.parse(cliReport.stdout)), originalReport);
+  const alteredReportOrigin = structuredClone(coldReport);
+  alteredReportOrigin.basis.sources[0].retainedOrigin.notebookSha256 = sha("different notebook");
+  alteredReportOrigin.basisSha256 = sha(JSON.stringify(alteredReportOrigin.basis));
+  assert.throws(() => validateReport(alteredReportOrigin), /invalid retained Study source identity/);
+  const changedSpan = structuredClone(coldReport);
+  changedSpan.basis.sections[0].points[0].citations[0].quote = "a different quote";
+  changedSpan.basisSha256 = sha(JSON.stringify(changedSpan.basis));
+  assert.throws(() => validateReport(changedSpan), /citation span mismatch/);
   const planningSource = exportResearchStudyPlanningSource(reopened, spec.id);
   assert.match(planningSource.id, /^research-study-[a-f0-9]{48}$/);
   assert.ok(planningSource.text.length <= 16000);

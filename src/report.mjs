@@ -338,7 +338,11 @@ function renderCurrent(report) {
     const gaps = latest.gaps.length ? latest.gaps.map((gap) => `- ${md(gap)}`).join('\n') : '- None recorded.';
     return `## ${md(section.title)}\n\nOrigin: ${latest.origin}\n\n${paragraphs}${citations.length ? `\n\n${citations.join('\n')}` : ''}\n\n**Gaps and unknowns**\n\n${gaps}`;
   }).join('\n\n');
-  const sources = report.basis.sources.map((source, index) => `- [${index + 1}] ${code(source.uri)} — SHA-256 ${code(source.sha256)}${source.observedAt ? `; caller observation: ${md(source.observedAt)}` : ''}${(source.omissions ?? []).map((note) => `; caller qualification: ${md(note)}`).join('')}`).join('\n');
+  const sources = report.basis.sources.map((source, index) => {
+    const origin = source.retainedOrigin;
+    const study = origin ? `; frozen Research Study ${code(origin.studyId)} question ${code(origin.questionId)} result ${code(origin.resultSha256)}; selection ${code(origin.selectionId)}; ${md(origin.kind)} ${code(origin.recordId)} page ${origin.page}; notebook ${code(origin.notebookId)} @ ${code(origin.notebookSha256)}; source ${code(origin.sourceDigest)}` : '';
+    return `- [${index + 1}] ${code(source.uri)} — SHA-256 ${code(source.sha256)}${study}${source.observedAt ? `; caller observation: ${md(source.observedAt)}` : ''}${(source.omissions ?? []).map((note) => `; caller qualification: ${md(note)}`).join('')}`;
+  }).join('\n');
   const usage = `Calls ${report.usage.calls}; native sessions ${report.usage.nativeSessions}; searches ${report.usage.searches}; reads ${report.usage.reads}; seconds ${report.usage.seconds.toFixed(3)}.`;
   return `# ${md(report.topic)}\n\n${sections}\n\n## Sources\n\n${sources}\n\n## Run accounting\n\n${usage}\n\n## Limits\n\n${report.limits.map((limit) => `- ${md(limit)}`).join('\n')}\n`;
 }

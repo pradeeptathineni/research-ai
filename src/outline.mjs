@@ -9,6 +9,32 @@ const string = (maxLength) => ({ type: "string", minLength: 1, maxLength });
 const schema = object({ sections: { type: "array", minItems: 1, maxItems: 8, items: object({ title: string(120), points: { type: "array", maxItems: 5, items: object({ text: string(1000), citations: { type: "array", minItems: 1, maxItems: 4, items: object({ source: { type: "integer", minimum: 0 }, start: { type: "integer", minimum: 0 }, end: { type: "integer", minimum: 1 } }) } }) }, gaps: { type: "array", maxItems: 5, items: string(300) } }) } });
 
 const digest = /^[a-f0-9]{64}$/;
+const studyId = /^study:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const questionId = /^study-question:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const selectionId = /^study-selection:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const notebookId = /^notebook:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const studyOriginUri = (origin) => `research-notebook://source/${encodeURIComponent(origin.notebookId)}/${encodeURIComponent(origin.recordId)}/${origin.kind}/${origin.version === null ? "source" : origin.version}/${origin.page}?study=${encodeURIComponent(origin.studyId)}&studySha=${origin.studySha256}&question=${encodeURIComponent(origin.questionId)}&questionSha=${origin.questionSha256}&plan=${origin.planDigest}&selectionDigest=${origin.selectionDigest}&result=${origin.resultSha256}&selection=${encodeURIComponent(origin.selectionId)}&selectionSha=${origin.selectionSha256}&notebookSha=${origin.notebookSha256}&source=${origin.sourceDigest}&content=${origin.pageSha256}`;
+function retainedStudySource(source, fail) {
+  const origin = source.retainedOrigin;
+  const expected = ["format", "studyId", "studySha256", "questionId", "questionSha256", "planDigest", "selectionDigest", "resultSha256", "selectionId", "selectionSha256", "notebookId", "notebookSha256", "kind", "recordId", "version", "documentId", "page", "sourceDigest", "pageSha256", "title"];
+  if (!keys(origin, expected) || origin.format !== "research-study-source-v1"
+      || !studyId.test(origin.studyId) || !digest.test(origin.studySha256)
+      || !questionId.test(origin.questionId) || !digest.test(origin.questionSha256)
+      || !digest.test(origin.planDigest) || !digest.test(origin.selectionDigest)
+      || !digest.test(origin.resultSha256) || !selectionId.test(origin.selectionId)
+      || !digest.test(origin.selectionSha256) || !notebookId.test(origin.notebookId)
+      || !digest.test(origin.notebookSha256) || !["document", "note"].includes(origin.kind)
+      || typeof origin.recordId !== "string" || !line(origin.recordId, 200)
+      || !(origin.version === null || Number.isSafeInteger(origin.version) && origin.version > 0)
+      || typeof origin.documentId !== "string" || !line(origin.documentId, 200)
+      || !Number.isSafeInteger(origin.page) || origin.page < 1
+      || !digest.test(origin.sourceDigest) || !digest.test(origin.pageSha256)
+      || !line(origin.title, 300) || source.uri !== studyOriginUri(origin)
+      || source.sha256 !== origin.pageSha256 || createHash("sha256").update(source.text, "utf8").digest("hex") !== origin.pageSha256)
+    fail("invalid retained Study source identity");
+  if (Object.hasOwn(source, "observedAt") || Object.hasOwn(source, "omissions")) fail("retained Study source qualifications belong to the source answer");
+  return { uri: source.uri, text: source.text, sha256: source.sha256, retainedOrigin: { ...origin } };
+}
 const contentDigest = (topic, sources, sections) => createHash("sha256").update(JSON.stringify({ topic, sources, sections })).digest("hex");
 const validate = (value, markModified = false) => {
   const fail = (reason) => { throw new Error(`invalid_outline: ${reason}`); };
@@ -16,11 +42,27 @@ const validate = (value, markModified = false) => {
   if (!line(value.topic, 2000)) fail("invalid topic");
   if (!Array.isArray(value.sources) || value.sources.length < 1 || value.sources.length > 8) fail("invalid sources");
   const sourceInputs = value.sources.map((source, i) => {
-    if (!keys(source, ["uri", "text", "sha256", "observedAt", "omissions"].filter((key) => key !== "observedAt" && key !== "omissions" || Object.hasOwn(source, key))) || !digest.test(source.sha256)) fail(`invalid source ${i}`);
+    if (!source || typeof source !== "object" || Array.isArray(source) || !digest.test(source.sha256)) fail(`invalid source ${i}`);
+    if (Object.hasOwn(source, "retainedOrigin")) {
+      if (!keys(source, ["uri", "text", "sha256", "retainedOrigin"]) || typeof source.text !== "string" || !source.text.isWellFormed() || source.text.length > 48000) fail(`invalid retained Study source ${i}`);
+      return retainedStudySource(source, fail);
+    }
+    if (!keys(source, ["uri", "text", "sha256", "observedAt", "omissions"].filter((key) => key !== "observedAt" && key !== "omissions" || Object.hasOwn(source, key)))) fail(`invalid source ${i}`);
     const { sha256, ...input } = source;
-    return input;
+    return { ...input, sha256 };
   });
-  const retained = frozenSources(sourceInputs);
+  const retained = sourceInputs.every((source) => source.retainedOrigin)
+    ? sourceInputs.map((source) => ({ ...source }))
+    : sourceInputs.some((source) => source.retainedOrigin)
+      ? (() => {
+          const standard = sourceInputs.filter((source) => !source.retainedOrigin);
+          const frozen = frozenSources(standard.map(({ sha256, ...source }) => source));
+          let index = 0;
+          const combined = sourceInputs.map((source) => source.retainedOrigin ? source : frozen[index++]);
+          if (combined.reduce((sum, source) => sum + source.text.length, 0) > 48000) fail("combined sources exceed 48,000 UTF-16 units");
+          return combined;
+        })()
+      : frozenSources(sourceInputs.map(({ sha256, ...source }) => source));
   if (retained.some((source, i) => source.sha256 !== value.sources[i].sha256)) fail("source digest mismatch");
   if (!Array.isArray(value.sections) || value.sections.length < 1 || value.sections.length > 8) fail("invalid sections");
   const ids = new Set();

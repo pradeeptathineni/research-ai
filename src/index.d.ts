@@ -779,13 +779,27 @@ export function mindMapResearch(question: string, options: {
 
 export interface OutlinePoint { text: string; citations: OutlineCitation[] }
 export interface OutlineSection { id: string; title: string; points: OutlinePoint[]; gaps: string[] }
+export interface ResearchOutlineSource {
+  /** HTTP(S) caller URI, or a deterministic research-notebook URI paired with retainedOrigin. */
+  uri: string; text: string; sha256: string; observedAt?: string; omissions?: string[];
+  retainedOrigin?: ResearchStudyReportSourceOrigin;
+}
 export interface ResearchOutline {
   version: "research-outline-v1";
   topic: string;
-  sources: (FrozenSource & { sha256: string })[];
+  sources: ResearchOutlineSource[];
   sections: OutlineSection[];
   origin: { type: "model-generated" | "user-modified" | "caller-authored"; model?: string; receipt?: { mode: "frozen"; profile: keyof typeof profiles; model: string; effort: string; nativeSessions: 1; contentSha256: string } };
   limits: string[];
+}
+/** Closed canonical Study source binding used only by retained Study report sources. */
+export interface ResearchStudyReportSourceOrigin {
+  format: "research-study-source-v1"; studyId: string; studySha256: string;
+  questionId: string; questionSha256: string; planDigest: string; selectionDigest: string;
+  resultSha256: string; selectionId: string; selectionSha256: string;
+  notebookId: string; notebookSha256: string; kind: "document" | "note";
+  recordId: string; version: number | null; documentId: string; page: number;
+  sourceDigest: string; pageSha256: string; title: string;
 }
 /** Validates closed shapes, exact source digests, and UTF-16 quote spans without judging entailment. */
 export function validateOutline(value: unknown): ResearchOutline;
@@ -1253,6 +1267,10 @@ export interface ResearchStudyPlanningSource {
   qualification: { resultStatus: "complete"; coverage: "answered" | "partial"; gaps: string[]; limits: string[];
     currentness: "frozen-snapshot-origin-not-checked"; claimLimit: string };
 }
+/** Builds an existing report-engine outline from exact cited rows of one frozen Study answer. */
+export function createResearchStudyReportBasis(study: ResearchStudy, questionId: string): ResearchOutline;
+/** Re-derives and compares the exact Study report basis; caller edits are rejected. */
+export function validateResearchStudyReportBasis(study: ResearchStudy, questionId: string, candidate: unknown): ResearchOutline;
 export interface ResearchStudy {
   version: "research-study-v1"; id: string; title: string; revision: number;
   selections: ResearchStudySelection[]; questions: ResearchStudyQuestion[]; sha256: string;
