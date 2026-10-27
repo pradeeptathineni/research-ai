@@ -172,6 +172,49 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.match(renderResearchStudy(study, { format: "markdown" }), /Unverified note/);
 });
 
+test("a frozen retrieval result selects a freshly validated native hit with separate retrieval provenance", () => {
+  const [notebook] = fixtureNotebooks();
+  const search = searchResearchNotebooks([notebook], "yield", { kinds: ["document"] });
+  const hit = search.hits.find((item) => item.kind === "document");
+  assert.ok(hit);
+  const selectedPage = notebook.sources[0].document.pages.find((item) => item.number === hit.page);
+  const armDigests = {
+    "research-lexical-exact": sha("exact-arm"),
+    "research-lexical-prefix": sha("prefix-arm"),
+    "research-lexical-fuzzy": sha("fuzzy-arm"),
+  };
+  const retrieval = {
+    format: "research-retrieval-selection-1",
+    previewId: randomUUID(),
+    comparisonId: randomUUID(),
+    corpusDigest: sha("same-frozen-corpus"),
+    questionId: "saved-question-1",
+    sourceId: hit.id,
+    sourceSha256: hit.sourceDigest,
+    sourceSha256: hit.sourceDigest,
+    selectedContentSha256: selectedPage.sha256,
+    passageStart: 0,
+    passageEnd: selectedPage.text.length,
+    armDigests,
+  };
+  const study = reviseResearchStudy(createResearchStudy("Retrieval continuation"), {
+    type: "select-retrieval-hit", notebooks: [notebook], search, hitId: hit.id, retrieval,
+  });
+  const reopened = validateResearchStudy(JSON.parse(JSON.stringify(study)));
+  assert.equal(reopened.selections[0].origin.hitId, hit.id);
+  assert.equal(reopened.selections[0].origin.searchInputDigest, search.inputDigest);
+  assert.deepEqual(reopened.selections[0].origin.retrieval, retrieval);
+  assert.equal(checkResearchStudyOrigins(reopened, [notebook])[0].status, "current");
+  assert.throws(() => reviseResearchStudy(createResearchStudy("Changed source"), {
+    type: "select-retrieval-hit", notebooks: [notebook], search, hitId: hit.id,
+    retrieval: { ...retrieval, selectedContentSha256: sha("wrong passage") },
+  }), /retrieval passage/);
+  assert.throws(() => reviseResearchStudy(createResearchStudy("Wrong span"), {
+    type: "select-retrieval-hit", notebooks: [notebook], search, hitId: hit.id,
+    retrieval: { ...retrieval, passageEnd: selectedPage.text.length - 1 },
+  }), /retrieval passage/);
+});
+
 test("selection refuses stale hits; changed/missing origins and tampered snapshots are explicit", () => {
   const notebooks = fixtureNotebooks();
   const { study, noteSearch, noteHit } = selectedStudy(notebooks);

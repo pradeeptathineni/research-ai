@@ -26,13 +26,13 @@ function collect(notebooks) {
       records.push({ id: hitId({ notebookId: n.id, kind: "document", recordId: source.id, version: null, page: page.number }),
         sha256: hash(canonical({ source: source.digest, page: page.sha256 })),
         source: { notebook_id: n.id, kind: "document", record_id: source.id, page: page.number, version: null,
-          title: source.document.title, content_sha256: page.sha256 } });
+          title: source.document.title, content_sha256: page.sha256, source_sha256: source.digest } });
     }
     for (const note of n.notes) for (const version of note.versions) {
       records.push({ id: hitId({ notebookId: n.id, kind: "note", recordId: note.id, version: version.version, page: null }),
         sha256: version.sha256,
         source: { notebook_id: n.id, kind: "note", record_id: note.id, page: null, version: version.version,
-          title: version.title, content_sha256: version.sha256 } });
+          title: version.title, content_sha256: version.sha256, source_sha256: version.sha256 } });
     }
   }
   records.sort((a, b) => cmp(a.id, b.id));

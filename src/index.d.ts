@@ -1188,7 +1188,7 @@ export const notebookSearchLimits: Readonly<{ notebooks: 8; records: 8000; utf16
 export interface ResearchRetrievalQuestion { id: string; text: string }
 export interface ResearchRetrievalSource {
   id: string; notebook_id: string; kind: NotebookSearchKind; record_id: string;
-  page: number | null; version: number | null; title: string; content_sha256: string;
+  page: number | null; version: number | null; title: string; content_sha256: string; source_sha256: string;
 }
 export interface ResearchRetrievalArmExport {
   format: "research-retrieval-arm-1";
@@ -1222,7 +1222,10 @@ export interface ResearchStudySelection {
   id: string;
   origin: { notebookId: string; notebookSha256: string; searchScope: Array<{ id: string; sha256: string }>; query: string; searchOptions: NotebookSearchOptions;
     searchInputDigest: string; searchResultSha256: string; hitId: string; kind: NotebookSearchKind;
-    recordId: string; version: number | null; documentId: string | null; page: number | null; sourceDigest: string };
+    recordId: string; version: number | null; documentId: string | null; page: number | null; sourceDigest: string;
+    retrieval?: { format: "research-retrieval-selection-1"; previewId: string; comparisonId: string | null; corpusDigest: string; questionId: string;
+      sourceId: string; sourceSha256: string; selectedContentSha256: string; passageStart: number; passageEnd: number;
+      armDigests: Record<"research-lexical-exact" | "research-lexical-prefix" | "research-lexical-fuzzy", string> } };
   document: ResearchDocumentInput;
   noteVersion: ResearchNotebookNoteVersion | null;
   contentSha256: string;
@@ -1256,6 +1259,8 @@ export interface ResearchStudy {
 }
 export type ResearchStudyEdit =
   | { type: "select-hit"; notebooks: ResearchNotebook[]; search: NotebookSearchResult; hitId: string }
+  | { type: "select-retrieval-hit"; notebooks: ResearchNotebook[]; search: NotebookSearchResult; hitId: string;
+      retrieval: NonNullable<ResearchStudySelection["origin"]["retrieval"]> }
   | { type: "deselect-hit"; selectionId: string };
 export interface PreparedResearchStudyQuestion {
   version: "research-study-question-preview-v1"; studyId: string; studySha256: string;

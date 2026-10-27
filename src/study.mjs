@@ -42,7 +42,8 @@ function noteDocument(noteId, version) {
 function validateSelection(value) {
   if (!keys(value, ["id", "origin", "document", "noteVersion", "contentSha256", "sha256"])) invalid("selection fields are closed");
   id("study-selection", value.id);
-  if (!keys(value.origin, ["notebookId", "notebookSha256", "searchScope", "query", "searchOptions", "searchInputDigest", "searchResultSha256", "hitId", "kind", "recordId", "version", "documentId", "page", "sourceDigest"])) invalid("invalid selection origin");
+  const originKeys = ["notebookId", "notebookSha256", "searchScope", "query", "searchOptions", "searchInputDigest", "searchResultSha256", "hitId", "kind", "recordId", "version", "documentId", "page", "sourceDigest"];
+  if (!keys(value.origin, value.origin?.retrieval === undefined ? originKeys : [...originKeys, "retrieval"])) invalid("invalid selection origin");
   if (!/^notebook:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.origin.notebookId) || !digestPattern.test(value.origin.notebookSha256)
       || !Array.isArray(value.origin.searchScope) || value.origin.searchScope.length < 1 || value.origin.searchScope.length > 8
       || !line(value.origin.query, 200) || !keys(value.origin.searchOptions, ["mode", "kinds", "noteVersions", "limit"])
@@ -59,6 +60,22 @@ function validateSelection(value) {
       || !(value.origin.documentId === null || typeof value.origin.documentId === "string")
       || !(value.origin.page === null || Number.isSafeInteger(value.origin.page) && value.origin.page > 0)
       || !digestPattern.test(value.origin.sourceDigest)) invalid("malformed search hit provenance");
+  if (value.origin.retrieval !== undefined) {
+    const receipt = value.origin.retrieval;
+    if (!keys(receipt, ["format", "previewId", "comparisonId", "corpusDigest", "questionId", "sourceId", "sourceSha256", "selectedContentSha256", "passageStart", "passageEnd", "armDigests"])
+        || receipt.format !== "research-retrieval-selection-1"
+        || !/^[a-f0-9-]{36}$/.test(receipt.previewId)
+        || !(receipt.comparisonId === null || /^[a-f0-9-]{36}$/.test(receipt.comparisonId))
+        || !digestPattern.test(receipt.corpusDigest) || !line(receipt.questionId, 120)
+        || receipt.sourceId !== value.origin.hitId || receipt.sourceSha256 !== value.origin.sourceDigest || !digestPattern.test(receipt.selectedContentSha256)
+        || !Number.isSafeInteger(receipt.passageStart) || !Number.isSafeInteger(receipt.passageEnd)
+        || !keys(receipt.armDigests, ["research-lexical-exact", "research-lexical-prefix", "research-lexical-fuzzy"])
+        || Object.values(receipt.armDigests).some((entry) => !digestPattern.test(entry))) invalid("malformed frozen retrieval selection provenance");
+    const selectedPage = value.origin.kind === "document" ? value.document.pages.find((entry) => entry.number === value.origin.page) : null;
+    const selectedDigest = value.origin.kind === "note" ? value.noteVersion?.sha256 : selectedPage?.sha256;
+    const selectedText = value.origin.kind === "note" ? value.noteVersion?.text : selectedPage?.text;
+    if (selectedDigest !== receipt.selectedContentSha256 || receipt.passageStart !== 0 || receipt.passageEnd !== selectedText?.length) invalid("retrieval passage digest or bounds do not match the selected native search hit");
+  }
   if (value.origin.searchScope.some((entry, index) => !keys(entry, ["id", "sha256"])
       || !/^notebook:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(entry.id)
       || !digestPattern.test(entry.sha256) || (index > 0 && value.origin.searchScope[index - 1].id >= entry.id))
@@ -148,6 +165,31 @@ function resolveCurrent(notebooks, search, hitId) {
   return validateSelection(selection);
 }
 
+function validateRetrievalReceipt(value, hit, opened) {
+  if (!keys(value, ["format", "previewId", "comparisonId", "corpusDigest", "questionId", "sourceId", "sourceSha256", "selectedContentSha256", "passageStart", "passageEnd", "armDigests"])
+      || value.format !== "research-retrieval-selection-1" || !/^[a-f0-9-]{36}$/.test(value.previewId)
+      || !(value.comparisonId === null || /^[a-f0-9-]{36}$/.test(value.comparisonId))
+      || !digestPattern.test(value.corpusDigest) || !line(value.questionId, 120)
+      || value.sourceId !== hit.id || value.sourceSha256 !== hit.sourceDigest || !digestPattern.test(value.selectedContentSha256)
+      || !Number.isSafeInteger(value.passageStart) || !Number.isSafeInteger(value.passageEnd)
+      || !keys(value.armDigests, ["research-lexical-exact", "research-lexical-prefix", "research-lexical-fuzzy"])
+      || Object.values(value.armDigests).some((entry) => !digestPattern.test(entry))) invalid("retrieval selection must bind the frozen preview, question, and all lexical arm digests");
+  const selectedPage = hit.kind === "document" ? opened.source.document.pages.find((entry) => entry.number === hit.page) : null;
+  const selectedDigest = hit.kind === "note" ? opened.source.version.sha256 : selectedPage?.sha256;
+  const selectedText = hit.kind === "note" ? opened.source.version.text : selectedPage?.text;
+  if (selectedDigest !== value.selectedContentSha256 || value.passageStart !== 0 || value.passageEnd !== selectedText?.length) invalid("retrieval passage changed or does not match the current native hit");
+  return clone(value);
+}
+
+function appendSelection(study, selection) {
+  if (study.selections.length >= maxSelections) invalid("study selection capacity reached");
+  const identity = canonical({ notebookId: selection.origin.notebookId, kind: selection.origin.kind,
+    recordId: selection.origin.recordId, version: selection.origin.version, sourceDigest: selection.origin.sourceDigest });
+  if (study.selections.some((entry) => canonical({ notebookId: entry.origin.notebookId, kind: entry.origin.kind,
+    recordId: entry.origin.recordId, version: entry.origin.version, sourceDigest: entry.origin.sourceDigest }) === identity)) invalid("this exact source version is already selected");
+  return validateState(seal({ ...study, revision: study.revision + 1, selections: [...study.selections, selection] }));
+}
+
 /** Creates a portable cross-notebook study composition value. */
 export function createResearchStudy(title, { id: studyId } = {}) {
   if (!line(title, 200)) invalid("title is required");
@@ -158,13 +200,16 @@ export function reviseResearchStudy(value, edit) {
   const study = validateState(value);
   if (!plain(edit) || typeof edit.type !== "string") invalid("revision must name an edit");
   if (edit.type === "select-hit" && keys(edit, ["type", "notebooks", "search", "hitId"])) {
-    if (study.selections.length >= maxSelections) invalid("study selection capacity reached");
     const selection = resolveCurrent(edit.notebooks, edit.search, edit.hitId);
-    const identity = canonical({ notebookId: selection.origin.notebookId, kind: selection.origin.kind,
-      recordId: selection.origin.recordId, version: selection.origin.version, sourceDigest: selection.origin.sourceDigest });
-    if (study.selections.some((entry) => canonical({ notebookId: entry.origin.notebookId, kind: entry.origin.kind,
-      recordId: entry.origin.recordId, version: entry.origin.version, sourceDigest: entry.origin.sourceDigest }) === identity)) invalid("this exact source version is already selected");
-    return validateState(seal({ ...study, revision: study.revision + 1, selections: [...study.selections, selection] }));
+    return appendSelection(study, selection);
+  }
+  if (edit.type === "select-retrieval-hit" && keys(edit, ["type", "notebooks", "search", "hitId", "retrieval"])) {
+    const notebooks = edit.notebooks.map(validateResearchNotebook);
+    const selection = resolveCurrent(notebooks, edit.search, edit.hitId);
+    const opened = openNotebookSearchHit(notebooks, edit.search, edit.hitId);
+    selection.origin.retrieval = validateRetrievalReceipt(edit.retrieval, opened.hit, opened);
+    selection.sha256 = selectionDigest(selection);
+    return appendSelection(study, validateSelection(selection));
   }
   if (edit.type === "deselect-hit" && keys(edit, ["type", "selectionId"])) {
     const selectionId = id("study-selection", edit.selectionId);

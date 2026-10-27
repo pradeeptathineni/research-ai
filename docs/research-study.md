@@ -19,6 +19,20 @@ can make the origin status `changed` while leaving the embedded historical
 study and its citations readable. New evidence requires an explicit new
 selection.
 
+An inspected hit from a frozen lexical retrieval preview can also be added
+through `reviseResearchStudy` with `type: "select-retrieval-hit"`. This variant
+requires a fresh result from Research's existing notebook search and hit opener;
+it refuses a source ID or selected page/note digest that does not match that
+current native hit. The Study keeps its ordinary full-document or exact
+note-version snapshot and adds a separate `origin.retrieval` record containing
+the preview, optional comparison, corpus, question, source, selected passage
+digest, exact UTF-16 bounds, and the full canonical source digest; each lexical
+arm digest is separate. The new native search input/result digests
+remain distinct from the retrieval preview and its ranks. A document search hit
+still selects the complete document; its chosen page remains an explicit
+provenance anchor. This binds the source and reviewed passage without claiming
+that lexical rank establishes relevance, support, entailment, or truth.
+
 Question preparation names 1–8 selected records and reuses the complete-document
 coverage planner. The preview shows selected origins, counts and the exact plan
 digest. `recordResearchStudyQuestion` requires the exact study commitment,

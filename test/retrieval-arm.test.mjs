@@ -59,12 +59,12 @@ test("corpus sources map exact retained pages and note versions within the selec
   assert.deepEqual(pageEntry, {
     id: pageEntry.id, notebook_id: selected.id, kind: "document",
     record_id: selected.sources[0].id, page: 1, version: null, title: selected.sources[0].document.title,
-    content_sha256: selected.sources[0].document.pages[0].sha256,
+    content_sha256: selected.sources[0].document.pages[0].sha256, source_sha256: selected.sources[0].digest,
   });
   assert.deepEqual(noteEntry, {
     id: noteEntry.id, notebook_id: selected.id, kind: "note",
     record_id: selected.notes[0].id, page: null, version: 1, title: selected.notes[0].versions[0].title,
-    content_sha256: selected.notes[0].versions[0].sha256,
+    content_sha256: selected.notes[0].versions[0].sha256, source_sha256: selected.notes[0].versions[0].sha256,
   });
   assert.equal(JSON.stringify(arm).includes(outside.id), false);
   assert.equal(JSON.stringify(arm).includes("UNSELECTED"), false);
