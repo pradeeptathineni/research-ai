@@ -60,6 +60,28 @@ function setBranchContext(s, value) {
 
 export function validateInvestigation(value) { return validate(value); }
 
+/** Projects schema-valid final output from one unfinished, still-compatible investigate attempt. */
+export function getInvestigationIncompleteCandidate(value, attemptId) {
+  const s = validate(value);
+  if (!validLine(attemptId, 100)) return null;
+  const matches = s.history.filter(entry => entry.id === attemptId);
+  if (matches.length !== 1) return null;
+  const [a] = matches;
+  if (!a || a.action !== 'investigate' || !['partial', 'failed', 'cancelled'].includes(a.status)
+      || !compatibleAttempt(s, a) || !a.receipt || typeof a.receipt.final !== 'string' || !a.receipt.final.trim()) return null;
+  let data;
+  try { data = JSON.parse(a.receipt.final); } catch { return null; }
+  if (!validActionOutput('investigate', data, s)) return null;
+  return {
+    schema: 'research-investigation-incomplete-candidate-v1',
+    attemptId: a.id,
+    executionStatus: a.status,
+    reason: a.reason,
+    candidate: structuredClone({ answer: data.answer, findings: data.findings, gaps: data.gaps, sources: data.sources }),
+    qualification: 'Unfinished session output. Not accepted findings and not supplied automatically to later research.',
+  };
+}
+
 /** Builds a versioned, offline snapshot for review or deliberate continuation. */
 export function planInvestigation(state) {
   const s=validate(state), remaining={

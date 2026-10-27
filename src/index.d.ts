@@ -799,6 +799,16 @@ export interface InvestigationPlan { version: "investigation-plan-v1"; owner: "r
 export function createInvestigation(topic: string, options?: Omit<InvestigationEdit, "topic">): Investigation;
 export function reviseInvestigation(state: Investigation, edit: InvestigationEdit): Investigation;
 export function validateInvestigation(value: unknown): Investigation;
+export interface InvestigationIncompleteCandidate {
+  schema: "research-investigation-incomplete-candidate-v1";
+  attemptId: string;
+  executionStatus: "partial" | "failed" | "cancelled";
+  reason: string | null;
+  candidate: { answer: string; findings: string[]; gaps: string[]; sources: Array<{ uri: string }> };
+  qualification: "Unfinished session output. Not accepted findings and not supplied automatically to later research.";
+}
+/** Returns schema-valid final text from a compatible unfinished investigate attempt, or null. */
+export function getInvestigationIncompleteCandidate(state: Investigation, attemptId: string): InvestigationIncompleteCandidate | null;
 export function planInvestigation(state: Investigation): InvestigationPlan;
 export function advanceInvestigation(state: Investigation, options: { action: InvestigationAction; branchIds?: string[]; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<Investigation>;
 /** Requires a fresh planInvestigation checkpoint. Durable idempotency across forked/stale copies belongs to the caller. */

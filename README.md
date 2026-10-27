@@ -499,6 +499,11 @@ attempt tail; edits or later attempts make an earlier checkpoint stale. Budget
 limits are cumulative and cannot be reset by changing the prompt or adding
 clarifications. A failed or uncertain dispatch remains blocked by the existing
 cleanup guard.
+`getInvestigationIncompleteCandidate(state, attemptId)` optionally projects
+schema-valid final output from a compatible unfinished `investigate` attempt.
+The projection is unaccepted, does not change the original findings, receipt
+or cumulative budget, and is never added to later prompts. It returns `null`
+for complete, incompatible, missing or invalid output.
 The returned JSON is caller-owned state: save it where you choose, reload it,
 and pass it to the next explicit action. Every native run uses the existing
 read-only ephemeral Codex workspace, and cumulative search, read, time and call

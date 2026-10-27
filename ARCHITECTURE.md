@@ -18,7 +18,10 @@ actions and offline rendering. Callers retain and resume JSON state. It runs
 selected branches sequentially through `withCodexWorkspace`, charging native
 searches, reads, monotonic duration and calls cumulatively. Historical attempts
 retain their original identity; edits invalidate the current report without
-rewriting prior findings. Output remains fallible research.
+rewriting prior findings. `getInvestigationIncompleteCandidate` can separately
+project schema-valid output from a compatible unfinished investigate attempt;
+it never changes accepted findings, execution receipts or cumulative usage.
+Output remains fallible research.
 
 `src/perspective-workflow.mjs` composes the existing perspective,
 independent-investigation, branch-comparison and outline owners into one
