@@ -86,6 +86,8 @@ type Diff = {
   added: string[];
   omitted_removed_lines: number;
   omitted_added_lines: number;
+  truncated_removed_line: boolean;
+  truncated_added_line: boolean;
   removed_sha256: string;
   added_sha256: string;
 };
@@ -106,22 +108,50 @@ function boundedDiff(before: string, after: string): Diff {
   const clipped = (rows: string[]) => {
     const kept: string[] = [];
     let bytes = 0;
-    for (const row of rows) {
+    let omitted = 0;
+    let truncatedLine = false;
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index]!;
       const size = Buffer.byteLength(row);
-      if (kept.length >= 40 || bytes + size > 5000) break;
+      if (kept.length >= 40) {
+        omitted += rows.length - index;
+        break;
+      }
+      if (bytes + size > 5000) {
+        const marker = '…[line excerpt truncated]';
+        const available = 5000 - bytes - Buffer.byteLength(marker);
+        if (available <= 0) {
+          omitted += rows.length - index;
+          break;
+        }
+        let excerpt = '';
+        let excerptBytes = 0;
+        for (const character of row) {
+          const characterBytes = Buffer.byteLength(character);
+          if (excerptBytes + characterBytes > available) break;
+          excerpt += character;
+          excerptBytes += characterBytes;
+        }
+        kept.push(excerpt + marker);
+        truncatedLine = true;
+        omitted += rows.length - index - 1;
+        break;
+      }
       kept.push(row);
       bytes += size;
     }
-    return kept;
+    return { kept, omitted, truncatedLine };
   };
   const shownRemoved = clipped(removed);
   const shownAdded = clipped(added);
   return {
     state: before === after ? 'unchanged' : 'changed',
-    removed: shownRemoved,
-    added: shownAdded,
-    omitted_removed_lines: removed.length - shownRemoved.length,
-    omitted_added_lines: added.length - shownAdded.length,
+    removed: shownRemoved.kept,
+    added: shownAdded.kept,
+    omitted_removed_lines: shownRemoved.omitted,
+    omitted_added_lines: shownAdded.omitted,
+    truncated_removed_line: shownRemoved.truncatedLine,
+    truncated_added_line: shownAdded.truncatedLine,
     removed_sha256: sha256(removed.join('\n')),
     added_sha256: sha256(added.join('\n')),
   };
@@ -169,6 +199,8 @@ const reviewSchema = Type.Object(
         added: Type.Array(Type.String({ maxLength: 5000 }), { maxItems: 40 }),
         omitted_removed_lines: Type.Integer({ minimum: 0 }),
         omitted_added_lines: Type.Integer({ minimum: 0 }),
+        truncated_removed_line: Type.Boolean(),
+        truncated_added_line: Type.Boolean(),
         removed_sha256: digest,
         added_sha256: digest,
       },
@@ -282,7 +314,8 @@ export async function listSourceChangeReviews(root: string) {
 export async function readSourceChangeReview(root: string, id: string) {
   if (!Value.Check(uuid, id)) invalid('Review identity must be a UUID.');
   const review = (await loadStore(root)).reviews.find((row) => row.id === id);
-  if (!review) fail(404, 'source_change_review_not_found', 'No retained review has that UUID.');
+  if (!review)
+    return fail(404, 'source_change_review_not_found', 'No retained review has that UUID.');
   return { ref: reviewRef(review), review, cold_read: true };
 }
 
@@ -295,7 +328,8 @@ function reviewRef(review: Review): RecordRef {
 export async function sourceChangeReviewRecordBytes(root: string, id: string) {
   if (!Value.Check(uuid, id)) invalid('Review identity must be a UUID.');
   const review = (await loadStore(root)).reviews.find((row) => row.id === id);
-  if (!review) fail(404, 'source_change_review_not_found', 'No retained review has that UUID.');
+  if (!review)
+    return fail(404, 'source_change_review_not_found', 'No retained review has that UUID.');
   return { bytes: reviewBytes(review), storage: 'source_change_review_record' as const };
 }
 
@@ -366,10 +400,10 @@ export async function createSourceChangeReview(root: string, input: unknown) {
       'The human change classification must match the deterministic unchanged/changed observation.',
     );
   const assertions = await Promise.all(
-    request.assertions.map(async (row) => ({
-      ...row,
-      ...(await exactEntityAssertion(root, row)),
-    })),
+    request.assertions.map(async (row) => {
+      const exact = await exactEntityAssertion(root, row);
+      return { ...row, observation_sha256: exact.observation_sha256 };
+    }),
   );
   const review: Review = {
     schema_version: 'source-change-review-v1',

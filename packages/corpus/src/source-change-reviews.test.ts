@@ -167,6 +167,21 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     });
     expect(unchangedReview.review.observed_change.state).toBe('unchanged');
     expect((await listSourceChangeReviews(root)).reviews).toHaveLength(2);
+    const longVersion = await createSourceCapture(
+      root,
+      {
+        source_ref: sourceRef,
+        mode: 'paste',
+        text: 'z'.repeat(10000),
+        observed_at: '2026-10-23T15:00:00Z',
+        supersedes: third.ref,
+      },
+      (ref) => resolveRef(root, ref),
+    );
+    const longDiff = await previewSourceChange(root, third.capture.id, longVersion.capture.id);
+    expect(longDiff.observed_change.truncated_added_line).toBe(true);
+    expect(Buffer.byteLength(longDiff.observed_change.added.join('\n'))).toBeLessThanOrEqual(5000);
+    expect(longDiff.observed_change.added[0]).toContain('[line excerpt truncated]');
     await expect(previewSourceChange(root, randomUUID(), randomUUID())).rejects.toMatchObject({
       status: 404,
     });
