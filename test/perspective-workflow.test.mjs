@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { compareWorkflowBranches, createPerspectiveWorkflow, draftWorkflowOutline, perspectiveSpanContribution,
+import { addWorkflowPerspective, compareWorkflowBranches, createPerspectiveWorkflow, draftWorkflowOutline, perspectiveSpanContribution, prepareWorkflowPerspectiveAddition,
   renderPerspectiveWorkflow, reviseWorkflowOutline, runWorkflowBranches, runWorkflowPerspectives,
-  reviewWorkflowOutlineCitations, startWorkflowInvestigation, validatePerspectiveWorkflow, workflowComparisonCurrentness } from "../src/index.mjs";
+  reviewWorkflowOutlineCitations, startWorkflowInvestigation, validatePerspectiveWorkflow, workflowComparisonCurrentness, workflowOutlineCurrentness } from "../src/index.mjs";
 import { fakeCodex, message } from "./fake-codex.mjs";
 
 const sha = s => createHash("sha256").update(s, "utf8").digest("hex");
@@ -38,6 +38,8 @@ test("one portable workflow composes perspectives, sibling-isolated branches, ci
       point("a2", "no change reported for older adults", secondFinding, sources[1].uri, "effect was no change"),
     ] }], unknowns: [] })), { type: "turn.completed" }] },
     { events: [message(JSON.stringify({ sections: [{ title: "Reported population outcomes", points: [{ text: "The under-50 source reports a reduction.", citations: [citation(0, first, "12 percent")] }], gaps: ["These passages do not establish directly comparable populations."] }] })), { type: "turn.completed" }] },
+    { events: [message(JSON.stringify(perspective("adults under 50"))), { type: "turn.completed" }] },
+    { events: [message(JSON.stringify(perspective("reported effect was no change"))), { type: "turn.completed" }] },
   ] });
   try {
     let workflow = createPerspectiveWorkflow("How do reported outcomes differ by population?", { sources });
@@ -91,6 +93,17 @@ test("one portable workflow composes perspectives, sibling-isolated branches, ci
     workflow = reviseWorkflowOutline(workflow, { sections: original.sections }, { conflictSetAsideReason: "The source set does not establish comparable study populations." });
     assert.equal(workflow.outlines[3].conflictSetAside.removedSpans[0].sourceUri, sources[1].uri);
     assert.match(workflow.outlines[3].conflictSetAside.reason, /comparable study populations/);
+    const oldComparison = structuredClone(workflow.comparisons[0]);
+    const preview = prepareWorkflowPerspectiveAddition(workflow, { label: "Limitations", focus: "Identify stated limits on the outcome." });
+    assert.equal(preview.nativeSessionCount, 2);
+    assert.deepEqual(preview.staleComparisonIndexes, [0]);
+    assert.deepEqual(preview.staleOutlineRevisions, [1, 2, 3, 4]);
+    workflow = await addWorkflowPerspective(workflow, { label: "Limitations", focus: "Identify stated limits on the outcome." }, { lease: fixture.lease });
+    assert.deepEqual(workflow.comparisons[0], oldComparison, "prior moderated comparison is retained byte-for-byte");
+    assert.equal(workflowComparisonCurrentness(workflow, 0).current, false);
+    assert.equal(workflowOutlineCurrentness(workflow, 3).current, false);
+    assert.match(renderPerspectiveWorkflow(workflow, { format: "markdown" }), /stale after perspective selection change/);
+    await assert.rejects(draftWorkflowOutline(workflow), /explicitly compare current independent branches/);
     const reopened = JSON.parse(renderPerspectiveWorkflow(workflow, { format: "json" }));
     assert.deepEqual(validatePerspectiveWorkflow(reopened), reopened);
     const markdown = renderPerspectiveWorkflow(workflow, { format: "markdown" });
@@ -122,6 +135,51 @@ test("failed perspective status is not reported as completed with zero contribut
   } finally { await fixture.cleanup(); }
 });
 
+test("a new perspective runs independently and appends exact marginal spans without changing prior lenses", async () => {
+  const siblingFinding = "SIBLING_FINDING_MUST_NOT_ENTER_THE_NEW_PERSPECTIVE_PROMPT";
+  const lensReply = (quote, answer) => ({ questions: [{
+    question: "What does the retained source report?", status: "answered", answer,
+    citations: [citation(quote === "adults under 50" || quote === "12 percent" ? 0 : 1,
+      quote === "adults under 50" || quote === "12 percent" ? first : second, quote)],
+  }], omissions: [] });
+  const fixture = await fakeCodex({ sessions: [
+    { events: [message(JSON.stringify(lensReply("adults under 50", siblingFinding))), { type: "turn.completed" }] },
+    { events: [message(JSON.stringify(lensReply("12 percent", "The numeric lens answer."))), { type: "turn.completed" }] },
+    { events: [message(JSON.stringify(lensReply("adults over 70", "The age lens answer."))), { type: "turn.completed" }] },
+    { events: [message(JSON.stringify(lensReply("adults under 50", "A repeated neutral answer."))), { type: "turn.completed" }] },
+    { events: [message(JSON.stringify(lensReply("reported effect was no change", "The added lens found a distinct retained span."))), { type: "turn.completed" }] },
+  ] });
+  try {
+    const initial = createPerspectiveWorkflow("How do outcomes differ?", { sources, perspectives: [
+      { label: "Numeric", focus: "Find reported quantities." },
+      { label: "Age", focus: "Find population and age boundaries." },
+    ] });
+    const base = await runWorkflowPerspectives(initial, { lease: fixture.lease });
+    const before = structuredClone(base.perspectiveResult.lenses);
+    await assert.rejects(addWorkflowPerspective(base, { label: "Context leak", focus: "Should not run." }, { lease: fixture.lease, context: siblingFinding }), /cannot receive caller cross-lens context/);
+    const added = await addWorkflowPerspective(base, { label: "Limitations", focus: "Identify stated limits on the outcome." }, { lease: fixture.lease });
+
+    assert.equal(added.revision, base.revision + 1);
+    assert.deepEqual(added.perspectiveResult.lenses.slice(0, -1), before);
+    assert.deepEqual(added.lenses.slice(0, -1), base.lenses);
+    assert.equal(added.lenses.length, base.lenses.length + 1);
+    assert.equal(added.perspectiveResult.lenses.at(-1).lens.id, added.lenses.at(-1).id);
+    assert.equal(added.perspectiveResult.comparison.at(-1).lens, added.lenses.at(-1).id);
+    assert.deepEqual(added.sources, base.sources);
+    assert.deepEqual(added.investigation, base.investigation);
+    assert.deepEqual(added.comparisons, base.comparisons);
+    assert.deepEqual(added.outlines, base.outlines);
+    assert.ok(perspectiveSpanContribution(added).at(-1).uniqueCitedSpans.some(span => span.quote === "reported effect was no change"));
+    const addedPrompt = (await fixture.session(4)).prompt;
+    assert.doesNotMatch(addedPrompt, new RegExp(siblingFinding));
+    assert.match(addedPrompt, /Limitations/);
+    const reopened = JSON.parse(renderPerspectiveWorkflow(added, { format: "json" }));
+    assert.deepEqual(validatePerspectiveWorkflow(reopened), reopened);
+
+    await assert.rejects(addWorkflowPerspective(added, { label: "Limitations", focus: "A changed focus still has the same lens ID." }, { lease: fixture.lease }), /distinct lens/);
+  } finally { await fixture.cleanup(); }
+});
+
 test("unfinished, failed and cancelled stages stay explicit in the portable closure", () => {
   const workflow = createPerspectiveWorkflow("Frozen topic", { sources });
   const reopened = validatePerspectiveWorkflow(JSON.parse(renderPerspectiveWorkflow(workflow, { format: "json" })));
@@ -134,6 +192,9 @@ test("unfinished, failed and cancelled stages stay explicit in the portable clos
 test("workflow CLI creates, validates and cold-renders without provider probes", () => {
   const cli = fileURLToPath(new URL("../bin/research-perspective-workflow.mjs", import.meta.url));
   const call = (action, input) => spawnSync(process.execPath, [cli, "--action", action], { input: JSON.stringify(input), encoding: "utf8" });
+  const help = spawnSync(process.execPath, [cli, "--help"], { encoding: "utf8" });
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /perspective-add/);
   const created = call("create", { topic: "Frozen topic", sources });
   assert.equal(created.status, 0, created.stderr);
   const workflow = JSON.parse(created.stdout);

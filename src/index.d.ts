@@ -48,12 +48,17 @@ export interface ResearchPerspectiveWorkflow {
   perspectiveResult: PerspectiveResult | null;
   investigation: Investigation | null;
   comparisons: BranchComparison[];
+  comparisonPerspectiveDigests?: string[];
+  outlinePerspectiveDigests?: string[];
   outlines: Array<{ revision: number; status: "complete" | "failed" | "cancelled" | "user-modified" | "user-reviewed"; outline: ResearchOutline | null; receipt: unknown | null; setAsideDisagreements: Array<{ comparisonIndex: number; comparisonDigest: string; summary: string; reason: string }>; citationReview: { required: boolean; reason: string | null }; conflictSetAside: { removedSpans: Array<{ source: number; sourceUri: string; sourceSha256: string; start: number; end: number; quote: string }>; reason: string | null } }>;
   sha256: string;
 }
 export function createPerspectiveWorkflow(topic: string, options: { id?: string; sources: FrozenSource[]; perspectives?: "auto" | Array<string | { label: string; focus: string }> }): ResearchPerspectiveWorkflow;
 export function validatePerspectiveWorkflow(value: unknown): ResearchPerspectiveWorkflow;
 export function runWorkflowPerspectives(value: ResearchPerspectiveWorkflow, options?: object): Promise<ResearchPerspectiveWorkflow>;
+export type PerspectiveAddChoice = string | { label: string; focus: string };
+export function prepareWorkflowPerspectiveAddition(value: ResearchPerspectiveWorkflow, choice: PerspectiveAddChoice): { lens: { id: string; label: string; focus: string; origin: string; evidence?: unknown[] }; priorLensCount: number; totalLensCount: number; nativeSessionCount: 2; retainedLensCount: number; staleComparisonIndexes: number[]; staleOutlineRevisions: number[]; remoderation: string };
+export function addWorkflowPerspective(value: ResearchPerspectiveWorkflow, choice: PerspectiveAddChoice, options?: object): Promise<ResearchPerspectiveWorkflow>;
 export function perspectiveSpanContribution(value: ResearchPerspectiveWorkflow): Array<{ lensId: string; status: "complete" | "failed" | "cancelled" | "not_run"; disposition: string; uniqueCitedSpans: Array<{ source: number; sourceUri: string; sourceSha256: string; start: number; end: number; quote: string }>; sharedCitedSpans: Array<{ source: number; sourceUri: string; sourceSha256: string; start: number; end: number; quote: string; citedBy: string[] }>; conflictCitedSpans: Array<{ source: number; sourceUri: string; sourceSha256: string; start: number; end: number; quote: string }>; uniqueSourceOrigins: string[]; claimsLosingAllCitations: Array<{ question: string; answer: string; citations: Array<{ source: number; sourceUri: string; sourceSha256: string; start: number; end: number; quote: string }> }>; outlineClaimsLosingAllCitations: Array<{ section: string; text: string }>; reason?: string; qualification: string }>;
 export function startWorkflowInvestigation(value: ResearchPerspectiveWorkflow, options: { goal?: string; scope?: string; questions: InvestigationQuestion[]; budget?: InvestigationBudget }): ResearchPerspectiveWorkflow;
 export function runWorkflowBranches(value: ResearchPerspectiveWorkflow, branchIds: string[], options?: object): Promise<ResearchPerspectiveWorkflow>;
@@ -62,6 +67,7 @@ export function draftWorkflowOutline(value: ResearchPerspectiveWorkflow, options
 export function reviseWorkflowOutline(value: ResearchPerspectiveWorkflow, edits: { topic?: string; sections?: ResearchOutline["sections"] }, options?: { conflictSetAsideReason?: string | null }): ResearchPerspectiveWorkflow;
 export function reviewWorkflowOutlineCitations(value: ResearchPerspectiveWorkflow, options: { confirmRevision: number }): ResearchPerspectiveWorkflow;
 export function workflowComparisonCurrentness(value: ResearchPerspectiveWorkflow, index?: number): { current: boolean; reasons: string[] };
+export function workflowOutlineCurrentness(value: ResearchPerspectiveWorkflow, index?: number): { current: boolean; reasons: string[] };
 export function renderPerspectiveWorkflow(value: ResearchPerspectiveWorkflow, options?: { format?: "json" | "markdown" }): string;
 
 export interface DocumentRecoveryGap {

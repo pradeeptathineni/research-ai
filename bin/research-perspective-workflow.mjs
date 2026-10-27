@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Composes the existing perspective, independent investigation, comparison and outline owners.
 import {
-  compareWorkflowBranches, createPerspectiveWorkflow, draftWorkflowOutline, renderPerspectiveWorkflow,
+  addWorkflowPerspective, compareWorkflowBranches, createPerspectiveWorkflow, draftWorkflowOutline, renderPerspectiveWorkflow,
   perspectiveSpanContribution, reviseWorkflowOutline, reviewWorkflowOutlineCitations, runWorkflowBranches, runWorkflowPerspectives, startWorkflowInvestigation,
   validatePerspectiveWorkflow,
 } from "../src/index.mjs";
 
-const actions = ["create", "validate", "perspectives", "investigation-start", "branches", "compare", "outline", "outline-edit", "outline-review", "contribution", "render"];
+const actions = ["create", "validate", "perspectives", "perspective-add", "investigation-start", "branches", "compare", "outline", "outline-edit", "outline-review", "contribution", "render"];
 const usage = `Usage: research-perspective-workflow --action ${actions.join("|")}
 Read one bounded UTF-8 JSON request from stdin and write JSON to stdout (render writes Markdown or JSON text).
 Actions map to existing Research owners; native actions are frozen and run only when explicitly requested.
@@ -31,6 +31,13 @@ async function main() {
   if (action === "validate") { requireFields(input, ["workflow"]); write(validatePerspectiveWorkflow(input.workflow)); return; }
   if (action === "render") { requireFields(input, ["workflow"], ["format"]); process.stdout.write(renderPerspectiveWorkflow(input.workflow, { format: input.format ?? "markdown" })); return; }
   if (action === "contribution") { requireFields(input, ["workflow"]); write(perspectiveSpanContribution(input.workflow)); return; }
+  if (action === "perspective-add") {
+    requireFields(input, ["workflow", "choice"], ["profile", "model", "effort", "lease"]);
+    const options = Object.fromEntries(["profile", "model", "effort", "lease"]
+      .filter(key => input[key] !== undefined).map(key => [key, input[key]]));
+    write(await addWorkflowPerspective(input.workflow, input.choice, options));
+    return;
+  }
   const required = { perspectives: ["workflow"], "investigation-start": ["workflow", "questions"], branches: ["workflow", "branchIds"],
     compare: ["workflow", "branchIds"], outline: ["workflow"], "outline-edit": ["workflow", "edits"], "outline-review": ["workflow", "confirmRevision"] }[action];
   const optional = action === "perspectives" ? ["profile", "model", "effort", "lease"] : action === "investigation-start" ? ["goal", "scope", "budget"]
