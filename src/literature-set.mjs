@@ -1,10 +1,12 @@
 // Portable bibliographic composition over exact notebook-owned frozen sources.
 // This module stores references and caller metadata only; article text stays in its owner.
 import { createHash, randomUUID } from "node:crypto";
-import { validateResearchNotebook } from "./notebook.mjs";
-import { prepareNotebookQuestion } from "./notebook.mjs";
+import { isDeepStrictEqual } from "node:util";
+import { documentCoverageLimits, prepareDocumentCoverage, validateDocumentCoverage } from "./document-coverage.mjs";
+import { validateResearchNotebook, prepareNotebookQuestion } from "./notebook.mjs";
 
 const schema = "research-literature-set-v1";
+const maxLiteraturePapers = 100;
 const plain = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const keys = (v, required, optional = []) => plain(v) && required.every(k => Object.hasOwn(v, k)) && Object.keys(v).every(k => required.includes(k) || optional.includes(k));
 const hash = (s) => createHash("sha256").update(s, "utf8").digest("hex");
@@ -53,7 +55,7 @@ function validatePaper(p) {
   return p;
 }
 function validateState(value) {
-  if (!keys(value, ["schema", "id", "title", "revision", "papers", "sha256"]) || value.schema !== schema || !/^literature-set:[0-9a-f-]{36}$/.test(value.id) || !text(value.title, 200) || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Array.isArray(value.papers) || value.papers.length > 100 || !/^[a-f0-9]{64}$/.test(value.sha256)) fail("header");
+  if (!keys(value, ["schema", "id", "title", "revision", "papers", "sha256"]) || value.schema !== schema || !/^literature-set:[0-9a-f-]{36}$/.test(value.id) || !text(value.title, 200) || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Array.isArray(value.papers) || value.papers.length > maxLiteraturePapers || !/^[a-f0-9]{64}$/.test(value.sha256)) fail("header");
   const ids = new Set();
   for (const paper of value.papers) { validatePaper(paper); if (ids.has(paper.id)) fail("duplicate paper ID"); ids.add(paper.id); }
   if (digest(value) !== value.sha256 || Buffer.byteLength(canonical(value), "utf8") > 2 * 1024 * 1024) fail("digest or size");
@@ -159,6 +161,245 @@ export function prepareLiteratureQuestion(value, notebookValue, question, policy
     statusEvidence: clone(p.statusEvidence), qualification: clone(p.qualification) }));
   return { schema: "research-literature-question-v1", literatureSetId: state.id, literatureSetSha256: state.sha256,
     prepared, includedPapers: papers.map(p => ({ paperId: p.id, sourceId: p.source.sourceId, sourceDigest: p.source.sourceDigest, statusEvidence: clone(p.statusEvidence) })), coverage };
+}
+
+
+const literatureStudySchema = "research-literature-study-question-v1";
+const sourceBindingKeys = ["notebookId", "notebookSha256", "sourceId", "sourceDigest", "documentId", "documentSha256"];
+const literatureStudyDigest = (value) => hash(canonical(Object.fromEntries(Object.entries(value).filter(([key]) => key !== "sha256"))));
+const exactSourceKey = (source) => canonical(Object.fromEntries(sourceBindingKeys.map((key) => [key, source[key]])));
+const coverageSourceId = (source) => `literature-source:${hash(exactSourceKey(source))}`;
+const paperReference = (paper) => ({ paperId: paper.id, metadata: clone(paper.metadata), availability: paper.availability,
+  statusEvidence: clone(paper.statusEvidence), finding: paper.finding, stance: paper.stance, claimKey: paper.claimKey,
+  qualification: clone(paper.qualification), source: clone(paper.source) });
+
+function normalizeLiteratureStudyOptions(options) {
+  if (!keys(options, [], ["paperIds", "includeRetracted"]) || !Array.isArray(options.paperIds)
+      || options.paperIds.length < 1 || options.paperIds.length > maxLiteraturePapers
+      || new Set(options.paperIds).size !== options.paperIds.length) fail(`select 1-${maxLiteraturePapers} unique paper IDs; the coverage plan separately limits unique source documents to ${documentCoverageLimits.documents}`);
+  const includeRetracted = options.includeRetracted ?? false;
+  if (typeof includeRetracted !== "boolean") fail("includeRetracted must be boolean");
+  options.paperIds.forEach((paperId) => uuid("paper", paperId));
+  return { paperIds: [...options.paperIds], includeRetracted };
+}
+
+function resolveSelectedStudySources(state, notebooks, selectedPaperIds, includeRetracted) {
+  if (!Array.isArray(notebooks) || notebooks.length > 8) fail("provide up to 8 current notebook snapshots");
+  const owners = new Map();
+  for (const snapshot of notebooks) {
+    const notebook = validateResearchNotebook(snapshot);
+    if (owners.has(notebook.id)) fail("current notebook IDs must be unique");
+    owners.set(notebook.id, notebook);
+  }
+  const selected = new Set(selectedPaperIds);
+  const groups = new Map();
+  for (const paper of state.papers) {
+    if (!selected.has(paper.id) || paper.availability === "missing"
+        || (paper.availability === "retracted" && !includeRetracted)) continue;
+    const ref = paper.source;
+    const notebook = owners.get(ref.notebookId);
+    if (!notebook) fail(`selected source notebook is unavailable for ${paper.id}`);
+    if (notebook.sha256 !== ref.notebookSha256) fail(`selected source notebook changed for ${paper.id}`);
+    const source = notebook.sources.find((entry) => entry.id === ref.sourceId);
+    if (!source || source.digest !== ref.sourceDigest || source.document.id !== ref.documentId
+        || source.document.sha256 !== ref.documentSha256) fail(`selected exact retained source is unavailable or changed for ${paper.id}`);
+    const binding = Object.fromEntries(sourceBindingKeys.map((key) => [key, ref[key]]));
+    const key = exactSourceKey(binding);
+    let group = groups.get(key);
+    if (!group) {
+      const documentId = coverageSourceId(binding);
+      const existing = [...groups.values()].find((entry) => entry.document.id === documentId && entry.key !== key);
+      if (existing) fail("coverage source identity hash collision");
+      group = { key, documentId, binding, document: { ...clone(source.document), id: documentId }, papers: [] };
+      groups.set(key, group);
+    }
+    group.papers.push(paperReference(paper));
+  }
+  return [...groups.values()];
+}
+
+function makeLiteratureStudyQuestion(value, notebooks, question, policy, options) {
+  const state = validateState(value);
+  if (!text(question, 2000)) fail("question must be a single-line string of at most 2000 characters");
+  if (!plain(policy)) fail("policy must be an object");
+  const normalizedOptions = normalizeLiteratureStudyOptions(options);
+  const papers = new Map(state.papers.map((paper) => [paper.id, paper]));
+  for (const paperId of normalizedOptions.paperIds) if (!papers.has(paperId)) fail(`selected paper is not in the literature set: ${paperId}`);
+  const groups = resolveSelectedStudySources(state, notebooks, normalizedOptions.paperIds, normalizedOptions.includeRetracted);
+  const sourceMap = groups.map((group) => ({
+    coverageDocumentId: group.document.id,
+    sourceBinding: group.binding,
+    papers: group.papers,
+    sourceIndependence: group.papers.length > 1 ? "same-exact-source-aliases" : "unknown",
+  }));
+  const includedPapers = sourceMap.flatMap((group) => group.papers.map((paper) => ({
+    ...clone(paper), coverageDocumentId: group.coverageDocumentId,
+    sourceIndependence: group.sourceIndependence,
+  })));
+  const selected = new Set(normalizedOptions.paperIds);
+  const groupByPaper = new Map(includedPapers.map((paper) => [paper.paperId, paper]));
+  const coverage = state.papers.map((paper) => {
+    const inclusion = groupByPaper.get(paper.id);
+    const chosen = selected.has(paper.id);
+    const disposition = inclusion ? "included"
+      : !chosen ? "not-selected"
+        : paper.availability === "missing" ? "not-searched-source-missing"
+          : paper.availability === "retracted" && !normalizedOptions.includeRetracted ? "excluded-retracted-by-default"
+            : "not-included";
+    const sourceResolution = inclusion ? "resolved-at-preparation"
+      : paper.availability === "missing" ? "missing-no-retained-source"
+        : !chosen ? "not-compared-not-selected"
+          : paper.availability === "retracted" && !normalizedOptions.includeRetracted ? "not-compared-excluded-retracted"
+            : "not-compared";
+    return { ...paperReference(paper), disposition, sourceResolution,
+      coverageDocumentId: inclusion?.coverageDocumentId ?? null,
+      sourceIndependence: inclusion?.sourceIndependence ?? "unknown" };
+  });
+  const request = groups.length ? (() => {
+    const plan = prepareDocumentCoverage(question, groups.map((group) => group.document), policy);
+    return { question: plan.question, documents: clone(plan.documents), policy: clone(plan.policy) };
+  })() : null;
+  const plan = request ? prepareDocumentCoverage(request.question, request.documents, request.policy) : null;
+  const prepared = {
+    schema: literatureStudySchema,
+    literatureSet: clone(state),
+    selectedPaperIds: normalizedOptions.paperIds,
+    includeRetracted: normalizedOptions.includeRetracted,
+    request,
+    sourceMap,
+    includedPapers,
+    coverage,
+    preview: plan ? clone(plan) : null,
+  };
+  prepared.sha256 = literatureStudyDigest(prepared);
+  return prepared;
+}
+
+/** Prepares a selected multi-notebook composition over exact retained paper sources. No inference or acquisition. */
+export function prepareLiteratureStudyQuestion(value, notebooks, question, policy = {}, options = {}) {
+  return validateLiteratureStudyQuestion(makeLiteratureStudyQuestion(value, notebooks, question, policy, options));
+}
+
+/** Cold-validates the complete frozen metadata, source map, document plan and digest without current notebooks. */
+export function validateLiteratureStudyQuestion(value) {
+  if (!keys(value, ["schema", "literatureSet", "selectedPaperIds", "includeRetracted", "request", "sourceMap", "includedPapers", "coverage", "preview", "sha256"])
+      || value.schema !== literatureStudySchema || typeof value.includeRetracted !== "boolean"
+      || !Array.isArray(value.selectedPaperIds) || !Array.isArray(value.sourceMap)
+      || !Array.isArray(value.includedPapers) || !Array.isArray(value.coverage)
+      || !(value.request === null || plain(value.request)) || !(value.preview === null || plain(value.preview))
+      || !/^[a-f0-9]{64}$/.test(value.sha256)) fail("prepared literature study question shape");
+  const state = validateState(value.literatureSet);
+  const options = normalizeLiteratureStudyOptions({ paperIds: value.selectedPaperIds, includeRetracted: value.includeRetracted });
+  for (const paperId of options.paperIds) if (!state.papers.some((paper) => paper.id === paperId)) fail("prepared paper selection is outside its frozen set");
+  const paperById = new Map(state.papers.map((paper) => [paper.id, paper]));
+  const seenSources = new Set(), seenPapers = new Set();
+  const sourceMap = value.sourceMap.map((entry) => {
+    if (!keys(entry, ["coverageDocumentId", "sourceBinding", "papers", "sourceIndependence"]) || !Array.isArray(entry.papers)
+        || !keys(entry.sourceBinding, sourceBindingKeys) || !/^literature-source:[a-f0-9]{64}$/.test(entry.coverageDocumentId)
+        || entry.coverageDocumentId !== coverageSourceId(entry.sourceBinding)
+        || !["unknown", "same-exact-source-aliases"].includes(entry.sourceIndependence)) fail("source map entry");
+    const key = exactSourceKey(entry.sourceBinding);
+    if (seenSources.has(key)) fail("duplicate exact source map entry");
+    seenSources.add(key);
+    const papers = entry.papers.map((ref) => {
+      if (!keys(ref, ["paperId", "metadata", "availability", "statusEvidence", "finding", "stance", "claimKey", "qualification", "source"])) fail("source paper reference");
+      const paper = paperById.get(ref.paperId);
+      if (!paper || seenPapers.has(ref.paperId) || !isDeepStrictEqual(ref, paperReference(paper))
+          || !isDeepStrictEqual(ref.source, entry.sourceBinding)) fail("source map paper binding");
+      seenPapers.add(ref.paperId);
+      return clone(ref);
+    });
+    if (!papers.length || entry.sourceIndependence !== (papers.length > 1 ? "same-exact-source-aliases" : "unknown")) fail("source alias qualification");
+    return { ...clone(entry), papers };
+  });
+  const selected = new Set(options.paperIds);
+  const eligible = state.papers.filter((paper) => selected.has(paper.id)
+    && (paper.availability === "available" || (paper.availability === "retracted" && options.includeRetracted)));
+  if (eligible.length !== seenPapers.size || eligible.some((paper) => !seenPapers.has(paper.id))) fail("selected eligible papers are missing from the source map");
+  const includedPapers = sourceMap.flatMap((group) => group.papers.map((paper) => ({
+    ...clone(paper), coverageDocumentId: group.coverageDocumentId,
+    sourceIndependence: group.sourceIndependence,
+  })));
+  const groupByPaper = new Map(includedPapers.map((paper) => [paper.paperId, paper]));
+  const expectedCoverage = state.papers.map((paper) => {
+    const inclusion = groupByPaper.get(paper.id), chosen = selected.has(paper.id);
+    const disposition = inclusion ? "included" : !chosen ? "not-selected"
+      : paper.availability === "missing" ? "not-searched-source-missing"
+        : paper.availability === "retracted" && !options.includeRetracted ? "excluded-retracted-by-default" : "not-included";
+    const sourceResolution = inclusion ? "resolved-at-preparation"
+      : paper.availability === "missing" ? "missing-no-retained-source"
+        : !chosen ? "not-compared-not-selected"
+          : paper.availability === "retracted" && !options.includeRetracted ? "not-compared-excluded-retracted" : "not-compared";
+    return { ...paperReference(paper), disposition, sourceResolution,
+      coverageDocumentId: inclusion?.coverageDocumentId ?? null,
+      sourceIndependence: inclusion?.sourceIndependence ?? "unknown" };
+  });
+  if (!isDeepStrictEqual(value.includedPapers, includedPapers) || !isDeepStrictEqual(value.coverage, expectedCoverage)
+      || !isDeepStrictEqual(value.sourceMap, sourceMap)) fail("prepared source attribution changed");
+  if (value.request === null) {
+    if (sourceMap.length || value.preview !== null) fail("empty source plan shape");
+  } else {
+    if (!keys(value.request, ["question", "documents", "policy"]) || !Array.isArray(value.request.documents)
+        || value.request.documents.length !== sourceMap.length) fail("prepared request shape");
+    const docsById = new Map(value.request.documents.map((document) => [document.id, document]));
+    if (docsById.size !== sourceMap.length || sourceMap.some((entry) => !docsById.has(entry.coverageDocumentId))) fail("prepared documents do not match source map");
+    const plan = prepareDocumentCoverage(value.request.question, value.request.documents, value.request.policy);
+    if (!isDeepStrictEqual(value.preview, plan) || sourceMap.some((entry) => {
+      const doc = docsById.get(entry.coverageDocumentId);
+      return !doc || doc.id !== entry.coverageDocumentId || doc.sha256 !== entry.sourceBinding.documentSha256;
+    })) fail("prepared coverage plan or document binding changed");
+  }
+  if (literatureStudyDigest(value) !== value.sha256) fail("prepared digest mismatch");
+  return clone(value);
+}
+
+/** Compares a frozen prepared question with current owner snapshots; it never changes the prepared closure. */
+export function checkLiteratureStudyQuestionSources(value, currentSet, notebooks) {
+  const prepared = validateLiteratureStudyQuestion(value);
+  const state = validateState(currentSet);
+  if (state.id !== prepared.literatureSet.id) fail("current literature set has a different identity");
+  if (!Array.isArray(notebooks) || notebooks.length > 8) fail("provide up to 8 current notebook snapshots");
+  const owners = new Map();
+  for (const snapshot of notebooks) {
+    const notebook = validateResearchNotebook(snapshot);
+    if (owners.has(notebook.id)) fail("current notebook IDs must be unique");
+    owners.set(notebook.id, notebook);
+  }
+  const literatureSet = { status: state.sha256 === prepared.literatureSet.sha256 ? "current" : "changed",
+    expectedSha256: prepared.literatureSet.sha256, currentSha256: state.sha256 };
+  const sources = prepared.sourceMap.map((entry) => {
+    const ref = entry.sourceBinding, notebook = owners.get(ref.notebookId);
+    if (!notebook) return { coverageDocumentId: entry.coverageDocumentId, status: "missing", notebookId: ref.notebookId, sourceId: ref.sourceId };
+    const source = notebook.sources.find((item) => item.id === ref.sourceId);
+    const status = !source ? "missing"
+      : notebook.sha256 !== ref.notebookSha256 || source.digest !== ref.sourceDigest
+        || source.document.id !== ref.documentId || source.document.sha256 !== ref.documentSha256 ? "changed" : "current";
+    return { coverageDocumentId: entry.coverageDocumentId, status, notebookId: ref.notebookId, notebookSha256: notebook.sha256,
+      sourceId: ref.sourceId, sourceDigest: source?.digest ?? null, documentId: source?.document.id ?? null,
+      documentSha256: source?.document.sha256 ?? null };
+  });
+  return { schema: "research-literature-study-currentness-v1", literatureSet, sources };
+}
+
+/** Projects validated coverage evidence to exact paper/source identities from a cold prepared closure. */
+export function projectLiteratureStudyEvidence(preparedValue, resultValue) {
+  const prepared = validateLiteratureStudyQuestion(preparedValue);
+  if (!prepared.request || !prepared.preview) fail("prepared question has no eligible source documents");
+  const result = validateDocumentCoverage(resultValue);
+  if (!isDeepStrictEqual(result.plan, prepared.preview)) fail("coverage result does not match the prepared literature question");
+  const map = new Map(prepared.sourceMap.map((entry) => [entry.coverageDocumentId, entry]));
+  const evidence = result.passes.flatMap((pass) => pass.findings?.evidence ?? []).map((item) => {
+    const source = map.get(item.documentId);
+    if (!source) fail("coverage evidence references an unmapped paper source");
+    return { ...clone(item), paperReferences: clone(source.papers), sourceBinding: clone(source.sourceBinding),
+      sourceIndependence: source.sourceIndependence,
+      qualification: source.papers.flatMap((paper) => paper.qualification) };
+  });
+  return { schema: "research-literature-study-evidence-v1", literatureSetId: prepared.literatureSet.id,
+    literatureSetSha256: prepared.literatureSet.sha256, question: prepared.request.question,
+    resultStatus: result.status, coverage: result.draft?.coverage ?? null,
+    answer: result.draft ? clone(result.draft.answer) : null, evidence, gaps: result.draft ? clone(result.draft.gaps) : [],
+    qualification: "Exact quote occurrence is retained. Support, truth, independence and currentness are not established by citation projection." };
 }
 
 /** Portable cold-open export: metadata and owner pointers only, with contradiction and status qualifications. */

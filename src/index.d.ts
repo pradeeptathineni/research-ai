@@ -33,6 +33,56 @@ export function rebindLiteratureSet(value: LiteratureSet, notebooks: unknown[]):
   sourceChecks: Array<{ paperId: LiteraturePaper["id"]; notebookId: string; sourceId: string; sourceDigest: string; documentId: string; documentSha256: string }>;
 };
 export function prepareLiteratureQuestion(value: LiteratureSet, notebook: unknown, question: string, policy?: object, options?: { includeRetracted?: boolean }): { schema: "research-literature-question-v1"; literatureSetId: string; literatureSetSha256: string; prepared: unknown; includedPapers: Array<{ paperId: string; sourceId: string; sourceDigest: string; statusEvidence: LiteraturePaper["statusEvidence"] }>; coverage: Array<{ paperId: string; availability: LiteraturePaper["availability"]; source: LiteraturePaper["source"] | null; disposition: "included" | "not-searched-source-missing" | "excluded-retracted-by-default" | "outside-selected-notebook-cross-notebook-not-joined"; statusEvidence: LiteraturePaper["statusEvidence"]; qualification: string[] }> };
+export interface LiteratureStudyPaperRecord extends Omit<LiteraturePaper, "source"> {
+  source: LiteraturePaper["source"];
+}
+export interface LiteratureStudyPaperReference extends LiteratureStudyPaperRecord {
+  source: NonNullable<LiteraturePaper["source"]>;
+}
+export interface LiteratureStudySourceMapEntry {
+  coverageDocumentId: string;
+  sourceBinding: NonNullable<LiteraturePaper["source"]>;
+  papers: LiteratureStudyPaperReference[];
+  sourceIndependence: "unknown" | "same-exact-source-aliases";
+}
+export interface PreparedLiteratureStudyQuestion {
+  schema: "research-literature-study-question-v1";
+  /** Complete metadata and owner pointers, without copied source text. */
+  literatureSet: LiteratureSet;
+  /** Explicit 1–100 unique selected paper records; exact source aliases may share one coverage document. */
+  selectedPaperIds: string[];
+  includeRetracted: boolean;
+  /** Null when the selection contains no eligible retained source to review. */
+  request: { question: string; documents: ResearchDocumentInput[]; policy: DocumentCoveragePolicy } | null;
+  sourceMap: LiteratureStudySourceMapEntry[];
+  includedPapers: Array<LiteratureStudyPaperReference & { coverageDocumentId: string; sourceIndependence: "unknown" | "same-exact-source-aliases" }>;
+  coverage: Array<LiteratureStudyPaperRecord & {
+    disposition: "included" | "not-selected" | "not-searched-source-missing" | "excluded-retracted-by-default" | "not-included";
+    sourceResolution: "resolved-at-preparation" | "missing-no-retained-source" | "not-compared-not-selected" | "not-compared-excluded-retracted" | "not-compared";
+    coverageDocumentId: string | null;
+    sourceIndependence: "unknown" | "same-exact-source-aliases";
+  }>;
+  /** Deterministic document coverage preview. Null when no source document is eligible. */
+  preview: PreparedDocumentCoverage | null;
+  /** Content digest over the complete prepared closure, excluding this field. Not authenticated origin. */
+  sha256: string;
+}
+export function prepareLiteratureStudyQuestion(value: LiteratureSet, notebooks: unknown[], question: string,
+  policy: Partial<DocumentCoveragePolicy> | undefined, options: { /** 1–100 unique IDs from the set; the coverage planner separately caps unique exact source bindings at eight. */ paperIds: string[]; includeRetracted?: boolean }): PreparedLiteratureStudyQuestion;
+/** Cold structural and digest validation; does not compare with current owner state. */
+export function validateLiteratureStudyQuestion(value: unknown): PreparedLiteratureStudyQuestion;
+export function checkLiteratureStudyQuestionSources(value: PreparedLiteratureStudyQuestion, currentSet: LiteratureSet, notebooks: unknown[]): {
+  schema: "research-literature-study-currentness-v1";
+  literatureSet: { status: "current" | "changed"; expectedSha256: string; currentSha256: string };
+  sources: Array<{ coverageDocumentId: string; status: "current" | "missing" | "changed"; notebookId: string; notebookSha256?: string; sourceId: string; sourceDigest?: string | null; documentId?: string | null; documentSha256?: string | null }>;
+};
+export function projectLiteratureStudyEvidence(value: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult): {
+  schema: "research-literature-study-evidence-v1"; literatureSetId: string; literatureSetSha256: string; question: string;
+  resultStatus: DocumentCoverageResult["status"]; coverage: "answered" | "partial" | "insufficient" | null;
+  answer: Array<{ text: string; evidenceIds: string[] }> | null;
+  evidence: Array<DocumentCoverageEvidence & { paperReferences: LiteratureStudyPaperReference[]; sourceBinding: NonNullable<LiteraturePaper["source"]>; sourceIndependence: "unknown" | "same-exact-source-aliases"; qualification: string[] }>;
+  gaps: string[]; qualification: string;
+};
 export function exportLiteratureSet(value: LiteratureSet): string;
 export function formatLiteratureSet(value: LiteratureSet): string;
 

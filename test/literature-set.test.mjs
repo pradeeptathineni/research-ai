@@ -1,9 +1,11 @@
 import { test } from "node:test";
+import { fakeCodex, message } from "./fake-codex.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { addLiteraturePaper, createLiteratureSet, createResearchNotebook, reviseResearchNotebook,
   deduplicateLiteraturePapers, exportLiteratureSet, formatLiteratureSet, prepareLiteratureQuestion, prepareNotebookQuestion,
-  resolveLiteratureSet, rebindLiteratureSet } from "../src/index.mjs";
+  resolveLiteratureSet, rebindLiteratureSet, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion,
+  checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, researchDocumentCoverage } from "../src/index.mjs";
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 const id = (p) => `${p}:${randomUUID()}`;
@@ -121,4 +123,130 @@ test("source rebind is idempotent and refuses changed, missing, or ambiguous not
   changedSource = reviseResearchNotebook(changedSource, { type: "add-source", id: retained.id, document: changedDocument });
   assert.throws(() => rebindLiteratureSet(set, [changedSource]), /exact retained source changed/);
   assert.throws(() => rebindLiteratureSet(set, [notebook, notebook]), /snapshot IDs must be unique/);
+});
+
+
+test("cross-notebook literature coverage preserves exact source identity, qualification and cold projection", async (t) => {
+  const notebookWith = (name, text) => {
+    let value = createResearchNotebook(name, { topic: "Synthetic cross-notebook comparison" });
+    value = reviseResearchNotebook(value, { type: "add-source", document: {
+      id: "paper-doc-1", title: "Colliding synthetic document ID", sha256: sha(`caller digest ${name}`),
+      pages: [{ number: 1, text, sha256: sha(text) }],
+    } });
+    const retained = value.sources[0];
+    return { notebook: value, ref: { notebookId: value.id, notebookSha256: value.sha256, sourceId: retained.id,
+      sourceDigest: retained.digest, documentId: retained.document.id, documentSha256: retained.document.sha256 } };
+  };
+  const first = notebookWith("Synthetic notebook A", "A finding supports the bounded claim.");
+  const second = notebookWith("Synthetic notebook B", "A finding conflicts with the bounded claim.");
+  const unselected = notebookWith("Unselected notebook", "This selected question does not read me.");
+  const available = (title, ref, extra = {}) => ({ id: id("paper"), metadata: { title }, availability: "available",
+    source: ref, statusEvidence: null, finding: `Caller note for ${title}.`, stance: null, claimKey: null, qualification: [], ...extra });
+  const firstPaper = available("Synthetic paper A", first.ref);
+  const firstAlias = available("Alias for synthetic paper A", first.ref, { qualification: ["Caller says this record aliases the same retained source."] });
+  const moreAliases = Array.from({ length: 8 }, (_, index) => available(`Additional alias ${index + 1}`, first.ref));
+  const secondPaper = available("Synthetic paper B", second.ref);
+  const missing = { id: id("paper"), metadata: { title: "Missing synthetic paper" }, availability: "missing", source: null,
+    statusEvidence: { kind: "missing-source", assertedBy: "synthetic curator", observedAt: "2026-10-27T12:00:00Z", verification: "asserted-unverified", detail: "No retained source is available in this fixture." },
+    finding: null, stance: null, claimKey: null, qualification: ["Synthetic missing-source qualification."] };
+  const retracted = available("Retracted synthetic paper", first.ref, { availability: "retracted",
+    statusEvidence: { kind: "retraction", assertedBy: "synthetic curator", observedAt: "2026-10-27T12:00:00Z", verification: "asserted-unverified", detail: "Caller asserts retraction; not verified." },
+    qualification: ["Synthetic retraction qualification; caller asserted."] });
+  const notSelected = available("Unselected paper", unselected.ref);
+  const set = [firstPaper, firstAlias, ...moreAliases, secondPaper, missing, retracted, notSelected]
+    .reduce(addLiteraturePaper, createLiteratureSet("Synthetic cross-notebook set"));
+  const selectedIds = [firstPaper.id, firstAlias.id, ...moreAliases.map((paperRow) => paperRow.id), secondPaper.id, missing.id, retracted.id];
+  const prepared = prepareLiteratureStudyQuestion(set, [first.notebook, second.notebook],
+    "What does the selected retained evidence say about this bounded claim?", { maxCalls: 3, passUtf16Units: 1000 },
+    { paperIds: selectedIds });
+  assert.deepEqual(prepareLiteratureStudyQuestion(set, [first.notebook, second.notebook],
+    "What does the selected retained evidence say about this bounded claim?", { maxCalls: 3, passUtf16Units: 1000 },
+    { paperIds: selectedIds }), prepared, "repeated preparation has the same frozen source identities and plan");
+  assert.equal(prepared.preview.counts.documents, 2);
+  assert.equal(prepared.request.documents[0].id.startsWith("literature-source:"), true);
+  assert.notEqual(prepared.request.documents[0].id, prepared.request.documents[1].id);
+  assert.deepEqual(prepared.sourceMap.map((row) => row.sourceBinding.documentId), ["paper-doc-1", "paper-doc-1"]);
+  const aliasMap = prepared.sourceMap.find((row) => row.papers.some((paperRef) => paperRef.paperId === firstPaper.id));
+  assert.deepEqual(aliasMap.papers.map((paperRef) => paperRef.paperId), [firstPaper.id, firstAlias.id, ...moreAliases.map((paperRow) => paperRow.id)]);
+  assert.equal(aliasMap.sourceIndependence, "same-exact-source-aliases");
+  assert.equal(prepared.coverage.find((row) => row.paperId === missing.id).disposition, "not-searched-source-missing");
+  const retractedRow = prepared.coverage.find((row) => row.paperId === retracted.id);
+  assert.equal(retractedRow.disposition, "excluded-retracted-by-default");
+  assert.deepEqual(retractedRow.statusEvidence, retracted.statusEvidence);
+  assert.deepEqual(retractedRow.qualification, retracted.qualification);
+  const unselectedRow = prepared.coverage.find((row) => row.paperId === notSelected.id);
+  assert.equal(unselectedRow.disposition, "not-selected");
+  assert.equal(unselectedRow.sourceResolution, "not-compared-not-selected");
+  const currentness = checkLiteratureStudyQuestionSources(prepared, set, [first.notebook, second.notebook]);
+  assert.equal(currentness.literatureSet.status, "current");
+  assert.deepEqual(currentness.sources.map((row) => row.status), ["current", "current"]);
+  assert.throws(() => prepareLiteratureStudyQuestion(set, [first.notebook, second.notebook], "Question?", {}, { paperIds: [...selectedIds, notSelected.id] }), /selected source notebook is unavailable/u);
+  const staleFirst = reviseResearchNotebook(first.notebook, { type: "rename", title: "Renamed stale notebook" });
+  assert.throws(() => prepareLiteratureStudyQuestion(set, [staleFirst, second.notebook], "Question?", {}, { paperIds: selectedIds }), /selected source notebook changed/u);
+  assert.equal(checkLiteratureStudyQuestionSources(prepared, set, [staleFirst, second.notebook]).sources[0].status, "changed");
+  const defaultExcluded = prepareLiteratureStudyQuestion(set, [first.notebook], "Question about the retracted work?", {},
+    { paperIds: [retracted.id] });
+  assert.equal(defaultExcluded.request, null);
+  const optedIn = prepareLiteratureStudyQuestion(set, [first.notebook], "Question about the retracted work?", {},
+    { paperIds: [retracted.id], includeRetracted: true });
+  assert.equal(optedIn.includedPapers[0].availability, "retracted");
+  assert.deepEqual(optedIn.includedPapers[0].statusEvidence, retracted.statusEvidence);
+  assert.deepEqual(optedIn.includedPapers[0].qualification, retracted.qualification);
+
+  let manyNotebook = createResearchNotebook("Nine distinct synthetic sources");
+  const manySources = [];
+  for (let index = 1; index <= 9; index += 1) {
+    const text = `Distinct source ${index} supports a separate synthetic record.`;
+    manyNotebook = reviseResearchNotebook(manyNotebook, { type: "add-source", document: {
+      id: `distinct-document-${index}`, title: `Distinct document ${index}`, sha256: sha(`raw distinct ${index}`),
+      pages: [{ number: 1, text, sha256: sha(text) }],
+    } });
+    manySources.push(manyNotebook.sources.at(-1));
+  }
+  const manyPapers = manySources.map((retained, index) => available(`Distinct paper ${index + 1}`, { notebookId: manyNotebook.id,
+    notebookSha256: manyNotebook.sha256, sourceId: retained.id, sourceDigest: retained.digest,
+    documentId: retained.document.id, documentSha256: retained.document.sha256 }));
+  const manySet = manyPapers.reduce(addLiteraturePaper, createLiteratureSet("Nine distinct papers"));
+  assert.throws(() => prepareLiteratureStudyQuestion(manySet, [manyNotebook], "Question?", {},
+    { paperIds: manyPapers.map((paperRow) => paperRow.id) }), /invalid_document_coverage: expected 1-8 documents/u);
+
+  const plan = prepared.preview;
+  const responses = plan.passes.map((pass) => {
+    const evidence = pass.windowIds.map((windowId, index) => {
+      const window = plan.windows.find((entry) => entry.id === windowId);
+      const row = prepared.request.documents.find((document) => document.id === window.documentId);
+      const quote = row.pages[window.page - 1].text.slice(window.start, window.end);
+      return { id: `finding-${index + 1}`, windowId, quote,
+        relation: aliasMap.coverageDocumentId === window.documentId ? "supporting" : "conflicting", occurrence: null };
+    });
+    return { events: [message(JSON.stringify({
+      answer: evidence.map((item) => ({ text: `Synthetic report: ${item.quote}`, evidenceIds: [item.id] })),
+      evidence, coverage: "answered", gaps: [],
+    })), { type: "turn.completed" }] };
+  });
+  const allEvidenceIds = plan.passes.flatMap((pass, passIndex) => pass.windowIds.map((_, index) =>
+    `p${String(passIndex + 1).padStart(2, "0")}-e${String(index + 1).padStart(2, "0")}`));
+  responses.push({ events: [message(JSON.stringify({ answer: [{ text: "The two retained sources report different positions.", evidenceIds: allEvidenceIds }], coverage: "partial", gaps: ["The reason for the disagreement is not established by this synthetic evidence."] })), { type: "turn.completed" }] });
+  const fixture = await fakeCodex({ sessions: responses });
+  t.after(() => fixture.cleanup());
+  const result = await researchDocumentCoverage(prepared.request.question, prepared.request.documents, {
+    lease: fixture.lease, confirmedPlanDigest: prepared.preview.planDigest, ...prepared.request.policy,
+  });
+  assert.equal(result.status, "complete");
+  assert.equal(result.draft.coverage, "partial");
+  const cold = validateLiteratureStudyQuestion(JSON.parse(JSON.stringify(prepared)));
+  const projected = projectLiteratureStudyEvidence(cold, result);
+  assert.equal(projected.evidence.length, 2);
+  const projectedA = projected.evidence.find((item) => item.paperReferences.some((paperRef) => paperRef.paperId === firstPaper.id));
+  const projectedB = projected.evidence.find((item) => item.paperReferences.some((paperRef) => paperRef.paperId === secondPaper.id));
+  assert.equal(projectedA.relation, "supporting");
+  assert.deepEqual(projectedA.paperReferences.map((paperRef) => paperRef.paperId), [firstPaper.id, firstAlias.id, ...moreAliases.map((paperRow) => paperRow.id)]);
+  assert.equal(projectedA.sourceIndependence, "same-exact-source-aliases");
+  assert.equal(projectedB.relation, "conflicting");
+  assert.equal(projectedB.sourceIndependence, "unknown");
+  assert.equal(projectedB.paperReferences[0].source.notebookId, second.notebook.id);
+  assert.equal(result.passes.every((pass) => pass.receipt.outcome.searches === 0), true);
+  const tampered = structuredClone(prepared);
+  tampered.sourceMap[0].papers[0].metadata.title = "Tampered paper mapping";
+  assert.throws(() => validateLiteratureStudyQuestion(tampered), /source map paper binding|prepared source attribution/u);
 });
