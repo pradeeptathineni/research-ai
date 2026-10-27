@@ -261,7 +261,8 @@ export function getResearchStudyCitation(value, questionId, evidenceId) {
       : { kind: "document", notebookId: selection.origin.notebookId, recordId: selection.origin.recordId, digest: selection.origin.sourceDigest } };
 }
 
-const planningSourceLimit = 20000;
+const planningSourceTextLimit = 16000;
+const planningSourceObjectLimit = 16 * 1024;
 function buildStudyPlanningSource(studyValue, questionId) {
   const study = validateState(studyValue);
   id("study-question", questionId);
@@ -313,12 +314,16 @@ function buildStudyPlanningSource(studyValue, questionId) {
     `Execution status: ${question.result.status}; reported coverage: ${draft.coverage}.`, "", ...renderedAnswers,
     ...(draft.gaps.length ? ["", "Qualifications and gaps:", ...draft.gaps.map((gap) => `- ${gap}`)] : []),
     "", "Citations identify exact retained occurrences; they do not establish entailment or truth."].join("\n");
-  if (!text.isWellFormed() || text.length > planningSourceLimit) invalid("saved study answer exceeds the Planning source limit");
+  if (!text.isWellFormed() || text.length > planningSourceTextLimit) invalid("saved study answer exceeds the Planning source text limit of 16,000 characters");
   const binding = { owner: "research-study", studyId: study.id, questionId: question.id, questionSha256: question.sha256,
     selectionDigest: question.selectionDigest, planDigest: question.planDigest, resultSha256: hash(canonical(question.result)),
     sourceSnapshots, citations };
+  if (Buffer.byteLength(canonical(binding), "utf8") > planningSourceObjectLimit)
+    invalid("Planning source binding exceeds its 16 KiB object limit");
+  if (Buffer.byteLength(canonical(qualification), "utf8") > planningSourceObjectLimit)
+    invalid("Planning source qualification exceeds its 16 KiB object limit");
   const locatorDigest = hash(canonical({ studyId: study.id, questionId: question.id, questionSha256: question.sha256 }));
-  const output = { id: `research-study-answer:${locatorDigest.slice(0, 48)}`, text, binding, qualification };
+  const output = { id: `research-study-${locatorDigest.slice(0, 48)}`, text, binding, qualification };
   if (Buffer.byteLength(canonical(output), "utf8") > byteLimit) invalid("Planning source exceeds the 16 MiB output limit");
   return output;
 }

@@ -1204,7 +1204,7 @@ export function getResearchStudyCitation(study: ResearchStudy, questionId: strin
   evidence: DocumentCoverageEvidence; page: ResearchDocumentInput["pages"][number]; document: ResearchDocumentInput;
   selection: ResearchStudySelection; source: { kind: "note"; noteVersion: ResearchNotebookNoteVersion } | { kind: "document"; notebookId: string; recordId: string; digest: string };
 };
-/** Exports one complete saved nonempty answer with exact retained citation closure; this is fallible input, not verified truth. */
+/** Exports one complete saved nonempty answer with exact retained citation closure; ID/text fit Planning source rules and binding/qualification are each <=16 KiB. */
 export function exportResearchStudyPlanningSource(study: ResearchStudy, questionId: string): ResearchStudyPlanningSource;
 /** Recomputes an exported Planning source from the exact saved Study answer and refuses any altered field. */
 export function validateResearchStudyPlanningSource(study: ResearchStudy, questionId: string, candidate: unknown): ResearchStudyPlanningSource;

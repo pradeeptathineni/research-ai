@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   checkResearchStudyOrigins, createResearchNotebook, createResearchStudy, exportResearchStudyPlanningSource, getResearchStudyCitation,
@@ -24,7 +25,7 @@ function fixtureNotebooks() {
     page(2, "The retained report measured a yield of 17 units after cooling."),
   ]) });
   let notes = createResearchNotebook("Notes notebook");
-  notes = reviseResearchNotebook(notes, { type: "add-note", title: "Scope memo", text: "This unverified note defines scope: compare the observed yield only." });
+  notes = reviseResearchNotebook(notes, { type: "add-note", title: "Scope memo", text: "This unverified note defines scope: compare the observed yield 😀 only." });
   return [sources, notes];
 }
 
@@ -53,7 +54,7 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.equal(prepared.preview.counts.documents, 2);
 
   const sourceQuote = "The retained report measured a yield of 17 units after cooling.";
-  const noteQuote = "This unverified note defines scope: compare the observed yield only.";
+  const noteQuote = "This unverified note defines scope: compare the observed yield 😀 only.";
   const sessions = [
     reply({ answer: [{ text: "The report states a measured yield.", evidenceIds: ["report"] }, { text: "The note defines the scope.", evidenceIds: ["scope"] }],
       evidence: [{ id: "report", windowId: "w0002", quote: sourceQuote, relation: "supporting", occurrence: null },
@@ -78,6 +79,10 @@ test("two-notebook full-source and exact-note selection survives question, citat
   const reopened = validateResearchStudy(JSON.parse(renderResearchStudy(study, { format: "json" })));
   assert.deepEqual(reopened, study);
   const planningSource = exportResearchStudyPlanningSource(reopened, spec.id);
+  assert.match(planningSource.id, /^research-study-[a-f0-9]{48}$/);
+  assert.ok(planningSource.text.length <= 16000);
+  assert.ok(new TextEncoder().encode(JSON.stringify(planningSource.binding)).byteLength <= 16 * 1024);
+  assert.ok(new TextEncoder().encode(JSON.stringify(planningSource.qualification)).byteLength <= 16 * 1024);
   assert.equal(planningSource.binding.owner, "research-study");
   assert.equal(planningSource.binding.studyId, reopened.id);
   assert.equal(planningSource.binding.questionId, spec.id);
@@ -92,6 +97,24 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.match(planningSource.text, /Citations identify exact retained occurrences/);
   assert.doesNotMatch(planningSource.text, /This unverified note defines scope/);
   assert.deepEqual(validateResearchStudyPlanningSource(reopened, spec.id, planningSource), planningSource);
+  const planningRoot = process.env.RESEARCH_PLANNING_ROOT;
+  if (planningRoot) {
+    const planningRevision = spawnSync("git", ["rev-parse", "HEAD"], { cwd: planningRoot, encoding: "utf8" });
+    assert.equal(planningRevision.status, 0, planningRevision.stderr);
+    assert.equal(planningRevision.stdout.trim(), "1c97ac2c2cd123e9e1ce2e490e56acc6a39536ba");
+    const python = process.env.RESEARCH_PLANNING_PYTHON;
+    assert.ok(python, "set RESEARCH_PLANNING_PYTHON to the accepted Planning Python runtime");
+    const planningCreate = spawnSync(python, ["-m", "planning_ai.specification", "--action", "create"], {
+      cwd: planningRoot,
+      env: { PATH: process.env.PATH ?? "/usr/bin:/bin", PYTHONPATH: join(planningRoot, "src"), PYTHONDONTWRITEBYTECODE: "1" },
+      input: JSON.stringify({ title: "Synthetic Research source intake", problem: "Preserve exact study evidence as qualified planning input.", sources: [planningSource] }),
+      encoding: "utf8", timeout: 30000,
+    });
+    assert.equal(planningCreate.status, 0, planningCreate.stderr);
+    const createdPlanning = JSON.parse(planningCreate.stdout);
+    assert.equal(createdPlanning.schema, "planning.specification.v1");
+    assert.deepEqual(createdPlanning.sources, [planningSource]);
+  }
   const studyCli = fileURLToPath(new URL("../bin/research-study.mjs", import.meta.url));
   const cliExport = spawnSync(process.execPath, [studyCli, "--action", "planning-source"], {
     input: JSON.stringify({ study: reopened, questionId: spec.id }), encoding: "utf8", timeout: 30000,
