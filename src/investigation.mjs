@@ -60,6 +60,42 @@ function setBranchContext(s, value) {
 
 export function validateInvestigation(value) { return validate(value); }
 
+/** Builds a versioned, offline snapshot for review or deliberate continuation. */
+export function planInvestigation(state) {
+  const s=validate(state), remaining={
+    calls:Math.max(0,s.budget.calls-s.used.calls),
+    searches:Math.max(0,s.budget.searches-s.used.searches),
+    reads:Math.max(0,s.budget.documents-s.used.documents),
+    seconds:Math.max(0,s.budget.seconds-s.used.seconds)
+  };
+  const checkpoint={version:'investigation-plan-v1',owner:'research-ai',identity:s.identity,
+    revision:s.revision,topic:s.topic,goal:s.goal,scope:s.scope,
+    questions:s.questions.map(q=>({...q,depth:(()=>{let d=1,p=q.parentId;while(p!==null){d++;p=s.questions.find(x=>x.id===p)?.parentId??null;}return d;})()})),
+    sourceDigests:s.sources?.map(x=>({uri:x.uri,sha256:x.sha256}))??null,
+    budget:{...s.budget},used:{...s.used},remaining,
+    stopConditions:[
+      'Stop before dispatch when calls, wall-clock seconds, or required live search/read budget is exhausted.',
+      'Stop after a failed, partial, cancelled, or cleanup-unconfirmed attempt; preserve its receipt and checkpoint.',
+      'Do not treat reported source identities, findings, or readable partial text as verified evidence.'
+    ],
+    attempts:s.history.length,lastAttemptId:s.history.at(-1)?.id??null,
+    blocked:dispatchBlocked(s)
+  };
+  checkpoint.digest=hash(checkpoint);
+  return checkpoint;
+}
+
+/** Continues only from a freshly generated checkpoint bound to this exact state snapshot. */
+export async function resumeInvestigation(state, checkpoint, options) {
+  const s=validate(state), current=planInvestigation(s);
+  const checkpointBody=checkpoint&&typeof checkpoint==='object'?Object.fromEntries(Object.entries(checkpoint).filter(([key])=>key!=='digest')):null;
+  if(!checkpoint||checkpoint.version!=='investigation-plan-v1'||checkpoint.owner!=='research-ai'||
+    checkpoint.digest!==hash(checkpointBody)||checkpoint.digest!==current.digest||checkpoint.identity!==s.identity||checkpoint.attempts!==s.history.length||
+    checkpoint.lastAttemptId!==(s.history.at(-1)?.id??null)) fail('stale or mismatched resume checkpoint');
+  if(!options||typeof options!=='object'||Array.isArray(options)) fail('resume options required');
+  return advanceInvestigation(s,options);
+}
+
 export function reviseInvestigation(state, edit={}) {
   const s=validate(state); if (!edit || typeof edit!=='object' || Array.isArray(edit)) fail('edit must be an object');
   for(const key of ['topic','goal','scope','questions','budget']) if(Object.hasOwn(edit,key)) s[key]=structuredClone(edit[key]);

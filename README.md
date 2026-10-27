@@ -456,11 +456,24 @@ portions and reproduced methods are listed in [THIRD-PARTY-NOTICES.md](THIRD-PAR
 `createInvestigation` makes a local, editable question tree without inference.
 `advanceInvestigation` explicitly clarifies scope, proposes more questions,
 investigates only caller-selected branches, or synthesizes retained findings.
+`planInvestigation` returns an offline, versioned outline and remaining budget
+snapshot. To continue deliberately, save the returned investigation, build a
+fresh plan from that exact saved state, and pass both to `resumeInvestigation`.
+The checkpoint digest binds its identity, frozen source versions, budget use and
+attempt tail; edits or later attempts make an earlier checkpoint stale. Budget
+limits are cumulative and cannot be reset by changing the prompt or adding
+clarifications. A failed or uncertain dispatch remains blocked by the existing
+cleanup guard.
 The returned JSON is caller-owned state: save it where you choose, reload it,
 and pass it to the next explicit action. Every native run uses the existing
 read-only ephemeral Codex workspace, and cumulative search, read, time and call
 limits remain charged across saved continuations. Reports show coverage and
 gaps; citations identify supplied or model-reported URIs and do not verify them.
+Because this owner has no durable store, the checkpoint prevents accidental
+continuation from a mismatched save snapshot, but cannot provide atomic
+idempotency across forked stale copies. An integrating consumer must journal
+its admission UUID and single-flight dispatch durably before invoking native
+work.
 
 ```js
 const study = createInvestigation("Portable capture formats", {

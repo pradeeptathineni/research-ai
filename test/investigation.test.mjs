@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createInvestigation, reviseInvestigation, validateInvestigation, advanceInvestigation, renderInvestigation } from '../src/index.mjs';
+import { createInvestigation, reviseInvestigation, validateInvestigation, planInvestigation, advanceInvestigation, resumeInvestigation, renderInvestigation } from '../src/index.mjs';
 import { fakeCodex, message } from './fake-codex.mjs';
 
 const done={type:'turn.completed'};
@@ -28,6 +28,64 @@ test('guided investigation uses explicit native actions and caller-owned resumab
     assert.equal(report.report.identity,report.identity);
     assert.equal(report.history.length,4);
     assert.deepEqual(await fixture.probes().then(x=>x.filter(args=>args[0]==='exec').length),4);
+  } finally { await fixture.cleanup(); }
+});
+
+test('plan checkpoints bind resume to exact question, source versions, usage and attempt tail',async()=>{
+  const fixture=await fakeCodex({sessions:[event({findings:['A captured finding.'],gaps:['Coverage remains partial.'],sources:[{uri:'https://example.org/a'}],answer:'Partial evidence.'}),event({findings:['Second captured finding.'],gaps:[],sources:[{uri:'https://example.org/a'}],answer:'Follow-up.'})]});
+  try {
+    const source={uri:'https://example.org/a',text:'Captured source version one.'};
+    const start=createInvestigation('Question?',{questions:[{id:'q1',parentId:null,question:'What does the source say?'}],sources:[source],budget:{searches:2,documents:2,seconds:20,calls:2}});
+    const plan=planInvestigation(start);
+    assert.equal(plan.version,'investigation-plan-v1');
+    assert.deepEqual(plan.remaining,{calls:2,searches:2,reads:2,seconds:20});
+    assert.equal(plan.questions[0].depth,1);
+    const forged=structuredClone(plan); forged.remaining.calls=99;
+    await assert.rejects(resumeInvestigation(start,forged,{action:'investigate',branchIds:['q1'],lease:fixture.lease}),/stale or mismatched resume checkpoint/);
+    const first=await resumeInvestigation(validateInvestigation(JSON.parse(JSON.stringify(start))),plan,{action:'investigate',branchIds:['q1'],lease:fixture.lease});
+    assert.equal(first.history[0].status,'complete');
+    assert.equal(first.used.calls,1);
+    await assert.rejects(resumeInvestigation(first,plan,{action:'synthesize',lease:fixture.lease}),/stale or mismatched resume checkpoint/);
+    const reworded=reviseInvestigation(first,{goal:'Reworded goal without a budget change'});
+    assert.equal(reworded.used.calls,1);
+    assert.equal(planInvestigation(reworded).remaining.calls,1);
+    const changed=reviseInvestigation(first,{sources:[{...source,text:'Captured source version two.'}]});
+    const changedPlan=planInvestigation(changed);
+    await assert.rejects(resumeInvestigation(changed,plan,{action:'investigate',branchIds:['q1'],lease:fixture.lease}),/stale or mismatched resume checkpoint/);
+    const resumed=await resumeInvestigation(changed,changedPlan,{action:'investigate',branchIds:['q1'],lease:fixture.lease});
+    assert.equal(resumed.history.length,2);
+    assert.equal(resumed.used.calls,2);
+    assert.equal(planInvestigation(resumed).remaining.calls,0);
+    const exhausted=await resumeInvestigation(resumed,planInvestigation(resumed),{action:'synthesize',lease:fixture.lease});
+    assert.equal(exhausted.history.at(-1).status,'not_run');
+    assert.equal(exhausted.history.at(-1).reason,'budget_exhausted');
+    assert.equal((await fixture.probes()).filter(args=>args[0]==='exec').length,2);
+  } finally { await fixture.cleanup(); }
+});
+
+test('resume keeps useful partial checkpoint and receipt-less unknown dispatch cannot replay',async()=>{
+  const fixture=await fakeCodex({sessions:[event({findings:['Useful retained evidence.'],gaps:['One avenue remains unchecked.'],sources:[],answer:'A useful first branch.'})]});
+  try {
+    const state=createInvestigation('Topic',{questions:[{id:'q1',parentId:null,question:'Q1?'},{id:'q2',parentId:null,question:'Q2?'}],budget:{searches:2,documents:2,seconds:20,calls:1}});
+    const partial=await resumeInvestigation(state,planInvestigation(state),{action:'investigate',branchIds:['q1','q2'],lease:fixture.lease});
+    assert.equal(partial.history[0].status,'complete');
+    assert.equal(partial.history[1].status,'not_run');
+    assert.equal(partial.history[1].reason,'budget_exhausted');
+    assert.match(renderInvestigation(partial),/A useful first branch/);
+    assert.equal(planInvestigation(partial).remaining.calls,0);
+    const noMore=await resumeInvestigation(partial,planInvestigation(partial),{action:'synthesize',lease:fixture.lease});
+    assert.equal(noMore.history.at(-1).status,'not_run');
+    assert.equal(noMore.history.at(-1).reason,'budget_exhausted');
+    assert.equal((await fixture.probes()).filter(args=>args[0]==='exec').length,1);
+    const unknown=structuredClone(state);
+    unknown.history.push({id:'a1',identity:unknown.identity,contextIdentity:unknown.identity,revision:0,action:'investigate',branchId:'q1',question:'Q?',status:'failed',findings:[],gaps:[],sources:[],answer:'',reason:'dispatch_outcome_unknown',receipt:null});
+    unknown.used.calls=1;
+    const validUnknown=validateInvestigation(unknown);
+    const blocked=await resumeInvestigation(validUnknown,planInvestigation(validUnknown),{action:'investigate',branchIds:['q1'],lease:fixture.lease});
+    assert.equal(planInvestigation(validUnknown).blocked,true);
+    assert.equal(blocked.history.at(-1).status,'not_run');
+    assert.equal(blocked.history.at(-1).reason,'prior_cleanup_unconfirmed');
+    assert.equal((await fixture.probes()).filter(args=>args[0]==='exec').length,1);
   } finally { await fixture.cleanup(); }
 });
 

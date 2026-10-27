@@ -1,5 +1,5 @@
-import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, renderInvestigation, advanceInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
-import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, planInvestigation, renderInvestigation, advanceInvestigation, resumeInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
+import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, InvestigationPlan, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
 import { importTableCsv, registerTable } from '@pradeeptathineni/research-ai';
 import type { ResearchTableCsvResult } from '@pradeeptathineni/research-ai';
 declare const hostParserRoot: string;
@@ -73,7 +73,8 @@ const investigationBudget: InvestigationBudget = { ...profiles.quick, calls: 12 
 const investigationQuestion: InvestigationQuestion = { id: 'q1', parentId: null, question: 'What changes?' };
 const investigation: Investigation = createInvestigation('Topic', { questions: [investigationQuestion], budget: investigationBudget });
 const revisedInvestigation = reviseInvestigation(validateInvestigation(investigation), { scope: 'Offline first' });
-void [renderInvestigation(revisedInvestigation), advanceInvestigation];
+const investigationPlan: InvestigationPlan = planInvestigation(revisedInvestigation);
+void [renderInvestigation(revisedInvestigation), advanceInvestigation, resumeInvestigation, investigationPlan];
 const outline: ResearchOutline | null = null;
 void [outline, outlineResearch, validateOutline, reviseOutline, renderOutline];
 const tableColumns: EvidenceTableColumn[] = [{ id: 'retention', title: 'Retention', question: 'How long?' }];
