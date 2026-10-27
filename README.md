@@ -292,6 +292,23 @@ node bin/research-perspective-workflow.mjs --action create < setup.json > workfl
 node bin/research-perspective-workflow.mjs --action render < workflow.json
 ```
 
+### Long-document coverage and recovery
+
+`research-document-recovery` groups exact retained pages into a hierarchical
+section manifest and delegates each leaf to the existing complete-document
+coverage owner. It reserves bounded calls for all configured section retries
+before dispatch, appends retries only for explicitly selected unresolved
+sections, and preserves citations against original document/page hashes and
+offsets. Caller-declared OCR, table, layout or extraction concerns stay labeled
+as unverified metadata and keep the aggregate result partial. The aggregate
+collects validated section drafts; it does not create a second synthesis
+engine. See [recovery contract](docs/document-recovery.md).
+
+```sh
+node bin/research-document-recovery.mjs --action create < recovery.json > planned.json
+node bin/research-document-recovery.mjs --action render < planned.json
+```
+
 ### Evidence-linked mind maps
 
 `createMindMap(question, { sources, root })` creates an explanatory concept

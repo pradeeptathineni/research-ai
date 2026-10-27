@@ -87,6 +87,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     expected.push('bin/research-study.mjs', 'docs/research-study.md', 'src/study.mjs');
     expected.push('docs/literature-set.md', 'src/literature-set.mjs');
     expected.push('bin/research-perspective-workflow.mjs', 'docs/perspective-workflow.md', 'src/perspective-workflow.mjs');
+    expected.push('bin/research-document-recovery.mjs', 'docs/document-recovery.md', 'src/document-recovery.mjs');
     assert.deepEqual(members, expected.map(name => `package/${name}`).sort());
     report.memberEvidence = [];
     for (const name of expected) {
@@ -132,6 +133,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-notebook-search')), join(await realpath(packageRoot), manifest.bin['research-notebook-search']));
     assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-study')), join(await realpath(packageRoot), manifest.bin['research-study']));
     assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-perspective-workflow')), join(await realpath(packageRoot), manifest.bin['research-perspective-workflow']));
+    assert.equal(await realpath(join(consumer, 'node_modules/.bin/research-document-recovery')), join(await realpath(packageRoot), manifest.bin['research-document-recovery']));
     assert.ok((await stat(bin)).mode & 0o111);
     report.installed = { packageRoot, bin, binRealpath: await realpath(bin) };
     await cp(join(source, 'test/fake-codex.mjs'), join(consumer, 'fake-codex.mjs'));

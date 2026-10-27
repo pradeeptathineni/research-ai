@@ -1,0 +1,35 @@
+# Hierarchical document coverage and recovery
+
+`research-document-recovery-v1` groups exact caller-retained document pages into a finite hierarchy and delegates each leaf section to the existing `researchDocumentCoverage` owner. It adds no extractor, storage layer, review prompt, or synthesis engine. The composite answer is a section-by-section assembly of the existing validated drafts; it is deliberately not described as a new cross-section synthesis.
+
+## Prepare and confirm
+
+`createDocumentRecovery(question, { documents, sections, policy })` validates the original extracted page digests, section tree and exact page map, then calculates the maximum coverage calls for every leaf and every allowed retry. Each retained page must occur in exactly one leaf section. Parent sections are organizational containers and cannot also own pages. `plannedMaximumCalls` reserves `coveragePlan.maximumCalls * (1 + maxRetriesPerSection)` for every leaf before execution; the plan is rejected if this exceeds `totalMaxCalls`. The created workflow's `sha256` is the confirmation token. Run and retry require that exact current digest, so editing any source, section, gap, or budget requires a new preview and confirmation.
+
+```js
+let recovery = createDocumentRecovery(question, { documents, sections, policy: {
+  maxCallsPerSection: 4, maxRetriesPerSection: 1, totalMaxCalls: 64,
+  passUtf16Units: 24000, maxSecondsPerSection: 600,
+} });
+recovery = await runDocumentRecovery(recovery, { confirmedSha256: recovery.sha256, lease });
+recovery = await retryDocumentRecovery(recovery, ["methods"], { confirmedSha256: recovery.sha256, lease });
+const portableJson = renderDocumentRecovery(recovery, { format: "json" });
+```
+
+Each leaf names original `{ documentId, page }` references. Its internal coverage run uses the same page text and SHA-256; the returned citation map restores original document identity and original page number without offset shifting. Evidence is still validated against the exact page by the existing coverage owner. Every attempt is append-only. A retry accepts only selected sections whose latest run is failed, incomplete, or reports partial/insufficient answer coverage, and cannot exceed its reserved retry count. It never expands to neighboring pages or sections.
+
+This API returns an updated artifact only after the entire `runDocumentRecovery` or retry call returns; it does not provide a durable per-section journal. `dispatchSection(request)` is the supported consumer seam. The request binds `workflowId`, the confirmed `workflowSha256`, section and attempt number, exact question/documents, `planDigest`, bounded policy, coverage options and deterministic `executionId`. Before starting the existing coverage owner, the callback must persist a write-ahead intent keyed by that ID. On replay with the same ID, it must return the durably read-back validated result, or `{ status: "unknown", reason }` if an intent exists without confirmed outcome; it must never launch the same action again. Returned results are replay-validated against the exact section question, pages, plan digest, policy and citations. A throw, unknown result, or scope mismatch stops subsequent leaves and is retained as `unknown`; all further retries from that artifact are refused. To reconcile, restart from the same confirmed initial artifact with a callback that returns durable prior results by their stable IDs and returns unknown for pending IDs. A consumer must durably read back each result before advancing. If the process or response is lost after a provider may have started, the previous artifact is not proof that the attempt never ran. Do not replay it with a dispatcher that might start work; consult the caller-owned journal/readback first. If the whole process dies before returning that artifact, only the caller's durable journal can resolve the uncertainty. The stateless CLI does not supply that journal.
+
+## Hierarchy and extraction qualifications
+
+Section nodes have `{ id, parentId, title, pageRefs, extractionGaps, required? }`. A leaf `pageRefs` list partitions the exact retained pages. Caller-declared gaps use `{ id, kind: "ocr" | "table" | "layout" | "other", documentId, page, detail, assertedBy, observedAt }`. They describe an extraction concern supplied by the caller; Research does not verify OCR quality, table fidelity or missing material. These qualifications remain visible after successful retries and prevent overall `complete` status. Research never repairs extraction or claims that an omitted table was reviewed.
+
+Aggregate status is `complete` only when every required leaf has complete execution, full input-window coverage, answered model-reported coverage, confirmed cleanup, and no unresolved section or declared extraction gap. It is `unknown` if any section has an unknown dispatch result; uncertainty is never collapsed into `failed`. Otherwise retained answers remain available with an explicit `partial` or `failed` state and gap ledger. An absent citation is never inferred for missing material. Individual drafts and exact evidence stay available in each section attempt.
+
+The CLI reads one bounded JSON object from stdin: `research-document-recovery --action create|validate|run|retry|render`. `run` accepts `{ workflow, confirmedSha256 }`; `retry` also accepts explicit `sectionIds`. Render and cold validation do not start sessions. CLI run/retry are stateless; use them only with an external write-ahead journal and reconcile output loss before repeating an action. Tests use only `test/fake-codex.mjs`.
+
+Public method inspiration was limited to the portfolio's pinned Docling `7bc06ef8b059` (MIT), Haystack `7a71a9373116` (Apache-2.0), and PaperQA `c692d0dfeac4` (Apache-2.0). No donor code is copied or adapted; therefore no donor file-level notices are introduced. Those licenses do not authorize source documents, model weights or OCR assets.
+
+## First-slice limits
+
+The manifest is page-granular, not a parser-derived heading or table map. Retry replays an exact selected leaf through the existing coverage owner; it does not resume an individual failed internal pass. Section drafts are not automatically reconciled into a novel narrative, and the result does not fetch, store, parse, OCR, verify extraction quality, or query external retraction/status sources. “Complete” means complete relative to the caller's retained pages and declared gaps, not complete relative to an original PDF or publication.

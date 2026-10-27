@@ -57,6 +57,40 @@ export function reviewWorkflowOutlineCitations(value: ResearchPerspectiveWorkflo
 export function workflowComparisonCurrentness(value: ResearchPerspectiveWorkflow, index?: number): { current: boolean; reasons: string[] };
 export function renderPerspectiveWorkflow(value: ResearchPerspectiveWorkflow, options?: { format?: "json" | "markdown" }): string;
 
+export interface DocumentRecoveryGap {
+  id: string; kind: "ocr" | "table" | "layout" | "other"; documentId: string; page: number;
+  detail: string; assertedBy: string; observedAt: string;
+}
+export interface DocumentRecoverySection {
+  id: string; parentId: string | null; title: string; pageRefs: Array<{ documentId: string; page: number }>;
+  extractionGaps: DocumentRecoveryGap[]; required?: boolean;
+}
+export interface DocumentRecoveryPolicy {
+  maxCallsPerSection: number; maxRetriesPerSection: number; totalMaxCalls: number;
+  passUtf16Units: number; maxSecondsPerSection: number;
+}
+export interface DocumentRecoveryDispatchRequest {
+  workflowId: `recovery:${string}`; workflowSha256: string; sectionId: string; attemptNumber: number;
+  question: string; documents: ResearchDocumentInput[]; planDigest: string;
+  planCounts: PreparedDocumentCoverage["counts"]; policy: DocumentRecoveryPolicy;
+  coverageOptions: Omit<DocumentCoverageOptions, "confirmedPlanDigest"> & { confirmedPlanDigest: string };
+  executionId: string;
+}
+export type DocumentRecoveryDispatch = (request: DocumentRecoveryDispatchRequest) => Promise<DocumentCoverageResult | { status: "unknown"; reason: string }>;
+export interface ResearchDocumentRecovery {
+  version: "research-document-recovery-v1"; owner: "research-ai"; id: `recovery:${string}`; question: string; revision: number;
+  sources: ResearchDocumentInput[]; manifest: DocumentRecoverySection[]; policy: DocumentRecoveryPolicy; plannedMaximumCalls: number;
+  sections: Array<{ sectionId: string; attempts: Array<{ number: number; status: "complete" | "partial" | "failed" | "cancelled" | "not_run" | "unknown"; result: DocumentCoverageResult | null; failure: string | null }>; pageMap: Array<{ documentId: string; localPage: number; originalPage: number; sourceSha256: string; pageSha256: string }>; reservedMaximumCalls: number }>;
+  aggregate: { status: "complete" | "partial" | "failed" | "unknown"; answer: Array<{ sectionId: string; sectionTitle: string; text: string; citations: Array<{ evidenceId: string; documentId: string; documentSha256: string; page: number; pageSha256: string; start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context" }> }>; gaps: string[]; cleanup: "complete" | "unconfirmed" | "incomplete"; plannedMaximumCalls: number; startedCalls: number; qualification: string };
+  sha256: string;
+}
+export function createDocumentRecovery(question: string, options: { id?: string; documents: ResearchDocumentInput[]; sections: DocumentRecoverySection[]; policy?: Partial<DocumentRecoveryPolicy> }): ResearchDocumentRecovery;
+export function validateDocumentRecovery(value: unknown): ResearchDocumentRecovery;
+export function runDocumentRecovery(value: ResearchDocumentRecovery, options: { confirmedSha256: string; dispatchSection?: DocumentRecoveryDispatch } & Partial<Pick<DocumentCoverageOptions, "profile" | "model" | "effort" | "lease" | "signal" | "progress" | "activity">>): Promise<ResearchDocumentRecovery>;
+export function retryDocumentRecovery(value: ResearchDocumentRecovery, sectionIds: string[], options: { confirmedSha256: string; dispatchSection?: DocumentRecoveryDispatch } & Partial<Pick<DocumentCoverageOptions, "profile" | "model" | "effort" | "lease" | "signal" | "progress" | "activity">>): Promise<ResearchDocumentRecovery>;
+export function renderDocumentRecovery(value: ResearchDocumentRecovery, options?: { format?: "json" | "markdown" }): string;
+export function renderDocumentRecoverySection(value: ResearchDocumentRecovery, sectionId: string): string;
+
 export interface ReadinessProbe {
   source: "codex --version" | "codex login status" | "codex exec --help";
   /** UTC ISO timestamp; null if not probed. */

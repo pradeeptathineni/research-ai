@@ -163,3 +163,9 @@ const studySpec: ResearchStudyQuestionSpec = { id: 'study-question:4f7d831d-fb2b
 const studyPreview = null as unknown as PreparedResearchStudyQuestion;
 void [checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation,
   renderResearchStudy(editedStudy), researchStudyLimits.bytes, studySpec, studyPreview];
+
+import { createDocumentRecovery, validateDocumentRecovery, renderDocumentRecovery } from '@pradeeptathineni/research-ai';
+import type { DocumentRecoverySection, ResearchDocumentRecovery } from '@pradeeptathineni/research-ai';
+const recoverySections: DocumentRecoverySection[] = [{ id: 'chapter', parentId: null, title: 'Chapter', pageRefs: [], extractionGaps: [] }, { id: 'part', parentId: 'chapter', title: 'Part', pageRefs: [{ documentId: 'doc', page: 1 }], extractionGaps: [] }];
+const recovery: ResearchDocumentRecovery = createDocumentRecovery('Question', { documents: workflowSources.map((source) => ({ id: 'doc', title: 'Doc', sha256: '0'.repeat(64), pages: [{ number: 1, text: source.text, sha256: '0'.repeat(64) }] })), sections: recoverySections });
+void [validateDocumentRecovery(recovery), renderDocumentRecovery(recovery)];

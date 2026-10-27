@@ -23,7 +23,8 @@
     "research-notebook": "bin/research-notebook.mjs",
     "research-notebook-search": "bin/research-notebook-search.mjs",
     "research-study": "bin/research-study.mjs",
-    "research-perspective-workflow": "bin/research-perspective-workflow.mjs"
+    "research-perspective-workflow": "bin/research-perspective-workflow.mjs",
+    "research-document-recovery": "bin/research-document-recovery.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -60,7 +61,8 @@
     "src/vendor/minisearch-LICENSE.txt",
     "docs/research-study.md",
     "docs/literature-set.md",
-    "docs/perspective-workflow.md"
+    "docs/perspective-workflow.md",
+    "docs/document-recovery.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",
