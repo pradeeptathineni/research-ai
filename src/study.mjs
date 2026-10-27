@@ -285,7 +285,7 @@ export function saveResearchStudyQuestionAsNotebookNote(studyValue, notebookValu
     return `- ${row.text} [${[...new Set(qualifiers)].join("; ")}]`;
   });
   const gaps = Array.isArray(draft.gaps) ? draft.gaps : [];
-  if (draft.coverage !== "complete" && gaps.length === 0) invalid("partial study answer has no stated qualification");
+  if (draft.coverage === "partial" && gaps.length === 0) invalid("partial study answer has no stated qualification");
   const projection = [`Unverified study answer to: ${question.question}`, "", ...answer, "", `Coverage reported: ${draft.coverage}.`,
     ...(gaps.length ? ["Qualifications and gaps:", ...gaps.map((gap) => `- ${gap}`)] : [])].join("\n");
   if (!projection.isWellFormed() || projection.length > 20000) invalid("qualified study answer exceeds the note text limit");

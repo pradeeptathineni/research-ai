@@ -58,7 +58,7 @@ test("two-notebook full-source and exact-note selection survives question, citat
     reply({ answer: [{ text: "The report states a measured yield.", evidenceIds: ["report"] }, { text: "The note defines the scope.", evidenceIds: ["scope"] }],
       evidence: [{ id: "report", windowId: "w0002", quote: sourceQuote, relation: "supporting", occurrence: null },
         { id: "scope", windowId: "w0003", quote: noteQuote, relation: "context", occurrence: null }], coverage: "partial", gaps: ["No independent replication was selected."] }),
-    reply({ answer: [{ text: "The selected report measures 17 units; the selected note limits the comparison to the observed yield.", evidenceIds: ["p01-e01", "p01-e02"] }], coverage: "partial", gaps: ["No independent replication was selected."] }),
+    reply({ answer: [{ text: "The selected report measures 17 units; the selected note limits the comparison to the observed yield.", evidenceIds: ["p01-e01", "p01-e02"] }], coverage: "answered", gaps: [] }),
   ];
   const fixture = await fakeCodex({ sessions });
   let result;
@@ -90,7 +90,8 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.equal(savedVersion.origin.studyId, reopened.id);
   assert.equal(savedVersion.origin.questionId, spec.id);
   assert.equal(savedVersion.origin.studySha256, reopened.sha256);
-  assert.match(savedVersion.text, /No independent replication was selected/);
+  assert.match(savedVersion.text, /Coverage reported: answered/);
+  assert.doesNotMatch(savedVersion.text, /Qualifications and gaps/);
   assert.match(savedVersion.text, /unverified note: Scope memo/);
   assert.deepEqual(JSON.parse(renderResearchNotebook(saved)).notes[0].versions[0], savedVersion);
   assert.deepEqual(getResearchStudyCitation(reopened, spec.id, "p01-e02"), citation, "study citation remains reopenable after note projection");
