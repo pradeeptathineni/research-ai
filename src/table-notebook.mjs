@@ -139,10 +139,12 @@ function scanSql(sql) {
       );
     if (c === "'" || c === '"') {
       const quote = c;
+      let identifier = "";
       i++;
       let closedQuote = false;
       while (i < sql.length) {
         if (sql[i] === quote && sql[i + 1] === quote) {
+          if (quote === '"') identifier += quote;
           i += 2;
           continue;
         }
@@ -151,10 +153,13 @@ function scanSql(sql) {
           closedQuote = true;
           break;
         }
+        if (quote === '"') identifier += sql[i];
         i++;
       }
       if (!closedQuote)
         fail("invalid_step_sql", "Unterminated quoted SQL value.");
+      if (quote === '"' && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(identifier))
+        words.push(identifier.toUpperCase());
       continue;
     }
     if (/[A-Za-z_]/u.test(c)) {
