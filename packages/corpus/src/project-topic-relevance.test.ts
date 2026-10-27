@@ -35,6 +35,7 @@ import {
   projectOpportunityBriefRecordBytes,
   readProjectOpportunityBrief,
   exportProjectOpportunityBriefPacket,
+  compareProjectOpportunityBriefSuccessor,
   retainProjectOpportunityBrief,
   previewProjectOpportunityBriefReassessment,
   reassessProjectOpportunityBrief,
@@ -549,6 +550,28 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       position: 'context',
       confidence: 'low',
     });
+    const comparison = await compareProjectOpportunityBriefSuccessor(root, {
+      before_ref: parentRef,
+      after_ref: successor.ref,
+    });
+    expect(comparison).toMatchObject({
+      schema_version: 'project-opportunity-brief-successor-comparison-v1',
+      before: { ref: parentRef, basis_status: 'needs-review' },
+      after: { ref: successor.ref },
+      changes: { review_context_changed: true, basis_changed: true },
+    });
+    expect(comparison.changes.evidence.changed).toHaveLength(1);
+    expect(comparison.changes.evidence.changed[0]).toMatchObject({
+      ref: briefContent.evidence[0]!.ref,
+      before: { position: 'supports', confidence: 'moderate' },
+      after: { position: 'context', confidence: 'low' },
+    });
+    await expect(
+      compareProjectOpportunityBriefSuccessor(root, {
+        before_ref: parentRef,
+        after_ref: brief.ref,
+      }),
+    ).rejects.toMatchObject({ code: 'project_opportunity_brief_comparison_lineage' });
     const stalePreview = await previewProjectOpportunityBriefReassessment(root, {
       ...reassessmentInput,
       rationale: 'Reassess after checking the current project context again.',

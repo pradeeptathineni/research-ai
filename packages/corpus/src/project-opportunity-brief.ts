@@ -48,6 +48,20 @@ const reassessmentBindingSchema = Type.Object(
   },
   closed,
 );
+const comparisonBindingSchema = Type.Object(
+  {
+    schema: Type.Literal('signals-provider-contract-binding.v1'),
+    owner: Type.Literal('signals-ai'),
+    contract_id: Type.Literal('project-opportunity-brief-successor-comparison'),
+    contract_version: Type.Literal('1.0'),
+    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
+    contract_digest: digestSchema,
+    instance_id: uuid,
+    owner_epoch: uuid,
+    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
+  },
+  closed,
+);
 const exactRefSchema = Type.Object(
   {
     owner: Type.Literal('signals-ai'),
@@ -161,6 +175,19 @@ const reassessmentPreviewInputSchema = Type.Object(
   },
   closed,
 );
+const briefComparisonInputSchema = Type.Object(
+  {
+    before_ref: Type.Object(
+      { ...exactRefSchema.properties, kind: Type.Literal('project_opportunity_brief'), id: uuid },
+      closed,
+    ),
+    after_ref: Type.Object(
+      { ...exactRefSchema.properties, kind: Type.Literal('project_opportunity_brief'), id: uuid },
+      closed,
+    ),
+  },
+  closed,
+);
 type Selection = Static<typeof selectionSchema>;
 type Content = Static<typeof contentSchema>;
 type Binding = Static<typeof briefBindingSchema>;
@@ -169,6 +196,7 @@ type Brief = Static<typeof projectOpportunityBriefSchema>;
 type ExactRef = Static<typeof exactRefSchema>;
 type ReassessmentRequest = Static<typeof reassessmentRequestSchema>;
 type ReassessmentBinding = Static<typeof reassessmentBindingSchema>;
+type ComparisonBinding = Static<typeof comparisonBindingSchema>;
 type ReviewContext = Static<
   NonNullable<typeof projectOpportunityBriefSchema.properties.review_context>
 >;
@@ -334,6 +362,66 @@ async function projectOpportunityBriefReassessmentBinding(
     contract_version: '1.0',
     digest_kind: bindingDigestKind,
     contract_digest: sha256(canonical(metadata)),
+    instance_id: scope.identity,
+    owner_epoch: scope.epoch,
+    ...(typeof capabilities.source_commit === 'string' &&
+    /^[a-f0-9]{40,64}$/.test(capabilities.source_commit)
+      ? { source_commit: capabilities.source_commit }
+      : {}),
+  };
+}
+
+async function projectOpportunityBriefComparisonBinding(root: string): Promise<ComparisonBinding> {
+  const scope = await requestStore(root)
+    .scope()
+    .catch(() =>
+      fail(
+        503,
+        'project_opportunity_brief_unavailable',
+        'The Signals owner binding is unavailable.',
+      ),
+    );
+  const response = await providerCapabilities(root, '1.0', scope.identity, scope.epoch);
+  const capabilities = response.capabilities as {
+    contracts?: Array<{ id: string; versions: string[] }>;
+    operations?: Array<{
+      name: string;
+      target_kinds: string[];
+      mutating: boolean;
+      authority_required: boolean;
+    }>;
+    record_kinds?: string[];
+    source_commit?: string;
+  };
+  const contract = capabilities.contracts?.find(
+    (row) =>
+      row.id === 'project-opportunity-brief-successor-comparison' && row.versions.includes('1.0'),
+  );
+  const compare = capabilities.operations?.find(
+    (row) => row.name === 'compare_project_opportunity_brief_successor',
+  );
+  if (
+    !contract ||
+    !compare ||
+    compare.mutating ||
+    compare.authority_required ||
+    !compare.target_kinds.includes('project_opportunity_brief') ||
+    !capabilities.record_kinds?.includes('project_opportunity_brief')
+  )
+    fail(
+      503,
+      'project_opportunity_brief_comparison_unavailable',
+      'The connected Signals provider lacks the exact successor-comparison contract.',
+    );
+  return {
+    schema: 'signals-provider-contract-binding.v1',
+    owner: 'signals-ai',
+    contract_id: 'project-opportunity-brief-successor-comparison',
+    contract_version: '1.0',
+    digest_kind: bindingDigestKind,
+    contract_digest: sha256(
+      canonical({ contract, operations: [compare], record_kinds: ['project_opportunity_brief'] }),
+    ),
     instance_id: scope.identity,
     owner_epoch: scope.epoch,
     ...(typeof capabilities.source_commit === 'string' &&
@@ -1066,5 +1154,104 @@ export async function exportProjectOpportunityBriefPacket(
     filename: `signals-confidence-packet-${id}.md`,
     content: markdown,
     packet_ref: ref,
+  };
+}
+
+/** Compares one exact immutable reassessment successor with its exact parent. */
+export async function compareProjectOpportunityBriefSuccessor(root: string, input: unknown) {
+  if (!Value.Check(briefComparisonInputSchema, input))
+    fail(
+      400,
+      'invalid_project_opportunity_brief_comparison',
+      'Choose exact retained parent and successor references.',
+    );
+  const { before_ref, after_ref } = input as Static<typeof briefComparisonInputSchema>;
+  const state = await loadProjects(root);
+  const beforeRow = findBrief(state, before_ref.id);
+  const afterRow = findBrief(state, after_ref.id);
+  if (!beforeRow || !afterRow)
+    fail(
+      404,
+      'project_opportunity_brief_comparison_missing',
+      'One exact retained brief is unavailable.',
+    );
+  const beforeRef = briefRef(beforeRow.brief);
+  const afterRef = briefRef(afterRow.brief);
+  if (!same(beforeRef, before_ref) || !same(afterRef, after_ref))
+    fail(
+      409,
+      'project_opportunity_brief_comparison_changed',
+      'A retained brief hash changed. Reopen the exact pair.',
+    );
+  const before = beforeRow.brief;
+  const after = afterRow.brief;
+  if (
+    before.basis.project_id !== after.basis.project_id ||
+    before.basis.opportunity_id !== after.basis.opportunity_id ||
+    before.basis.topic_id !== after.basis.topic_id ||
+    !after.reassessment ||
+    !same(after.reassessment.parent_ref, beforeRef)
+  )
+    fail(
+      409,
+      'project_opportunity_brief_comparison_lineage',
+      'The selected successor is not a direct reassessment of this same project, opportunity and topic.',
+    );
+
+  const scalarFields = [
+    'title',
+    'observed_need',
+    'options',
+    'reversible_intervention',
+    'responsible_party',
+    'falsifiable_outcome',
+    'contradictions',
+    'missing_evidence',
+    'qualifications',
+  ] as const;
+  const contentChanges = scalarFields.flatMap((field) =>
+    same(before[field], after[field])
+      ? []
+      : [{ field, before: before[field], after: after[field] }],
+  );
+  const beforeEvidence = new Map(before.evidence.map((item) => [canonical(item.ref), item]));
+  const afterEvidence = new Map(after.evidence.map((item) => [canonical(item.ref), item]));
+  const evidenceAdded = after.evidence.filter((item) => !beforeEvidence.has(canonical(item.ref)));
+  const evidenceRemoved = before.evidence.filter((item) => !afterEvidence.has(canonical(item.ref)));
+  const evidenceChanged = after.evidence.flatMap((item) => {
+    const prior = beforeEvidence.get(canonical(item.ref));
+    return prior && !same(prior, item) ? [{ ref: item.ref, before: prior, after: item }] : [];
+  });
+  const [beforeRead, afterRead] = await Promise.all([
+    readProjectOpportunityBrief(root, before.id),
+    readProjectOpportunityBrief(root, after.id),
+  ]);
+  return {
+    schema_version: 'project-opportunity-brief-successor-comparison-v1',
+    before: {
+      ref: beforeRef,
+      brief: before,
+      basis_status: beforeRead.basis_status,
+      evidence_currentness: beforeRead.evidence_currentness,
+      reasons: beforeRead.reasons,
+    },
+    after: {
+      ref: afterRef,
+      brief: after,
+      basis_status: afterRead.basis_status,
+      evidence_currentness: afterRead.evidence_currentness,
+      reasons: afterRead.reasons,
+    },
+    changes: {
+      content: contentChanges,
+      evidence: { added: evidenceAdded, removed: evidenceRemoved, changed: evidenceChanged },
+      review_context_changed: !same(before.review_context, after.review_context),
+      basis_changed: !same(before.basis, after.basis),
+    },
+    qualifications: [
+      'This comparison is a deterministic diff of two exact retained human-judgment records. It does not score, endorse or infer truth.',
+      'Evidence position, confidence and rationale differences are human assertions; source and basis currentness are shown independently for each snapshot.',
+      'The after record must be an immutable direct successor of the exact before record. No newer brief or source is substituted.',
+    ],
   };
 }
