@@ -88,7 +88,9 @@ test("step admission rejects mutation, dynamic SQL, comments, params and multipl
     "SELECT * FROM sales WHERE c0=?",
     "SELECT * FROM sales; SELECT 1",
     "SELECT nextval('seq')",
-    "SELECT * FROM \"read_csv_auto\"('/tmp/fixture.csv')"
+    "SELECT * FROM \"read_csv_auto\"('/tmp/fixture.csv')",
+    "SELECT * FROM parquet_scan('/tmp/fixture.parquet')",
+    "SELECT * FROM '/tmp/fixture.parquet'"
   ])
     assert.throws(
       () =>

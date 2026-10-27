@@ -158,6 +158,8 @@ function scanSql(sql) {
       }
       if (!closedQuote)
         fail("invalid_step_sql", "Unterminated quoted SQL value.");
+      if (quote === "'" && ["FROM", "JOIN"].includes(words.at(-1)))
+        fail("invalid_step_sql", "File-reading table sources are outside the supported SQL subset.");
       if (quote === '"' && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(identifier))
         words.push(identifier.toUpperCase());
       continue;
@@ -218,8 +220,15 @@ function sqlBody(v) {
     "READ_CSV",
     "READ_CSV_AUTO",
     "READ_PARQUET",
+    "PARQUET_SCAN",
+    "PARQUET_METADATA",
+    "PARQUET_SCHEMA",
     "READ_JSON",
     "READ_JSON_AUTO",
+    "READ_NDJSON",
+    "READ_NDJSON_AUTO",
+    "CSV_SCAN",
+    "JSON_SCAN",
     "READ_TEXT",
     "READ_BLOB",
     "GLOB"
