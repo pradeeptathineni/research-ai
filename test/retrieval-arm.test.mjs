@@ -42,3 +42,30 @@ test("source byte changes alter corpus identity and invalid or excessive inputs 
     [[corpus()], Array.from({ length: 33 }, (_, i) => ({ id: `q:${i}`, text: "x" })), { researchRevision: revision }],
   ]) assert.throws(() => exportResearchRetrievalArm(notebooks, qs, options), /invalid_research_retrieval_arm/);
 });
+
+test("corpus sources map exact retained pages and note versions within the selected notebook scope", () => {
+  const selected = corpus();
+  let outside = createResearchNotebook("private-unselected-notebook");
+  outside = reviseResearchNotebook(outside, { type: "add-source", document: {
+    id: "source:secret", title: "UNSELECTED TITLE SECRET", sha256: sha("UNSELECTED DOC SECRET"),
+    pages: [page(1, "UNSELECTED CONTENT SECRET")],
+  } });
+  outside = reviseResearchNotebook(outside, { type: "add-note", title: "UNSELECTED NOTE SECRET", text: "UNSELECTED NOTE BODY SECRET" });
+  const arm = exportResearchRetrievalArm([selected], questions, { researchRevision: revision });
+  const pageEntry = arm.corpus.sources.find((entry) => entry.kind === "document");
+  const noteEntry = arm.corpus.sources.find((entry) => entry.kind === "note");
+  assert.ok(arm.corpus.source_ids.includes(pageEntry.id));
+  assert.ok(arm.corpus.source_ids.includes(noteEntry.id));
+  assert.deepEqual(pageEntry, {
+    id: pageEntry.id, notebook_id: selected.id, kind: "document",
+    record_id: selected.sources[0].id, page: 1, version: null, title: selected.sources[0].document.title,
+    content_sha256: selected.sources[0].document.pages[0].sha256,
+  });
+  assert.deepEqual(noteEntry, {
+    id: noteEntry.id, notebook_id: selected.id, kind: "note",
+    record_id: selected.notes[0].id, page: null, version: 1, title: selected.notes[0].versions[0].title,
+    content_sha256: selected.notes[0].versions[0].sha256,
+  });
+  assert.equal(JSON.stringify(arm).includes(outside.id), false);
+  assert.equal(JSON.stringify(arm).includes("UNSELECTED"), false);
+});

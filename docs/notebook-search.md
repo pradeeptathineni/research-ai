@@ -74,7 +74,10 @@ The corpus contains every selected retained document page and every retained
 note version. Stable `notebook-hit-…` IDs identify these records; a canonical
 SHA-256 over the ordered IDs and exact record hashes forms `corpus.id`. Thus
 changing only the retrieval mode preserves corpus identity, while changing a
-page or note-version hash changes it. Each question returns all matching hits
+page or note-version hash changes it. `corpus.sources` maps each hit ID to the
+exact selected notebook, source or note record, page or note version, title,
+and retained content hash. It contains no page or note body and no data from
+unselected notebooks. Each question returns all matching hits
 up to the existing 50-hit search bound; an over-bound ranking is refused.
 Question lists are limited to 32, and the existing notebook count, record, text,
 and query limits apply. No query expansion, model, network, judgment, ground

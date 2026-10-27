@@ -24,11 +24,15 @@ function collect(notebooks) {
   for (const n of checked) {
     for (const source of n.sources) for (const page of source.document.pages) {
       records.push({ id: hitId({ notebookId: n.id, kind: "document", recordId: source.id, version: null, page: page.number }),
-        sha256: hash(canonical({ source: source.digest, page: page.sha256 })) });
+        sha256: hash(canonical({ source: source.digest, page: page.sha256 })),
+        source: { notebook_id: n.id, kind: "document", record_id: source.id, page: page.number, version: null,
+          title: source.document.title, content_sha256: page.sha256 } });
     }
     for (const note of n.notes) for (const version of note.versions) {
       records.push({ id: hitId({ notebookId: n.id, kind: "note", recordId: note.id, version: version.version, page: null }),
-        sha256: version.sha256 });
+        sha256: version.sha256,
+        source: { notebook_id: n.id, kind: "note", record_id: note.id, page: null, version: version.version,
+          title: version.title, content_sha256: version.sha256 } });
     }
   }
   records.sort((a, b) => cmp(a.id, b.id));
@@ -56,7 +60,8 @@ export function exportResearchRetrievalArm(notebooks, questions, options = {}) {
   }
   const records = collect(notebooks);
   const sourceIds = records.map((r) => r.id);
-  const corpusId = `research-corpus-sha256:${hash(canonical(records))}`;
+  const corpusHashes = records.map(({ id, sha256 }) => ({ id, sha256 }));
+  const corpusId = `research-corpus-sha256:${hash(canonical(corpusHashes))}`;
   const rankings = {};
   for (const q of questions) {
     const result = searchResearchNotebooks(notebooks, q.text, { mode, kinds: ["document", "note"], noteVersions: "all", limit: notebookSearchLimits.hits });
@@ -65,7 +70,8 @@ export function exportResearchRetrievalArm(notebooks, questions, options = {}) {
   }
   return {
     format: "research-retrieval-arm-1",
-    corpus: { id: corpusId, source_ids: sourceIds, source_sha256: records.map((r) => ({ ...r })) },
+    corpus: { id: corpusId, source_ids: sourceIds, source_sha256: corpusHashes,
+      sources: records.map(({ id, source }) => ({ id, ...source })) },
     questions: questions.map(({ id, text }) => ({ id, text })),
     arm: { strategy: `research-lexical-${mode}`, provenance: {
       producer: "@pradeeptathineni/research-ai", version: "research-notebook-search-v1",
