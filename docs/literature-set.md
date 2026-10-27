@@ -37,3 +37,10 @@ const attributed = projectLiteratureStudyEvidence(prepared, result);
 ```
 
 If all selected rows are missing or excluded by status, `request` and `preview` are `null`; there is no coverage run to dispatch. The Signals owner remains responsible for acquisition and retained files. This module accepts frozen IDs, hashes and metadata supplied by the caller; it fetches no sources and provides no new research execution engine or durable store.
+
+After a retained coverage job returns, `exportLiteratureStudyPlanningSource(prepared, result, requestId)` creates a bounded Planning source from that exact prepared closure and result. It preserves the admission UUID, set and preparation digests, source and paper map, selected availability/status qualifications, reported execution status and answer coverage separately, exact citations and quotes, and stated gaps. `validateLiteratureStudyPlanningSource` recomputes the source from those same frozen values and refuses altered citations. Exported currentness is explicitly `frozen-snapshot-origin-not-checked`; the host must check owner currentness separately before a new dispatch. The exporter refuses text over 16,000 UTF-16 units or binding/qualification over 16 KiB; it never truncates papers or citations.
+
+```js
+const source = exportLiteratureStudyPlanningSource(prepared, result, requestId);
+const checked = validateLiteratureStudyPlanningSource(prepared, result, requestId, source);
+```

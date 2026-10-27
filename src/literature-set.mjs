@@ -404,6 +404,76 @@ export function projectLiteratureStudyEvidence(preparedValue, resultValue) {
     qualification: "Exact quote occurrence is retained. Support, truth, independence and currentness are not established by citation projection." };
 }
 
+/** Exports an exact cross-notebook answer as a qualified Planning source. */
+export function exportLiteratureStudyPlanningSource(preparedValue, resultValue, requestId) {
+  const prepared = validateLiteratureStudyQuestion(preparedValue);
+  if (typeof requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(requestId))
+    fail("Planning source needs the exact admission request UUID");
+  const projection = projectLiteratureStudyEvidence(prepared, resultValue);
+  if (projection.resultStatus !== "complete" || !["answered", "partial"].includes(projection.coverage)
+      || !projection.answer?.length || !projection.evidence.length)
+    fail("cross-notebook answer has no complete cited answer with answered or partial coverage");
+  const binding = {
+    owner: "research-literature-study",
+    literatureSetId: prepared.literatureSet.id,
+    literatureSetSha256: prepared.literatureSet.sha256,
+    requestId,
+    preparedSha256: prepared.sha256,
+    resultSha256: hash(canonical(validateDocumentCoverage(resultValue))),
+    sourceMap: clone(prepared.sourceMap),
+    selectedCoverage: clone(prepared.coverage.filter((row) => prepared.selectedPaperIds.includes(row.paperId) && row.disposition !== "included")),
+    citations: projection.evidence.map((item) => ({
+      evidenceId: item.id,
+      paperIds: item.paperReferences.map((paper) => paper.paperId),
+      sourceBinding: clone(item.sourceBinding),
+      sourceIndependence: item.sourceIndependence,
+      page: item.page,
+      start: item.start,
+      end: item.end,
+      quote: item.quote,
+      relation: item.relation,
+    })),
+  };
+  const qualification = {
+    executionStatus: projection.resultStatus,
+    reportedCoverage: projection.coverage,
+    gaps: clone(projection.gaps),
+    selectedCoverageSha256: hash(canonical(binding.selectedCoverage)),
+    sourceCurrentness: "frozen-snapshot-origin-not-checked",
+    claimLimit: projection.qualification,
+  };
+  const answers = projection.answer.map((row) => `- ${row.text} [${row.evidenceIds.join(", ")}]`);
+  const outputText = [
+    "Unverified cross-notebook Research answer",
+    `Question: ${projection.question}`,
+    `Literature set: ${prepared.literatureSet.id}.`,
+    `Execution status: ${projection.resultStatus}; reported answer coverage: ${projection.coverage}.`,
+    "",
+    ...answers,
+    ...(projection.gaps.length ? ["", "Qualifications and gaps:", ...projection.gaps.map((gap) => `- ${gap}`)] : []),
+    "",
+    "Citation IDs resolve to exact retained source passages. They do not establish entailment, truth, independence or currentness.",
+  ].join("\n");
+  if (!outputText.isWellFormed() || outputText.length > 16000) fail("Planning source text exceeds 16,000 UTF-16 units");
+  if (Buffer.byteLength(canonical(binding), "utf8") > 16 * 1024 || Buffer.byteLength(canonical(qualification), "utf8") > 16 * 1024)
+    fail("Planning source binding or qualification exceeds 16 KiB");
+  const output = {
+    id: `research-literature-study-${hash(canonical({ literatureSetId: prepared.literatureSet.id, preparedSha256: prepared.sha256, resultSha256: binding.resultSha256, requestId })).slice(0, 48)}`,
+    text: outputText,
+    binding,
+    qualification,
+  };
+  if (Buffer.byteLength(canonical(output), "utf8") > 2 * 1024 * 1024) fail("Planning source exceeds 2 MiB");
+  return output;
+}
+
+/** Cold-validates the exported Planning source against the exact frozen plan and result. */
+export function validateLiteratureStudyPlanningSource(prepared, result, requestId, candidate) {
+  const expected = exportLiteratureStudyPlanningSource(prepared, result, requestId);
+  if (!isDeepStrictEqual(candidate, expected)) fail("Planning source does not match the exact saved cross-notebook answer");
+  return expected;
+}
+
 /** Portable cold-open export: metadata and owner pointers only, with contradiction and status qualifications. */
 export function exportLiteratureSet(value) {
   const state = validateState(value);

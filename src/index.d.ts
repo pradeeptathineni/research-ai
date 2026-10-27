@@ -86,6 +86,26 @@ export function projectLiteratureStudyEvidence(value: PreparedLiteratureStudyQue
   evidence: Array<DocumentCoverageEvidence & { paperReferences: LiteratureStudyPaperReference[]; sourceBinding: NonNullable<LiteraturePaper["source"]>; sourceIndependence: "unknown" | "same-exact-source-aliases"; qualification: string[] }>;
   gaps: string[]; qualification: string;
 };
+export interface LiteratureStudyPlanningSource {
+  id: string;
+  text: string;
+  binding: {
+    owner: "research-literature-study";
+    literatureSetId: string;
+    literatureSetSha256: string;
+    requestId: string;
+    preparedSha256: string;
+    resultSha256: string;
+    sourceMap: PreparedLiteratureStudyQuestion["sourceMap"];
+    selectedCoverage: PreparedLiteratureStudyQuestion["coverage"];
+    citations: Array<{ evidenceId: string; paperIds: string[]; sourceBinding: NonNullable<LiteraturePaper["source"]>; sourceIndependence: "unknown" | "same-exact-source-aliases"; page: number; start: number; end: number; quote: string; relation: string }>;
+  };
+  qualification: { executionStatus: string; reportedCoverage: "answered" | "partial" | "insufficient" | null; gaps: string[]; selectedCoverageSha256: string; sourceCurrentness: "frozen-snapshot-origin-not-checked"; claimLimit: string };
+}
+/** Exports a complete cited cross-notebook answer with exact selected paper, source and quote closure. Refuses output above existing Planning text/binding limits. */
+export function exportLiteratureStudyPlanningSource(prepared: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult, requestId: string): LiteratureStudyPlanningSource;
+/** Recomputes an exported Planning source from its exact frozen question, coverage result and admission UUID. */
+export function validateLiteratureStudyPlanningSource(prepared: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult, requestId: string, candidate: unknown): LiteratureStudyPlanningSource;
 export function exportLiteratureSet(value: LiteratureSet): string;
 export function formatLiteratureSet(value: LiteratureSet): string;
 

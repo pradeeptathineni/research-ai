@@ -3,7 +3,8 @@ import { fakeCodex, message } from "./fake-codex.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { addLiteraturePaper, createLiteratureSet, createResearchNotebook, reviseResearchNotebook,
-  deduplicateLiteraturePapers, exportLiteratureSet, formatLiteratureSet, prepareLiteratureQuestion, prepareNotebookQuestion,
+  deduplicateLiteraturePapers, exportLiteratureSet, exportLiteratureStudyPlanningSource, validateLiteratureStudyPlanningSource,
+  formatLiteratureSet, prepareLiteratureQuestion, prepareNotebookQuestion,
   resolveLiteratureSet, rebindLiteratureSet, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion,
   checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, researchDocumentCoverage, prepareDocumentCoverage } from "../src/index.mjs";
 
@@ -248,6 +249,21 @@ test("cross-notebook literature coverage preserves exact source identity, qualif
   assert.equal(projectedB.relation, "conflicting");
   assert.equal(projectedB.sourceIndependence, "unknown");
   assert.equal(projectedB.paperReferences[0].source.notebookId, second.notebook.id);
+  const planningSource = exportLiteratureStudyPlanningSource(prepared, result, "00000000-0000-4000-8000-000000000091");
+  assert.equal(planningSource.binding.owner, "research-literature-study");
+  assert.equal(planningSource.binding.literatureSetSha256, set.sha256);
+  assert.equal(planningSource.binding.preparedSha256, prepared.sha256);
+  assert.equal(planningSource.binding.requestId, "00000000-0000-4000-8000-000000000091");
+  assert.equal(planningSource.qualification.executionStatus, "complete");
+  assert.equal(planningSource.qualification.reportedCoverage, "partial");
+  assert.deepEqual(planningSource.qualification.gaps, ["The reason for the disagreement is not established by this synthetic evidence."]);
+  assert.equal(planningSource.binding.selectedCoverage.find((row) => row.paperId === missing.id).statusEvidence.kind, "missing-source");
+  assert.equal(planningSource.binding.selectedCoverage.find((row) => row.paperId === retracted.id).statusEvidence.kind, "retraction");
+  assert.equal(planningSource.binding.citations.some((citation) => citation.quote && citation.paperIds.includes(firstAlias.id)), true);
+  assert.deepEqual(validateLiteratureStudyPlanningSource(cold, result, planningSource.binding.requestId, planningSource), planningSource);
+  const alteredPlanningSource = structuredClone(planningSource);
+  alteredPlanningSource.binding.citations[0].quote = "altered exact quote";
+  assert.throws(() => validateLiteratureStudyPlanningSource(cold, result, planningSource.binding.requestId, alteredPlanningSource), /exact saved cross-notebook answer/u);
   assert.equal(result.passes.every((pass) => pass.receipt.outcome.searches === 0), true);
   const tampered = structuredClone(prepared);
   tampered.sourceMap[0].papers[0].metadata.title = "Tampered paper mapping";

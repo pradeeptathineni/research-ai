@@ -1,7 +1,7 @@
 import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, planInvestigation, renderInvestigation, advanceInvestigation, resumeInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
 import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, InvestigationPlan, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
-import { createLiteratureSet, addLiteraturePaper, deduplicateLiteraturePapers, prepareLiteratureQuestion, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion, checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, formatLiteratureSet } from '@pradeeptathineni/research-ai';
-import type { LiteraturePaper, PreparedLiteratureStudyQuestion } from '@pradeeptathineni/research-ai';
+import { createLiteratureSet, addLiteraturePaper, deduplicateLiteraturePapers, prepareLiteratureQuestion, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion, checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, exportLiteratureStudyPlanningSource, validateLiteratureStudyPlanningSource, formatLiteratureSet } from '@pradeeptathineni/research-ai';
+import type { LiteraturePaper, PreparedLiteratureStudyQuestion, LiteratureStudyPlanningSource } from '@pradeeptathineni/research-ai';
 const literaturePaper: LiteraturePaper = { id: 'paper:fixture', metadata: { title: 'Synthetic paper' }, availability: 'missing', source: null,
   statusEvidence: { kind: 'missing-source', assertedBy: 'fixture', observedAt: '2026-10-27T12:00:00Z', verification: 'asserted-unverified', detail: 'Synthetic absence.' },
   finding: null, stance: null, claimKey: null, qualification: ['Source missing from fixture.'] };
@@ -15,7 +15,10 @@ const coldLiteraturePreview: PreparedLiteratureStudyQuestion = validateLiteratur
 const literatureCurrentness = checkLiteratureStudyQuestionSources(coldLiteraturePreview, literature, selectedLiteratureNotebooks);
 declare const coverageResult: DocumentCoverageResult;
 const literatureEvidence = projectLiteratureStudyEvidence(coldLiteraturePreview, coverageResult);
-void [dedupe, literatureExport, prepareLiteratureQuestion, literatureCurrentness, literatureEvidence];
+declare const admissionRequestId: string;
+const literaturePlanningSource: LiteratureStudyPlanningSource = exportLiteratureStudyPlanningSource(coldLiteraturePreview, coverageResult, admissionRequestId);
+const checkedLiteraturePlanningSource: LiteratureStudyPlanningSource = validateLiteratureStudyPlanningSource(coldLiteraturePreview, coverageResult, admissionRequestId, literaturePlanningSource);
+void [dedupe, literatureExport, prepareLiteratureQuestion, literatureCurrentness, literatureEvidence, checkedLiteraturePlanningSource];
 import { createPerspectiveWorkflow, validatePerspectiveWorkflow, perspectiveSpanContribution, renderPerspectiveWorkflow, reviewWorkflowOutlineCitations } from '@pradeeptathineni/research-ai';
 import type { ResearchPerspectiveWorkflow } from '@pradeeptathineni/research-ai';
 const workflowSources: FrozenSource[] = [{ uri: 'https://example.org/frozen', text: 'A frozen source.' }];
