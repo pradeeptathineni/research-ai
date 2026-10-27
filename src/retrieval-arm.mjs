@@ -42,6 +42,11 @@ function collect(notebooks) {
   return records;
 }
 
+// Shared with the answer-citation mapper so both surfaces use the same stable hit IDs.
+export function collectResearchRetrievalSources(notebooks) {
+  return collect(notebooks);
+}
+
 /** Exports one offline lexical retrieval arm suitable for combining with other frozen arms. */
 export function exportResearchRetrievalArm(notebooks, questions, options = {}) {
   if (!options || typeof options !== "object" || Array.isArray(options)

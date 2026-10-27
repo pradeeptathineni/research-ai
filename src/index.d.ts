@@ -1105,6 +1105,21 @@ export function exportResearchRetrievalArm(notebooks: ResearchNotebook[], questi
   mode?: "exact" | "prefix" | "fuzzy"; researchRevision: string;
 }): ResearchRetrievalArmExport;
 
+export interface ResearchAnswerCitationMap {
+  format: "research-answer-citation-map-1";
+  questions: Array<{
+    notebook_id: string; question_id: string; status: "mapped" | "partial" | "unresolved";
+    provenance: { notebook_sha256: string; question_scope_sha256: string; result_sha256: string };
+    citations: Array<{ evidence_id: string; answer_paragraphs: number[]; hit_id: string; notebook_id: string;
+      kind: NotebookSearchKind; record_id: string; page: number | null; version: number | null; title: string; content_sha256: string;
+      provenance: { notebook_sha256: string; question_scope_sha256: string; result_sha256: string; source_sha256: string } }>;
+    unresolved: Array<{ evidence_id: string | null; reason: string }>;
+  }>;
+  qualifications: string[];
+}
+/** Maps final saved answer evidence IDs to exact retained retrieval input identities; invalid citations refuse. */
+export function exportResearchAnswerCitationMap(notebooks: ResearchNotebook[], questionIds: string[]): ResearchAnswerCitationMap;
+
 export interface ResearchStudySelection {
   id: string;
   origin: { notebookId: string; notebookSha256: string; searchScope: Array<{ id: string; sha256: string }>; query: string; searchOptions: NotebookSearchOptions;

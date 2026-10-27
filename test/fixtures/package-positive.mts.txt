@@ -171,6 +171,11 @@ const lexicalArm: ResearchRetrievalArmExport = exportResearchRetrievalArm([reope
   { mode: 'prefix', researchRevision: 'pinned-research-revision' });
 void [retrievalExport.corpus.id, lexicalArm.arm.rankings['question:appeal']];
 
+import { exportResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
+import type { ResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
+const citationMap: ResearchAnswerCitationMap = exportResearchAnswerCitationMap([reopenedNotebook], ['question:appeal']);
+void citationMap.questions[0]?.citations[0]?.hit_id;
+
 
 import { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins,
   prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, renderResearchStudy,

@@ -85,6 +85,7 @@ test('an offline packed consumer qualifies CLI, ESM, types and ownership boundar
     expected.push('bin/research-notebook-search.mjs', 'docs/notebook-search.md', 'src/notebook-search.mjs',
       'src/notebook-search-NOTICE.txt', 'src/vendor/minisearch-7.2.0.mjs', 'src/vendor/minisearch-LICENSE.txt');
     expected.push('src/retrieval-arm.mjs');
+    expected.push('src/answer-citation-map.mjs');
     expected.push('bin/research-study.mjs', 'docs/research-study.md', 'src/study.mjs');
     expected.push('docs/literature-set.md', 'src/literature-set.mjs');
     expected.push('bin/research-perspective-workflow.mjs', 'docs/perspective-workflow.md', 'src/perspective-workflow.mjs');

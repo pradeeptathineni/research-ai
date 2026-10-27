@@ -83,3 +83,15 @@ Question lists are limited to 32, and the existing notebook count, record, text,
 and query limits apply. No query expansion, model, network, judgment, ground
 truth, or metric is involved. This is a producer arm, not a comparison result;
 the caller and Sandbox own evaluation.
+
+`exportResearchAnswerCitationMap(notebooks, questionIds)` replays the final
+saved answer evidence IDs for the explicitly selected retained questions via
+`getNotebookCitation`, then joins the validated notebook/record/page or exact
+note-version identity to the same stable hit IDs. Its `questions` entries keep
+the notebook, question-scope, and result digests; each mapped citation keeps
+the stable hit ID, exact input identity, retained content SHA, and source digest
+provenance. Invalid retained citation state refuses. A citation with no corpus
+identity remains explicitly unresolved. The map carries no quote/page/note body
+and makes no relevance, entailment, correctness, or ground-truth claim. It
+accepts at most 8 notebooks, 32 ordered question IDs, and 48 unique final
+evidence IDs across the selected questions.
