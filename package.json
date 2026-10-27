@@ -21,7 +21,8 @@
     "research-documents": "bin/research-documents.mjs",
     "research-table-query": "bin/research-table-query.mjs",
     "research-notebook": "bin/research-notebook.mjs",
-    "research-notebook-search": "bin/research-notebook-search.mjs"
+    "research-notebook-search": "bin/research-notebook-search.mjs",
+    "research-study": "bin/research-study.mjs"
   },
   "types": "./src/index.d.ts",
   "exports": {
@@ -55,7 +56,8 @@
     "docs/notebook-search.md",
     "src/notebook-search-NOTICE.txt",
     "src/vendor/minisearch-7.2.0.mjs",
-    "src/vendor/minisearch-LICENSE.txt"
+    "src/vendor/minisearch-LICENSE.txt",
+    "docs/research-study.md"
   ],
   "scripts": {
     "cli": "node bin/research-ai.mjs",

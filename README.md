@@ -530,3 +530,11 @@ validated notebook selection for retained source pages and note versions.
 exact retained page or version. The standalone `research-notebook-search`
 command supports offline `search` and `open` actions. See
 [notebook search](docs/notebook-search.md).
+
+`createResearchStudy` composes selected search hits from several notebooks into
+one portable study. Selections preserve the origin notebook digests and exact
+source or note versions, including the full source document behind a page hit.
+Question previews and answers are retained in the study; cold reopen validates
+the embedded evidence snapshots, while `checkResearchStudyOrigins` separately
+reports whether current notebooks still match. See [study sessions](docs/research-study.md)
+and the standalone `research-study --action ...` CLI.

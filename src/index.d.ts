@@ -954,6 +954,63 @@ export function openNotebookSearchHit(notebooks: ResearchNotebook[], result: Not
 };
 export const notebookSearchLimits: Readonly<{ notebooks: 8; records: 8000; utf16Units: 4000000; queryUtf16Units: 200; hits: 50; matches: 64; excerptUtf16Units: 600; resultBytes: 8388608; engine: NotebookSearchResult["engine"] }>;
 
+export interface ResearchStudySelection {
+  id: string;
+  origin: { notebookId: string; notebookSha256: string; searchScope: Array<{ id: string; sha256: string }>; query: string; searchOptions: NotebookSearchOptions;
+    searchInputDigest: string; searchResultSha256: string; hitId: string; kind: NotebookSearchKind;
+    recordId: string; version: number | null; documentId: string | null; page: number | null; sourceDigest: string };
+  document: ResearchDocumentInput;
+  noteVersion: ResearchNotebookNoteVersion | null;
+  contentSha256: string;
+  sha256: string;
+}
+export interface ResearchStudyQuestionSpec { id: string; question: string; selectionIds: string[] }
+export interface ResearchStudyQuestion {
+  id: string; question: string; selectionIds: string[]; selectionDigest: string;
+  sourceMap: Array<{ documentId: string; selectionId: string; notebookId: string; notebookSha256: string;
+    kind: NotebookSearchKind; recordId: string; version: number | null; sourceDigest: string; page: number | null }>;
+  policy: DocumentCoveragePolicy; request: { question: string; documents: ResearchDocumentInput[]; policy: DocumentCoveragePolicy };
+  planDigest: string; result: DocumentCoverageResult; sha256: string;
+}
+export interface ResearchStudy {
+  version: "research-study-v1"; id: string; title: string; revision: number;
+  selections: ResearchStudySelection[]; questions: ResearchStudyQuestion[]; sha256: string;
+}
+export type ResearchStudyEdit =
+  | { type: "select-hit"; notebooks: ResearchNotebook[]; search: NotebookSearchResult; hitId: string }
+  | { type: "deselect-hit"; selectionId: string };
+export interface PreparedResearchStudyQuestion {
+  version: "research-study-question-preview-v1"; studyId: string; studySha256: string;
+  spec: ResearchStudyQuestionSpec; selectionDigest: string; sourceMap: ResearchStudyQuestion["sourceMap"];
+  request: { question: string; documents: ResearchDocumentInput[]; policy: DocumentCoveragePolicy };
+  preview: { planDigest: string; inputDigest: string; counts: PreparedDocumentCoverage["counts"];
+    policy: DocumentCoveragePolicy; sources: Array<ResearchStudyQuestion["sourceMap"][number] & { pages: number }> };
+}
+export const researchStudyLimits: Readonly<{ selections: 16; questions: 32; selectedQuestionSources: 8; bytes: 16777216; schema: "research-study-v1" }>;
+/** Creates a portable composition of explicitly selected notebook evidence. */
+export function createResearchStudy(title: string, options?: { id?: string }): ResearchStudy;
+/** Adds a currently validated search hit or removes an unused selection. */
+export function reviseResearchStudy(study: ResearchStudy, edit: ResearchStudyEdit): ResearchStudy;
+/** Cold-validates the complete study from its embedded immutable source/note snapshots. */
+export function validateResearchStudy(value: unknown): ResearchStudy;
+/** Reports whether selected origin notebook versions are still current, changed, or missing. */
+export function checkResearchStudyOrigins(study: ResearchStudy, notebooks: ResearchNotebook[]): Array<{
+  selectionId: string; notebookId: string; status: "current" | "changed" | "missing"; detail: "current" | "selected_record_missing" | "selected_version_changed" | "notebook_changed_selected_version_matches";
+  expectedNotebookSha256: string; currentNotebookSha256: string | null; expectedSourceDigest?: string; currentSourceDigest?: string | null;
+}>;
+/** Prepares a question from 1-8 complete selected records retained in the study. */
+export function prepareResearchStudyQuestion(study: ResearchStudy, spec: ResearchStudyQuestionSpec, policy?: Partial<DocumentCoveragePolicy>): PreparedResearchStudyQuestion;
+/** Records a coverage result after replaying its exact selected sources and plan. */
+export function recordResearchStudyQuestion(study: ResearchStudy, prepared: PreparedResearchStudyQuestion, result: DocumentCoverageResult): ResearchStudy;
+/** Opens the exact cited page and immutable original selection after cold reopen. */
+export function getResearchStudyCitation(study: ResearchStudy, questionId: string, evidenceId: string): {
+  evidence: DocumentCoverageEvidence; page: ResearchDocumentInput["pages"][number]; document: ResearchDocumentInput;
+  selection: ResearchStudySelection; source: { kind: "note"; noteVersion: ResearchNotebookNoteVersion } | { kind: "document"; notebookId: string; recordId: string; digest: string };
+};
+/** Exports the validated portable study as JSON or Markdown. */
+export function renderResearchStudy(study: ResearchStudy, options?: { format?: "json" | "markdown" }): string;
+
+
 
 export interface TableQueryBinding { name: string; table: ResearchTable }
 export interface TableQuery { sql: string; parameters: Array<string | number | boolean | null> }

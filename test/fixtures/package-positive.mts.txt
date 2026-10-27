@@ -133,3 +133,16 @@ const searchResult: NotebookSearchResult = searchResearchNotebooks([reopenedNote
 const searchHit: NotebookSearchHit | undefined = searchResult.hits[0];
 if (searchHit) openNotebookSearchHit([reopenedNotebook], searchResult, searchHit.id);
 void notebookSearchLimits.engine.sha256;
+
+
+import { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins,
+  prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, renderResearchStudy,
+  researchStudyLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchStudy, ResearchStudyEdit, ResearchStudyQuestionSpec, PreparedResearchStudyQuestion } from '@pradeeptathineni/research-ai';
+const study: ResearchStudy = createResearchStudy('Portable study');
+const studyEdit: ResearchStudyEdit = { type: 'deselect-hit', selectionId: 'study-selection:4f7d831d-fb2b-4a4b-89f4-c06c8f086999' };
+const editedStudy = reviseResearchStudy(validateResearchStudy(study), studyEdit);
+const studySpec: ResearchStudyQuestionSpec = { id: 'study-question:4f7d831d-fb2b-4a4b-89f4-c06c8f086999', question: 'Question', selectionIds: [] };
+const studyPreview = null as unknown as PreparedResearchStudyQuestion;
+void [checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation,
+  renderResearchStudy(editedStudy), researchStudyLimits.bytes, studySpec, studyPreview];
