@@ -18,7 +18,7 @@ Open [the workbench](http://127.0.0.1:5178/signals-ai/). Browsing saved knowledg
 
 Other installed applications can use the [local provider interface](docs/provider-interface.md) to negotiate owner capabilities and read exact retained records over loopback HTTP, without sibling source imports. Native readiness and permission to start research remain separate.
 
-[Connected knowledge](docs/connected-knowledge.md) adds explicit Planning/Principles export readers and private named topics. Search across retained owners, select exact records, keep links and open questions, then reopen after restart with visible changed, missing or unavailable source status. This deterministic operation requires no model service.
+[Connected knowledge](docs/connected-knowledge.md) adds explicit Planning/Principles export readers and private named topics. Search across retained owners, select exact records, keep links and open questions, then reopen after restart with visible changed, missing or unavailable source status. [Project-topic relevance](docs/project-topic-relevance.md) records a human judgment against exact topic and project versions. These deterministic operations require no model service.
 
 Library returns immediate phrase, prefix and typo matches over retained metadata. In Settings → Personal Library, you can permit one no-web meaning match per submitted question. Its disclosure lists the metadata sent to your authenticated AI host; notes, projects, source text and credentials are excluded. Literal results remain available if matching is disabled, unavailable or cancelled. Public Pages uses literal retrieval only.
 

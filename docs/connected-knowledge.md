@@ -93,6 +93,15 @@ to 100 references and 32 metadata versions per reference under the existing two 
 limit; overflow refuses the whole write without truncating history. These owner commands add no
 HTTP route or automatic provider/publication path.
 
+## Record project relevance for a topic
+
+Use [project-topic relevance](project-topic-relevance.md) to retain a human judgment about
+one exact topic revision for one connected project's declared purpose and optional saved
+opportunity. The immutable review can cite an exact source-change review as context, but
+Signals does not decide whether that change affects the project. A changed topic, project
+purpose or constraint, opportunity, or selected source identity is surfaced for review;
+the prior judgment stays readable and is not silently transferred.
+
 ## Save, triage and freeze a query
 
 Smart collections save a bounded text query with optional explicit owners, result kinds,

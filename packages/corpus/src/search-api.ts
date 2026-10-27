@@ -19,6 +19,13 @@ import {
   SourceChangeReviewError,
 } from './source-change-reviews.js';
 import {
+  createProjectTopicRelevance,
+  listProjectTopicRelevance,
+  previewProjectTopicRelevance,
+  ProjectTopicRelevanceError,
+  readProjectTopicRelevance,
+} from './project-topic-relevance.js';
+import {
   compareSourceRenderAttachments,
   openSourceRender,
   readSourceRenderBlob,
@@ -700,6 +707,52 @@ export function searchApi(
               'Review reopen does not accept query fields.',
             );
           json(200, await readSourceChangeReview(root, route.split('/')[1]!));
+        } else {
+          json(404, { code: 'unknown_operation' });
+        }
+      } else if (
+        route === 'project-topic-relevance' ||
+        route.startsWith('project-topic-relevance/')
+      ) {
+        await validateProcessObserver(
+          root,
+          request.headers['x-signals-provider-version'],
+          request.headers['x-signals-instance-id'],
+          request.headers['x-signals-owner-epoch'],
+        );
+        const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        if (route === 'project-topic-relevance' && mutation) {
+          if (params.size)
+            throw new ProjectTopicRelevanceError(
+              400,
+              'invalid_project_topic_relevance',
+              'Review creation does not accept query fields.',
+            );
+          json(201, await createProjectTopicRelevance(root, body));
+        } else if (route === 'project-topic-relevance' && !mutation) {
+          if (params.size)
+            throw new ProjectTopicRelevanceError(
+              400,
+              'invalid_project_topic_relevance',
+              'Review listing does not accept query fields.',
+            );
+          json(200, await listProjectTopicRelevance(root));
+        } else if (route === 'project-topic-relevance/preview' && mutation) {
+          if (params.size)
+            throw new ProjectTopicRelevanceError(
+              400,
+              'invalid_project_topic_relevance',
+              'Preview does not accept query fields.',
+            );
+          json(200, await previewProjectTopicRelevance(root, body));
+        } else if (/^project-topic-relevance\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (params.size)
+            throw new ProjectTopicRelevanceError(
+              400,
+              'invalid_project_topic_relevance',
+              'Review reopen does not accept query fields.',
+            );
+          json(200, await readProjectTopicRelevance(root, route.split('/')[1]!));
         } else {
           json(404, { code: 'unknown_operation' });
         }
@@ -1842,6 +1895,10 @@ export function searchApi(
         json(200, { cleaned: true, retainedHistory: 'preserved' });
       } else json(404, { code: 'unknown_operation' });
     } catch (failure) {
+      if (failure instanceof ProjectTopicRelevanceError) {
+        json(failure.status, { code: failure.code, reason: failure.reason });
+        return true;
+      }
       if (failure instanceof SourceChangeReviewError) {
         json(failure.status, { code: failure.code, reason: failure.reason });
         return true;

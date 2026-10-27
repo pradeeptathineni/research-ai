@@ -56,7 +56,7 @@ function projectIn(state: ProjectState, id: string, connected = true): Project {
     throw new Error('unknown_or_disconnected_project');
   return project;
 }
-const contextDigest = (project: Project) =>
+export const projectContextFingerprint = (project: Project) =>
   digest(
     JSON.stringify({
       source: project.snapshot.digest,
@@ -64,6 +64,7 @@ const contextDigest = (project: Project) =>
       constraints: project.constraints,
     }),
   );
+const contextDigest = projectContextFingerprint;
 const historyLimit = 64;
 async function historyNames(root: string, id: string) {
   checked(projectIdSchema, { id });
