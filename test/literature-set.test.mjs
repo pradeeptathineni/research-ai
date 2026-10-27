@@ -5,9 +5,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { addLiteraturePaper, createLiteratureSet, createResearchNotebook, reviseResearchNotebook,
   deduplicateLiteraturePapers, exportLiteratureSet, formatLiteratureSet, prepareLiteratureQuestion, prepareNotebookQuestion,
   resolveLiteratureSet, rebindLiteratureSet, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion,
-  checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, researchDocumentCoverage } from "../src/index.mjs";
+  checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, researchDocumentCoverage, prepareDocumentCoverage } from "../src/index.mjs";
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
+const canonical = (value) => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
+  : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
+    : JSON.stringify(value);
 const id = (p) => `${p}:${randomUUID()}`;
 const pageText = "Randomized trial reports intervention reduced endpoint by 12 percent.";
 const doc = { id: "paper-doc-1", title: "Trial article", sha256: sha("caller document digest"), pages: [{ number: 1, text: pageText, sha256: sha(pageText) }] };
@@ -249,4 +252,16 @@ test("cross-notebook literature coverage preserves exact source identity, qualif
   const tampered = structuredClone(prepared);
   tampered.sourceMap[0].papers[0].metadata.title = "Tampered paper mapping";
   assert.throws(() => validateLiteratureStudyQuestion(tampered), /source map paper binding|prepared source attribution/u);
+
+  const alteredPageClosure = structuredClone(prepared);
+  const firstCoverageDocument = alteredPageClosure.request.documents[0];
+  const changedPageText = `${firstCoverageDocument.pages[0].text} Altered after source selection.`;
+  firstCoverageDocument.pages[0] = { number: 1, text: changedPageText, sha256: sha(changedPageText) };
+  alteredPageClosure.preview = prepareDocumentCoverage(alteredPageClosure.request.question,
+    alteredPageClosure.request.documents, alteredPageClosure.request.policy);
+  const { sha256: _priorPreparedDigest, ...alteredPayload } = alteredPageClosure;
+  alteredPageClosure.sha256 = sha(canonical(alteredPayload));
+  assert.deepEqual(alteredPageClosure.literatureSet, prepared.literatureSet);
+  assert.deepEqual(alteredPageClosure.sourceMap[0].sourceBinding, prepared.sourceMap[0].sourceBinding);
+  assert.throws(() => validateLiteratureStudyQuestion(alteredPageClosure), /retained source digest changed/u);
 });

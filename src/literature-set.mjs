@@ -346,8 +346,10 @@ export function validateLiteratureStudyQuestion(value) {
     const plan = prepareDocumentCoverage(value.request.question, value.request.documents, value.request.policy);
     if (!isDeepStrictEqual(value.preview, plan) || sourceMap.some((entry) => {
       const doc = docsById.get(entry.coverageDocumentId);
-      return !doc || doc.id !== entry.coverageDocumentId || doc.sha256 !== entry.sourceBinding.documentSha256;
-    })) fail("prepared coverage plan or document binding changed");
+      if (!doc || doc.id !== entry.coverageDocumentId || doc.sha256 !== entry.sourceBinding.documentSha256) return true;
+      const originalDocument = { ...doc, id: entry.sourceBinding.documentId };
+      return hash(canonical(originalDocument)) !== entry.sourceBinding.sourceDigest;
+    })) fail("prepared coverage plan or retained source digest changed");
   }
   if (literatureStudyDigest(value) !== value.sha256) fail("prepared digest mismatch");
   return clone(value);

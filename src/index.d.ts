@@ -74,7 +74,10 @@ export function validateLiteratureStudyQuestion(value: unknown): PreparedLiterat
 export function checkLiteratureStudyQuestionSources(value: PreparedLiteratureStudyQuestion, currentSet: LiteratureSet, notebooks: unknown[]): {
   schema: "research-literature-study-currentness-v1";
   literatureSet: { status: "current" | "changed"; expectedSha256: string; currentSha256: string };
-  sources: Array<{ coverageDocumentId: string; status: "current" | "missing" | "changed"; notebookId: string; notebookSha256?: string; sourceId: string; sourceDigest?: string | null; documentId?: string | null; documentSha256?: string | null }>;
+  sources: Array<
+    | { coverageDocumentId: string; status: "current" | "changed"; notebookId: string; notebookSha256: string; sourceId: string; sourceDigest: string; documentId: string; documentSha256: string }
+    | { coverageDocumentId: string; status: "missing"; notebookId: string; sourceId: string; notebookSha256?: string; sourceDigest?: null; documentId?: null; documentSha256?: null }
+  >;
 };
 export function projectLiteratureStudyEvidence(value: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult): {
   schema: "research-literature-study-evidence-v1"; literatureSetId: string; literatureSetSha256: string; question: string;
