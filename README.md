@@ -560,6 +560,17 @@ and decimals remain strings. `validateTableQueryResult` reopens a completed
 artifact offline, optionally checking its original registered tables, without
 running SQL. Consumers own persistence. See [query examples and limits](docs/table-query.md).
 
+### Reproducible table analysis
+
+`createAnalysis` binds up to six ordered SELECT steps to exact registered
+datasets. `compileStep` and `prepareAnalysisQuery` expose the owner-compiled CTE
+SQL and digests; `runAnalysisTarget` executes one rows, profile or chart target
+through the same DuckDB worker. Saved runs validate and export offline.
+Notebook admission rejects mutation, dynamic SQL, comments, parameters and
+multiple statements; the lexical guard is best-effort and complements the
+worker's disposable in-memory and external-access-disabled settings. See
+[table analysis notebooks](docs/table-notebook.md) for the limits and DTO.
+
 ## Portable Research notebooks
 
 `createResearchNotebook` keeps complete retained documents, versioned editable

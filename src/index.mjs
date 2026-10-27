@@ -16,6 +16,8 @@ export { documentResearchLimits, prepareDocumentResearch, researchDocuments, val
 export { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from './document-coverage.mjs';
 
 export { prepareTableQuery, queryTables, validateTableQueryResult, tableQueryLimits } from './table-query.mjs';
+export { tableNotebookLimits, validateAnalysis, createAnalysis, compileStep, compileChart, prepareAnalysisQuery,
+  runAnalysisTarget, profileFromResults, chartSeries, buildAnalysisRun, validateAnalysisRun, exportAnalysisBundle } from './table-notebook.mjs';
 export { researchNotebookLimits, createResearchNotebook, validateResearchNotebook, reviseResearchNotebook,
   prepareNotebookQuestion, recordNotebookQuestion, saveNotebookQuestionAsNote, getNotebookCitation,
   renderResearchNotebook } from './notebook.mjs';

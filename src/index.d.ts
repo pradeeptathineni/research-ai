@@ -1166,3 +1166,32 @@ export function prepareTableQuery(tables: TableQueryBinding[], query: TableQuery
 export function queryTables(tables: TableQueryBinding[], query: TableQuery, options: {engineRoot: string; signal?: AbortSignal; timeoutMs?: number}): Promise<TableQueryResult>;
 export function validateTableQueryResult(value: unknown, options?: {tables?: TableQueryBinding[]}): TableQueryComplete;
 export const tableQueryLimits: Readonly<{tables: 4; inputBytes: 2000000; sqlUnits: 8000; parameters: 32; rows: 1000; columns: 32; resultBytes: 2000000; timeoutMs: 2000; cleanupGraceMs: 300}>;
+
+export interface ResearchTableAnalysis {
+  version: 'research-table-analysis-v1'; id: string; revision: number; parent_digest: string | null; title: string;
+  tables: Array<{name: string; id: string; sha256: string}>;
+  steps: Array<{name: `s${number}`; sql: string; note?: string}>;
+  chart: null | {mark: 'bar'|'line'|'scatter'; step: `s${number}`; x: string; y: string|null; aggregate: 'none'|'count'|'sum'|'avg'|'min'|'max'; series: string|null; order: 'x'|'y-desc'};
+  analysis_digest: string;
+}
+export interface ResearchTableAnalysisInput {
+  id?: string; revision?: number; parent_digest?: string | null; title: string;
+  tables: Array<{name: string; id: string; sha256: string}>;
+  steps: Array<{name: `s${number}`; sql: string; note?: string}>;
+  chart?: ResearchTableAnalysis['chart'];
+}
+export type AnalysisTarget = {kind:'step';step:string;mode:'rows'|'profile';columns?:TableQueryColumn[]} | {kind:'chart';columns:TableQueryColumn[]};
+export interface ResearchAnalysisRunEntry {target: AnalysisTarget; state:'complete'|'failed'|'unknown'|'not_started'; query_digest:string; input_digest?:string; result_sha256?:string; artifact?:TableQueryComplete; error?:string; reason?:'deadline'|'aborted'|'worker_cleanup_unconfirmed'}
+export interface ResearchAnalysisRun {version:'research-table-analysis-run-v1';id:string;analysis_digest:string;state:'complete'|'failed'|'unknown'|'halted'|'interrupted';entries:ResearchAnalysisRunEntry[];run_digest:string}
+export const tableNotebookLimits: Readonly<{tables:4;steps:6;titleUnits:120;noteUnits:500;totalSqlUnits:7600;bundleBytes:4000000}>;
+export function createAnalysis(input: ResearchTableAnalysisInput): ResearchTableAnalysis;
+export function validateAnalysis(value: unknown): ResearchTableAnalysis;
+export function compileStep(analysis: ResearchTableAnalysis, step: string, mode?:'rows'|'profile', columns?:TableQueryColumn[]): TableQuery;
+export function compileChart(analysis: ResearchTableAnalysis, resultColumns: TableQueryColumn[]): TableQuery;
+export function prepareAnalysisQuery(analysis: ResearchTableAnalysis, tables: TableQueryBinding[], target: AnalysisTarget): TableQueryPreview & {target:AnalysisTarget;analysis_digest:string};
+export function runAnalysisTarget(analysis: ResearchTableAnalysis, tables: TableQueryBinding[], target: AnalysisTarget, options:{engineRoot:string;signal?:AbortSignal}): Promise<TableQueryResult>;
+export function profileFromResults(rows:TableQueryComplete, profile:TableQueryComplete, options:{analysis:ResearchTableAnalysis;step:string}): {row_count:string|null;columns:Array<{id:string;label:string;sql_type:string;representation:TableQueryColumn['representation'];null_count:string|null;profiled:boolean;flags:string[]}>;qualifications:string[]};
+export function chartSeries(result:TableQueryComplete, spec:NonNullable<ResearchTableAnalysis['chart']>): {points:Array<{x:string|null;series?:string|null;y:string|null}>;caption:string;disclosures:string[]};
+export function buildAnalysisRun(analysis:ResearchTableAnalysis, entries:Array<{target:AnalysisTarget;result:TableQueryResult}>, options?:{id?:string}): ResearchAnalysisRun;
+export function validateAnalysisRun(run:unknown, options:{analysis:ResearchTableAnalysis;tables?:TableQueryBinding[]}): ResearchAnalysisRun;
+export function exportAnalysisBundle(analysis:ResearchTableAnalysis, run:ResearchAnalysisRun, options?:{includeSourceRows?:boolean}): string;

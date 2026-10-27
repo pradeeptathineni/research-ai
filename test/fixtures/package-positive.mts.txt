@@ -140,6 +140,12 @@ declare const savedSqlResult: unknown;
 const reopenedSql: TableQueryComplete = validateTableQueryResult(savedSqlResult, {tables:sqlBindings});
 void [sqlPreview.inputs[0]?.row_column,sqlResult,reopenedSql.result_sha256,tableQueryLimits.rows];
 
+import {createAnalysis, compileStep, tableNotebookLimits} from '@pradeeptathineni/research-ai';
+import type {ResearchTableAnalysis} from '@pradeeptathineni/research-ai';
+const tableAnalysis: ResearchTableAnalysis = createAnalysis({id:'analysis-types',title:'Typed analysis',tables:[{name:'sample',id:suppliedTable.id,sha256:suppliedTable.sha256}],steps:[{name:'s1',sql:'SELECT c0 FROM sample'}]});
+const compiledStep = compileStep(tableAnalysis,'s1');
+void [compiledStep.sql, tableNotebookLimits.steps];
+
 import { createResearchNotebook, reviseResearchNotebook, prepareNotebookQuestion, validateResearchNotebook, renderResearchNotebook, researchNotebookLimits } from '@pradeeptathineni/research-ai';
 import type { ResearchNotebook, ResearchNotebookQuestionSpec, PreparedNotebookQuestion } from '@pradeeptathineni/research-ai';
 const notebook: ResearchNotebook = createResearchNotebook('Portable research');
