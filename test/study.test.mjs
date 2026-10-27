@@ -4,10 +4,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  checkResearchStudyOrigins, createResearchNotebook, createResearchStudy, getResearchStudyCitation,
+  checkResearchStudyOrigins, createResearchNotebook, createResearchStudy, exportResearchStudyPlanningSource, getResearchStudyCitation,
   prepareResearchStudyQuestion, recordResearchStudyQuestion, renderResearchStudy, renderResearchNotebook, reviseResearchNotebook,
   reviseResearchStudy, researchDocumentCoverage, searchResearchNotebooks, validateResearchStudy,
-  saveResearchStudyQuestionAsNotebookNote,
+  saveResearchStudyQuestionAsNotebookNote, validateResearchStudyPlanningSource,
 } from "../src/index.mjs";
 import { fakeCodex, message } from "./fake-codex.mjs";
 
@@ -58,7 +58,7 @@ test("two-notebook full-source and exact-note selection survives question, citat
     reply({ answer: [{ text: "The report states a measured yield.", evidenceIds: ["report"] }, { text: "The note defines the scope.", evidenceIds: ["scope"] }],
       evidence: [{ id: "report", windowId: "w0002", quote: sourceQuote, relation: "supporting", occurrence: null },
         { id: "scope", windowId: "w0003", quote: noteQuote, relation: "context", occurrence: null }], coverage: "partial", gaps: ["No independent replication was selected."] }),
-    reply({ answer: [{ text: "The selected report measures 17 units; the selected note limits the comparison to the observed yield.", evidenceIds: ["p01-e01", "p01-e02"] }], coverage: "answered", gaps: [] }),
+    reply({ answer: [{ text: "The selected report measures 17 units; the selected note limits the comparison to the observed yield.", evidenceIds: ["p01-e01", "p01-e02"] }], coverage: "partial", gaps: ["No independent replication was selected."] }),
   ];
   const fixture = await fakeCodex({ sessions });
   let result;
@@ -77,6 +77,45 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.deepEqual(recordResearchStudyQuestion(study, prepared, result), study, "repeated identical result is idempotent");
   const reopened = validateResearchStudy(JSON.parse(renderResearchStudy(study, { format: "json" })));
   assert.deepEqual(reopened, study);
+  const planningSource = exportResearchStudyPlanningSource(reopened, spec.id);
+  assert.equal(planningSource.binding.owner, "research-study");
+  assert.equal(planningSource.binding.studyId, reopened.id);
+  assert.equal(planningSource.binding.questionId, spec.id);
+  assert.equal(planningSource.binding.questionSha256, reopened.questions[0].sha256);
+  assert.equal(planningSource.qualification.coverage, "partial");
+  assert.deepEqual(planningSource.qualification.gaps, ["No independent replication was selected."]);
+  assert.match(planningSource.text, /No independent replication was selected/);
+  assert.equal(planningSource.binding.citations.length, 2);
+  assert.ok(planningSource.binding.sourceSnapshots.some((entry) => entry.kind === "document" && entry.documentId === "source-record"));
+  assert.ok(planningSource.binding.sourceSnapshots.some((entry) => entry.kind === "note" && entry.recordId === notebooks[1].notes[0].id && entry.version === 1), JSON.stringify(planningSource.binding.sourceSnapshots));
+  assert.match(planningSource.text, /answer|report/i);
+  assert.match(planningSource.text, /Citations identify exact retained occurrences/);
+  assert.doesNotMatch(planningSource.text, /This unverified note defines scope/);
+  assert.deepEqual(validateResearchStudyPlanningSource(reopened, spec.id, planningSource), planningSource);
+  const studyCli = fileURLToPath(new URL("../bin/research-study.mjs", import.meta.url));
+  const cliExport = spawnSync(process.execPath, [studyCli, "--action", "planning-source"], {
+    input: JSON.stringify({ study: reopened, questionId: spec.id }), encoding: "utf8", timeout: 30000,
+  });
+  assert.equal(cliExport.status, 0, cliExport.stderr);
+  assert.deepEqual(JSON.parse(cliExport.stdout), planningSource);
+  const cliValidation = spawnSync(process.execPath, [studyCli, "--action", "validate-planning-source"], {
+    input: JSON.stringify({ study: reopened, questionId: spec.id, source: planningSource }), encoding: "utf8", timeout: 30000,
+  });
+  assert.equal(cliValidation.status, 0, cliValidation.stderr);
+  assert.deepEqual(JSON.parse(cliValidation.stdout), planningSource);
+  const extendedNotebook = reviseResearchNotebook(createResearchNotebook("Unrelated private notebook"), {
+    type: "add-source", document: doc("unrelated-secret", "Unrelated private title", [page(1, "Unrelated private body must not leak.")]),
+  });
+  const unrelatedSearch = searchResearchNotebooks([extendedNotebook], "unrelated", { kinds: ["document"] });
+  const extendedStudy = reviseResearchStudy(reopened, { type: "select-hit", notebooks: [extendedNotebook], search: unrelatedSearch, hitId: unrelatedSearch.hits[0].id });
+  const afterUnrelatedSelection = exportResearchStudyPlanningSource(extendedStudy, spec.id);
+  assert.equal(afterUnrelatedSelection.id, planningSource.id, "the immutable question/result locator is independent of later unrelated study revisions");
+  assert.deepEqual(afterUnrelatedSelection, planningSource);
+  assert.throws(() => validateResearchStudyPlanningSource(reopened, spec.id, { ...planningSource, text: `${planningSource.text} altered` }), /does not match/);
+  const changedQuote = structuredClone(planningSource);
+  changedQuote.binding.citations[0].quote += " altered";
+  assert.throws(() => validateResearchStudyPlanningSource(reopened, spec.id, changedQuote), /does not match/);
+  assert.throws(() => validateResearchStudyPlanningSource(extendedStudy, spec.id, { ...planningSource, binding: { ...planningSource.binding, sourceSnapshots: [] } }), /does not match/);
   const citation = getResearchStudyCitation(reopened, spec.id, "p01-e02");
   assert.equal(citation.source.kind, "note");
   assert.match(citation.selection.document.title, /^Unverified note:/);
@@ -90,8 +129,8 @@ test("two-notebook full-source and exact-note selection survives question, citat
   assert.equal(savedVersion.origin.studyId, reopened.id);
   assert.equal(savedVersion.origin.questionId, spec.id);
   assert.equal(savedVersion.origin.studySha256, reopened.sha256);
-  assert.match(savedVersion.text, /Coverage reported: answered/);
-  assert.doesNotMatch(savedVersion.text, /Qualifications and gaps/);
+  assert.match(savedVersion.text, /Coverage reported: partial/);
+  assert.match(savedVersion.text, /No independent replication was selected/);
   assert.match(savedVersion.text, /unverified note: Scope memo/);
   assert.deepEqual(JSON.parse(renderResearchNotebook(saved)).notes[0].versions[0], savedVersion);
   assert.deepEqual(getResearchStudyCitation(reopened, spec.id, "p01-e02"), citation, "study citation remains reopenable after note projection");

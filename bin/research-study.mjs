@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Minimal offline CLI for composing cross-notebook study sessions from exact search results.
 import {
-  checkResearchStudyOrigins, createResearchStudy, getResearchStudyCitation, prepareResearchStudyQuestion,
-  recordResearchStudyQuestion, renderResearchStudy, reviseResearchStudy, saveResearchStudyQuestionAsNotebookNote, validateResearchStudy,
+  checkResearchStudyOrigins, createResearchStudy, exportResearchStudyPlanningSource, getResearchStudyCitation, prepareResearchStudyQuestion,
+  recordResearchStudyQuestion, renderResearchStudy, reviseResearchStudy, saveResearchStudyQuestionAsNotebookNote, validateResearchStudy, validateResearchStudyPlanningSource,
 } from "../src/index.mjs";
-const actions = ["create", "select", "deselect", "validate", "origins", "preview", "record", "citation", "save-note", "render"];
+const actions = ["create", "select", "deselect", "validate", "origins", "preview", "record", "citation", "planning-source", "validate-planning-source", "save-note", "render"];
 const usage = `Usage: research-study --action ${actions.join("|")}\nRead one bounded UTF-8 JSON request from stdin and write JSON to stdout. Selection input names the origin notebooks, exact notebook-search result, and hit ID. Question preparation uses the full selected source document or exact unverified note version retained in the study.`;
 const write = (value) => process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 const fail = (error) => { process.stderr.write(`${error.message ?? error}\n`); process.exitCode = 1; };
@@ -30,6 +30,8 @@ async function main() {
   if (action === "preview") { requireFields(input, ["study", "spec"], ["policy"]); write(prepareResearchStudyQuestion(input.study, input.spec, input.policy)); return; }
   if (action === "record") { requireFields(input, ["study", "prepared", "result"]); write(recordResearchStudyQuestion(input.study, input.prepared, input.result)); return; }
   if (action === "citation") { requireFields(input, ["study", "questionId", "evidenceId"]); write(getResearchStudyCitation(input.study, input.questionId, input.evidenceId)); return; }
+  if (action === "planning-source") { requireFields(input, ["study", "questionId"]); write(exportResearchStudyPlanningSource(input.study, input.questionId)); return; }
+  if (action === "validate-planning-source") { requireFields(input, ["study", "questionId", "source"]); write(validateResearchStudyPlanningSource(input.study, input.questionId, input.source)); return; }
   if (action === "save-note") { requireFields(input, ["study", "notebook", "questionId"], ["title", "id"]); write(saveResearchStudyQuestionAsNotebookNote(input.study, input.notebook, input.questionId, { title: input.title, id: input.id })); return; }
   requireFields(input, ["study"], ["format"]); process.stdout.write(renderResearchStudy(input.study, { format: input.format ?? "markdown" }));
 }

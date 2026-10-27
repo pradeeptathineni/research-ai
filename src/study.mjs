@@ -261,6 +261,80 @@ export function getResearchStudyCitation(value, questionId, evidenceId) {
       : { kind: "document", notebookId: selection.origin.notebookId, recordId: selection.origin.recordId, digest: selection.origin.sourceDigest } };
 }
 
+const planningSourceLimit = 20000;
+function buildStudyPlanningSource(studyValue, questionId) {
+  const study = validateState(studyValue);
+  id("study-question", questionId);
+  const question = study.questions.find((entry) => entry.id === questionId);
+  if (!question) invalid("question is not retained in this study");
+  const draft = question.result.draft;
+  if (question.result.status !== "complete" || !draft || !["answered", "partial"].includes(draft.coverage)
+      || !Array.isArray(draft.answer) || draft.answer.length < 1 || draft.answer.length > 24)
+    invalid("study question has no complete nonempty answer with answered or partial coverage");
+  if (draft.coverage === "partial" && draft.gaps.length === 0) invalid("partial study answer has no stated qualification");
+
+  const evidenceById = new Map(draft.evidence.map((item) => [item.id, item]));
+  const sourceSnapshots = [], selectedById = new Map();
+  const citations = [];
+  const renderedAnswers = draft.answer.map((row, answerParagraph) => {
+    if (typeof row.text !== "string" || !row.text.trim() || row.text.length > 1200
+        || !Array.isArray(row.evidenceIds) || row.evidenceIds.length < 1 || row.evidenceIds.length > 48)
+      invalid("study answer paragraph is not bounded and evidence-cited");
+    const markers = [];
+    for (const evidenceId of row.evidenceIds) {
+      const retainedEvidence = evidenceById.get(evidenceId);
+      if (!retainedEvidence) invalid("study answer cites evidence outside its retained final answer");
+      const opened = getResearchStudyCitation(study, questionId, evidenceId);
+      if (!isDeepStrictEqual(opened.evidence, retainedEvidence)) invalid("study answer citation differs from its retained exact quote");
+      const source = question.sourceMap.find((entry) => entry.documentId === retainedEvidence.documentId);
+      const selection = study.selections.find((entry) => entry.id === source?.selectionId);
+      if (!source || !selection) invalid("study answer citation has no retained selected source");
+      let snapshot = selectedById.get(selection.id);
+      if (!snapshot) {
+        snapshot = { selectionId: selection.id, notebookId: selection.origin.notebookId,
+          notebookSha256: selection.origin.notebookSha256, kind: selection.origin.kind,
+          recordId: selection.origin.recordId, version: selection.origin.version,
+          sourceDigest: selection.origin.sourceDigest, documentId: selection.document.id,
+          title: selection.document.title, contentSha256: selection.contentSha256 };
+        selectedById.set(selection.id, snapshot);
+        sourceSnapshots.push(snapshot);
+      }
+      citations.push({ evidenceId, answerParagraph, selectionId: selection.id, documentId: retainedEvidence.documentId,
+        page: retainedEvidence.page, start: retainedEvidence.start, end: retainedEvidence.end,
+        quote: retainedEvidence.quote, relation: retainedEvidence.relation });
+      markers.push(evidenceId);
+    }
+    return `- ${row.text} [${markers.join(", ")}]`;
+  });
+  const qualification = { resultStatus: question.result.status, coverage: draft.coverage, gaps: [...draft.gaps], limits: [...draft.limits],
+    currentness: "frozen-snapshot-origin-not-checked",
+    claimLimit: "Occurrence is validated; entailment, truth, and live source currentness are not." };
+  const text = [`Unverified saved Research Study answer`, `Question: ${question.question}`, `Study: ${study.id}; question: ${question.id}.`,
+    `Execution status: ${question.result.status}; reported coverage: ${draft.coverage}.`, "", ...renderedAnswers,
+    ...(draft.gaps.length ? ["", "Qualifications and gaps:", ...draft.gaps.map((gap) => `- ${gap}`)] : []),
+    "", "Citations identify exact retained occurrences; they do not establish entailment or truth."].join("\n");
+  if (!text.isWellFormed() || text.length > planningSourceLimit) invalid("saved study answer exceeds the Planning source limit");
+  const binding = { owner: "research-study", studyId: study.id, questionId: question.id, questionSha256: question.sha256,
+    selectionDigest: question.selectionDigest, planDigest: question.planDigest, resultSha256: hash(canonical(question.result)),
+    sourceSnapshots, citations };
+  const locatorDigest = hash(canonical({ studyId: study.id, questionId: question.id, questionSha256: question.sha256 }));
+  const output = { id: `research-study-answer:${locatorDigest.slice(0, 48)}`, text, binding, qualification };
+  if (Buffer.byteLength(canonical(output), "utf8") > byteLimit) invalid("Planning source exceeds the 16 MiB output limit");
+  return output;
+}
+
+/** Exports one saved, cited Study answer as a bounded fallible Planning source. */
+export function exportResearchStudyPlanningSource(studyValue, questionId) {
+  return buildStudyPlanningSource(studyValue, questionId);
+}
+
+/** Recomputes and validates a previously exported source against the exact saved Study answer. */
+export function validateResearchStudyPlanningSource(studyValue, questionId, candidate) {
+  const expected = buildStudyPlanningSource(studyValue, questionId);
+  if (!isDeepStrictEqual(candidate, expected)) invalid("Planning source does not match the exact saved Study answer");
+  return expected;
+}
+
 /** Saves a qualified answer as a versioned note with immutable study/result provenance. */
 export function saveResearchStudyQuestionAsNotebookNote(studyValue, notebookValue, questionId, { title, id: noteId } = {}) {
   const study = validateState(studyValue), notebook = validateResearchNotebook(notebookValue);

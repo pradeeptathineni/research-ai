@@ -1155,6 +1155,20 @@ export interface ResearchStudyQuestion {
   policy: DocumentCoveragePolicy; request: { question: string; documents: ResearchDocumentInput[]; policy: DocumentCoveragePolicy };
   planDigest: string; result: DocumentCoverageResult; sha256: string;
 }
+export interface ResearchStudyPlanningSource {
+  id: string;
+  text: string;
+  binding: {
+    owner: "research-study"; studyId: string; questionId: string; questionSha256: string;
+    selectionDigest: string; planDigest: string; resultSha256: string;
+    sourceSnapshots: Array<{ selectionId: string; notebookId: string; notebookSha256: string; kind: NotebookSearchKind;
+      recordId: string; version: number | null; sourceDigest: string; documentId: string; title: string; contentSha256: string }>;
+    citations: Array<{ evidenceId: string; answerParagraph: number; selectionId: string; documentId: string;
+      page: number; start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context" }>;
+  };
+  qualification: { resultStatus: "complete"; coverage: "answered" | "partial"; gaps: string[]; limits: string[];
+    currentness: "frozen-snapshot-origin-not-checked"; claimLimit: string };
+}
 export interface ResearchStudy {
   version: "research-study-v1"; id: string; title: string; revision: number;
   selections: ResearchStudySelection[]; questions: ResearchStudyQuestion[]; sha256: string;
@@ -1190,6 +1204,10 @@ export function getResearchStudyCitation(study: ResearchStudy, questionId: strin
   evidence: DocumentCoverageEvidence; page: ResearchDocumentInput["pages"][number]; document: ResearchDocumentInput;
   selection: ResearchStudySelection; source: { kind: "note"; noteVersion: ResearchNotebookNoteVersion } | { kind: "document"; notebookId: string; recordId: string; digest: string };
 };
+/** Exports one complete saved nonempty answer with exact retained citation closure; this is fallible input, not verified truth. */
+export function exportResearchStudyPlanningSource(study: ResearchStudy, questionId: string): ResearchStudyPlanningSource;
+/** Recomputes an exported Planning source from the exact saved Study answer and refuses any altered field. */
+export function validateResearchStudyPlanningSource(study: ResearchStudy, questionId: string, candidate: unknown): ResearchStudyPlanningSource;
 /** Projects a complete, evidence-qualified study answer into a chosen notebook with immutable study and result digests. */
 export function saveResearchStudyQuestionAsNotebookNote(study: ResearchStudy, notebook: ResearchNotebook, questionId: string, options?: { title?: string; id?: string }): ResearchNotebook;
 /** Exports the validated portable study as JSON or Markdown. */

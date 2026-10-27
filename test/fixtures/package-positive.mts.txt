@@ -178,15 +178,18 @@ void citationMap.questions[0]?.citations[0]?.hit_id;
 
 
 import { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins,
-  prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, renderResearchStudy,
+  prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation,
+  exportResearchStudyPlanningSource, validateResearchStudyPlanningSource, renderResearchStudy,
   researchStudyLimits } from '@pradeeptathineni/research-ai';
-import type { ResearchStudy, ResearchStudyEdit, ResearchStudyQuestionSpec, PreparedResearchStudyQuestion } from '@pradeeptathineni/research-ai';
+import type { ResearchStudy, ResearchStudyEdit, ResearchStudyQuestionSpec, PreparedResearchStudyQuestion, ResearchStudyPlanningSource } from '@pradeeptathineni/research-ai';
 const study: ResearchStudy = createResearchStudy('Portable study');
 const studyEdit: ResearchStudyEdit = { type: 'deselect-hit', selectionId: 'study-selection:4f7d831d-fb2b-4a4b-89f4-c06c8f086999' };
 const editedStudy = reviseResearchStudy(validateResearchStudy(study), studyEdit);
 const studySpec: ResearchStudyQuestionSpec = { id: 'study-question:4f7d831d-fb2b-4a4b-89f4-c06c8f086999', question: 'Question', selectionIds: [] };
 const studyPreview = null as unknown as PreparedResearchStudyQuestion;
+const planningSource = null as unknown as ResearchStudyPlanningSource;
 void [checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation,
+  exportResearchStudyPlanningSource(editedStudy, studySpec.id), validateResearchStudyPlanningSource(editedStudy, studySpec.id, planningSource),
   renderResearchStudy(editedStudy), researchStudyLimits.bytes, studySpec, studyPreview];
 
 import { createDocumentRecovery, validateDocumentRecovery, renderDocumentRecovery } from '@pradeeptathineni/research-ai';

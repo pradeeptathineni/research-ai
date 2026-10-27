@@ -25,7 +25,7 @@ export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } 
 export { exportResearchRetrievalArm } from './retrieval-arm.mjs';
 export { exportResearchAnswerCitationMap } from './answer-citation-map.mjs';
 
-export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';
+export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, exportResearchStudyPlanningSource, validateResearchStudyPlanningSource, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';
 export { createLiteratureSet, addLiteraturePaper, validateLiteratureSet, deduplicateLiteraturePapers, resolveLiteratureSet, rebindLiteratureSet, prepareLiteratureQuestion, exportLiteratureSet, formatLiteratureSet } from './literature-set.mjs';
 export { createPerspectiveWorkflow, validatePerspectiveWorkflow, runWorkflowPerspectives, perspectiveSpanContribution, startWorkflowInvestigation, runWorkflowBranches, compareWorkflowBranches, draftWorkflowOutline, reviseWorkflowOutline, reviewWorkflowOutlineCitations, workflowComparisonCurrentness, renderPerspectiveWorkflow } from './perspective-workflow.mjs';
 export { createDocumentRecovery, validateDocumentRecovery, runDocumentRecovery, retryDocumentRecovery, renderDocumentRecovery, renderDocumentRecoverySection } from './document-recovery.mjs';
