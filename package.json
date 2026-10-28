@@ -1,0 +1,16 @@
+{
+  "name": "research-ai-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private integration workspace for the RX02 prototype; distributable Methods identity remains under packages/methods.",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "workspaces": [
+    "packages/methods"
+  ],
+  "scripts": {
+    "research": "node packages/methods/bin/research-ai.mjs",
+    "methods:test": "npm test --workspace @pradeeptathineni/research-ai"
+  }
+}
