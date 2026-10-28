@@ -203,6 +203,7 @@ export async function providerCapabilities(
       { id: 'source-capture-render', versions: ['1.0'] },
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
+      { id: 'private-document-intake', versions: ['1.0'] },
       { id: 'smart-collections', versions: ['1.0'] },
       { id: 'frozen-followup-request', versions: ['1.0', '2.0'] },
       { id: 'research-activity', versions: ['1.0'] },
@@ -230,6 +231,30 @@ export async function providerCapabilities(
         target_kinds: [...libraryKinds],
         mutating: false,
         authority_required: false,
+      },
+      {
+        name: 'read_private_documents',
+        target_kinds: ['private_document'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'import_private_document',
+        target_kinds: ['private_document'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
+        name: 'preview_private_document_correction',
+        target_kinds: ['private_document'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'correct_private_document',
+        target_kinds: ['private_document'],
+        mutating: true,
+        authority_required: true,
       },
       {
         name: 'read_knowledge',
@@ -488,6 +513,7 @@ export async function providerCapabilities(
       'project_opportunity_brief',
       'project_opportunity_brief',
       'private_pdf_reader',
+      'private_document',
       'private_pdf_annotation',
     ],
     process_observation: true,
@@ -530,6 +556,8 @@ export async function providerCapabilities(
         'private-collection/preview searches exact imported document refs locally; private-collection and private-collection/<uuid> reopen previews; private-collection/selection freezes explicitly selected exact passage IDs. All routes retain session, loopback origin and owner epoch guards.',
       private_reader_route:
         'private-reader/bytes returns original PDF bytes only for a current exact document ref and raw hash; private-reader creates/reopens by UUID; private-reader/revise uses expected revision/digest CAS; private-reader/selection freezes only explicitly selected annotations. Routes retain session, loopback origin and owner epoch guards.',
+      private_document_intake_route:
+        'private-documents supports PDF text-layer, Markdown, inert HTML and plain-text imports. The private-document-intake v1 contract adds an idempotent import request and action-tagged correction preview/create on the same bounded route; corrections retain original bytes and exact parent refs in the existing immutable document store.',
       supported_records:
         'Qualified retained runs, imported answers, native entities, selected leads and project records. Library summaries are bounded; process observations use provider/processes. No arbitrary paths or commands.',
     },

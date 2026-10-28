@@ -80,7 +80,7 @@ const changed = (
   reason = 'An exact selected input changed. Resolve its current reference explicitly.',
 ) => fail(409, 'source_change_review_changed', reason);
 
-type Diff = {
+export type BoundedSourceTextDiff = {
   state: 'changed' | 'unchanged';
   removed: string[];
   added: string[];
@@ -91,7 +91,7 @@ type Diff = {
   removed_sha256: string;
   added_sha256: string;
 };
-function boundedDiff(before: string, after: string): Diff {
+export function boundedSourceTextDiff(before: string, after: string): BoundedSourceTextDiff {
   const left = before.split('\n');
   const right = after.split('\n');
   let prefix = 0;
@@ -176,7 +176,7 @@ type Review = {
   source_id: string;
   prior_capture_ref: RecordRef;
   new_capture_ref: RecordRef;
-  observed_change: Diff;
+  observed_change: BoundedSourceTextDiff;
   meaningfulness: Request['meaningfulness'];
   change_rationale: string;
   assertions: Array<Assertion & { observation_sha256: string }>;
@@ -347,7 +347,7 @@ export async function previewSourceChange(root: string, priorId: string, newId: 
     source_id: next.capture.source_id,
     prior_capture_ref: prior.ref,
     new_capture_ref: next.ref,
-    observed_change: boundedDiff(prior.capture.text, next.capture.text),
+    observed_change: boundedSourceTextDiff(prior.capture.text, next.capture.text),
     provenance: {
       prior_observed_at: prior.capture.observed_at,
       new_observed_at: next.capture.observed_at,
@@ -394,7 +394,7 @@ export async function createSourceChangeReview(root: string, input: unknown) {
     changed('The selected newer capture must directly supersede the exact prior capture.');
   if (prior.capture.source_id !== next.capture.source_id)
     changed('The selected versions do not share one immutable source identity.');
-  const observedChange = boundedDiff(prior.capture.text, next.capture.text);
+  const observedChange = boundedSourceTextDiff(prior.capture.text, next.capture.text);
   if ((observedChange.state === 'unchanged') !== (request.meaningfulness === 'unchanged'))
     invalid(
       'The human change classification must match the deterministic unchanged/changed observation.',

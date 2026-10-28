@@ -10,6 +10,7 @@ import type { FrozenSource } from '@pradeeptathineni/research-ai';
 import { extractHtml } from './search-document.js';
 import { atomicJson, withWriter } from './search-store.js';
 import { isWellFormedUnicode, recordRefSchema, type RecordRef } from './source-captures.js';
+import { boundedSourceTextDiff } from './source-change-reviews.js';
 
 const closed = { additionalProperties: false };
 const sha = Type.String({ pattern: '^[a-f0-9]{64}$' });
@@ -24,6 +25,42 @@ const MAX_OUTLINE_TITLE = 300;
 const MAX_DOCUMENTS = 20;
 const MAX_TOTAL_RAW_BYTES = 12 * 1024 * 1024;
 const MAX_STORE_BYTES = 20 * 1024 * 1024;
+const correctionPageSchema = Type.Object(
+  {
+    number: Type.Integer({ minimum: 1, maximum: MAX_PAGES }),
+    prior_text_sha256: sha,
+    text: Type.String({ maxLength: MAX_TEXT_UNITS }),
+  },
+  closed,
+);
+const correctionImpactSchema = Type.Enum(['meaningful', 'not-meaningful', 'uncertain']);
+const correctionRevisionSchema = Type.Object(
+  {
+    kind: Type.Literal('operator-extraction-correction-v1'),
+    request_id: uuid,
+    request_digest: sha,
+    parent_ref: recordRefSchema,
+    source_raw_sha256: sha,
+    source_media_type: Type.Enum(['application/pdf', 'text/markdown', 'text/html', 'text/plain']),
+    source_extractor: Type.String({ minLength: 1, maxLength: 100 }),
+    corrected_pages: Type.Array(
+      Type.Object(
+        {
+          number: Type.Integer({ minimum: 1, maximum: MAX_PAGES }),
+          prior_text_sha256: sha,
+          text_sha256: sha,
+          removed_sha256: sha,
+          added_sha256: sha,
+        },
+        closed,
+      ),
+      { minItems: 1, maxItems: 8 },
+    ),
+    impact: correctionImpactSchema,
+    rationale: Type.String({ minLength: 1, maxLength: 1600 }),
+  },
+  closed,
+);
 export const PRIVATE_DOCUMENT_INPUT_LIMITS = Object.freeze({
   maxPages: MAX_PAGES,
   maxTextUnits: MAX_TEXT_UNITS,
@@ -49,6 +86,10 @@ const documentSchema = Type.Object(
     record_sha256: sha,
     extractor: Type.String({ minLength: 1, maxLength: 100 }),
     pages: Type.Array(pageSchema, { minItems: 1, maxItems: MAX_PAGES }),
+    import_request_id: Type.Optional(uuid),
+    import_request_digest: Type.Optional(sha),
+    supersedes_ref: Type.Optional(recordRefSchema),
+    revision: Type.Optional(correctionRevisionSchema),
     qualification: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
       minItems: 1,
       maxItems: 8,
@@ -66,6 +107,7 @@ const storeSchema = Type.Object(
 type PrivateDocumentRecord = Static<typeof documentSchema>;
 type Store = Static<typeof storeSchema>;
 export type PrivateDocumentInput = {
+  request_id?: string;
   name: string;
   media_type: 'application/pdf' | 'text/markdown' | 'text/html' | 'text/plain';
   bytes_base64: string;
@@ -82,6 +124,9 @@ export type PrivateDocumentSummary = {
   page_count: number;
   raw_sha256: string;
   extractor: string;
+  import_request_id?: string;
+  supersedes_ref?: RecordRef;
+  revision?: Static<typeof correctionRevisionSchema>;
   qualification: string[];
 };
 export type PrivateDocumentSelection = {
@@ -113,12 +158,10 @@ const notFound = (): never => {
     'No retained document has that identity.',
   );
 };
-const changed = (): never => {
-  throw new PrivateDocumentError(
-    409,
-    'provider_record_changed',
-    'The exact private document changed. Reopen it and select again.',
-  );
+const changed = (
+  reason = 'The exact private document changed. Reopen it and select again.',
+): never => {
+  throw new PrivateDocumentError(409, 'provider_record_changed', reason);
 };
 const sha256 = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 const recordDigest = (record: object) => {
@@ -178,14 +221,66 @@ function validateDocument(record: PrivateDocumentRecord) {
     record.pages.reduce((sum, page) => sum + Buffer.byteLength(page.text), 0) > MAX_TEXT_BYTES
   )
     unavailable('A retained document digest or extraction limit failed validation.');
+  if (Boolean(record.import_request_id) !== Boolean(record.import_request_digest))
+    unavailable('A document import request identity is incomplete.');
+  if (
+    record.revision &&
+    (!record.supersedes_ref ||
+      record.revision.kind !== 'operator-extraction-correction-v1' ||
+      !sameRef(record.revision.parent_ref, record.supersedes_ref) ||
+      record.revision.source_raw_sha256 !== record.raw_sha256 ||
+      record.revision.source_media_type !== record.media_type ||
+      record.extractor !== 'operator-extraction-correction-v1' ||
+      record.revision.corrected_pages.some((correction) => {
+        const page = record.pages[correction.number - 1];
+        return (
+          !page ||
+          page.number !== correction.number ||
+          page.text_sha256 !== correction.text_sha256 ||
+          correction.prior_text_sha256 === correction.text_sha256
+        );
+      }))
+  )
+    unavailable('A human extraction correction lost its exact source or page provenance.');
+  if (!record.revision && record.supersedes_ref)
+    unavailable('A document successor has no correction provenance.');
 }
 function validateStore(store: Store) {
   const ids = new Set<string>();
+  const importRequests = new Set<string>();
+  const revisionRequests = new Set<string>();
   let totalBytes = 0;
-  for (const record of store.documents) {
+  for (const [index, record] of store.documents.entries()) {
     if (ids.has(record.id)) unavailable('Private document identities must be unique.');
     ids.add(record.id);
     validateDocument(record);
+    if (record.import_request_id) {
+      if (importRequests.has(record.import_request_id))
+        unavailable('Private document import request identities must be unique.');
+      importRequests.add(record.import_request_id);
+    }
+    if (record.revision) {
+      if (revisionRequests.has(record.revision.request_id))
+        unavailable('Private document correction request identities must be unique.');
+      revisionRequests.add(record.revision.request_id);
+      const parent = store.documents
+        .slice(0, index)
+        .find((candidate) => candidate.id === record.revision!.parent_ref.id);
+      if (
+        !parent ||
+        !sameRef(refOf(parent.id, parent), record.revision.parent_ref) ||
+        !sameRef(record.revision.parent_ref, record.supersedes_ref!) ||
+        parent.raw_sha256 !== record.raw_sha256 ||
+        parent.name !== record.name ||
+        parent.media_type !== record.media_type ||
+        parent.pages.length !== record.pages.length ||
+        record.revision.corrected_pages.some((correction) => {
+          const prior = parent.pages[correction.number - 1];
+          return !prior || prior.text_sha256 !== correction.prior_text_sha256;
+        })
+      )
+        unavailable('A corrected document does not point to its exact retained predecessor.');
+    }
     totalBytes += Buffer.byteLength(record.raw_base64, 'base64');
   }
   if (totalBytes > MAX_TOTAL_RAW_BYTES)
@@ -255,6 +350,9 @@ function summary(record: PrivateDocumentRecord): PrivateDocumentSummary {
     page_count: record.pages.length,
     raw_sha256: record.raw_sha256,
     extractor: record.extractor,
+    ...(record.import_request_id ? { import_request_id: record.import_request_id } : {}),
+    ...(record.supersedes_ref ? { supersedes_ref: record.supersedes_ref } : {}),
+    ...(record.revision ? { revision: record.revision } : {}),
     qualification: record.qualification,
   };
 }
@@ -275,10 +373,10 @@ function decodeInput(input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     invalid('Use only name, media_type and canonical base64 bytes within the 4 MiB limit.');
   const fields = input as Record<string, unknown>;
-  const expected = new Set(['name', 'media_type', 'bytes_base64']);
+  const expected = new Set(['name', 'media_type', 'bytes_base64', 'request_id']);
   if (
-    Object.keys(fields).length !== expected.size ||
     Object.keys(fields).some((key) => !expected.has(key)) ||
+    !['name', 'media_type', 'bytes_base64'].every((key) => Object.hasOwn(fields, key)) ||
     typeof fields.bytes_base64 !== 'string' ||
     fields.bytes_base64.length < 4 ||
     fields.bytes_base64.length > Math.ceil(MAX_FILE_BYTES / 3) * 4
@@ -296,6 +394,7 @@ function decodeInput(input: unknown) {
       name: Type.String({ minLength: 1, maxLength: 1024 }),
       media_type: Type.Enum(['application/pdf', 'text/markdown', 'text/html', 'text/plain']),
       bytes_base64: Type.String({ minLength: 4, maxLength: Math.ceil(MAX_FILE_BYTES / 3) * 4 }),
+      request_id: Type.Optional(uuid),
     },
     closed,
   );
@@ -306,8 +405,225 @@ function decodeInput(input: unknown) {
   const bytes = Buffer.from(data.bytes_base64, 'base64');
   if (bytes.length > MAX_FILE_BYTES || bytes.toString('base64') !== data.bytes_base64)
     invalid('Decoded document bytes exceed 4 MiB or are not canonical base64.');
-  return { name: safeName(data.name), media_type: data.media_type, bytes };
+  return {
+    name: safeName(data.name),
+    media_type: data.media_type,
+    bytes,
+    request_id: data.request_id,
+  };
 }
+type CorrectionData = {
+  document_ref: RecordRef;
+  page_corrections: Array<{ number: number; prior_text_sha256: string; text: string }>;
+  impact: 'meaningful' | 'not-meaningful' | 'uncertain';
+  rationale: string;
+  request_id?: string;
+};
+const correctionPreviewShape = Type.Object(
+  {
+    document_ref: recordRefSchema,
+    page_corrections: Type.Array(correctionPageSchema, { minItems: 1, maxItems: 8 }),
+    impact: correctionImpactSchema,
+    rationale: Type.String({ minLength: 1, maxLength: 1600 }),
+  },
+  closed,
+);
+const correctionRequestShape = Type.Object(
+  { ...correctionPreviewShape.properties, request_id: uuid },
+  closed,
+);
+function correctionDigest(data: CorrectionData) {
+  return sha256(
+    JSON.stringify({
+      document_ref: {
+        owner: data.document_ref.owner,
+        kind: data.document_ref.kind,
+        id: data.document_ref.id,
+        revision: data.document_ref.revision,
+        digest: data.document_ref.digest,
+      },
+      page_corrections: data.page_corrections,
+      impact: data.impact,
+      rationale: data.rationale,
+    }),
+  );
+}
+function validateCorrection(input: unknown, includeRequestId: boolean): CorrectionData {
+  const shape = includeRequestId ? correctionRequestShape : correctionPreviewShape;
+  if (!Value.Check(shape, input))
+    invalid(
+      'Correction requires one exact private-document ref, 1–8 page replacements with current page digests, a human impact choice and rationale.',
+    );
+  const data = input as CorrectionData;
+  if (
+    data.document_ref.owner !== 'signals-ai' ||
+    data.document_ref.kind !== 'private_document' ||
+    data.document_ref.revision !== `sha256:${data.document_ref.digest}` ||
+    new Set(data.page_corrections.map(({ number }) => number)).size !==
+      data.page_corrections.length ||
+    !data.rationale.trim() ||
+    !isWellFormedUnicode(data.rationale) ||
+    data.page_corrections.some(
+      ({ text }) =>
+        !text.trim() || !isWellFormedUnicode(text) || Buffer.byteLength(text) > MAX_TEXT_BYTES,
+    )
+  )
+    invalid(
+      'Correction fields must be unique, bounded, well-formed and bound to a private document.',
+    );
+  return data;
+}
+function prepareCorrection(record: PrivateDocumentRecord, data: CorrectionData) {
+  const pages = [...record.pages];
+  const changes = data.page_corrections.map((correction) => {
+    const prior = record.pages[correction.number - 1];
+    if (!prior || prior.number !== correction.number)
+      return invalid(`Page ${correction.number} is outside the retained document.`);
+    if (prior.text_sha256 !== correction.prior_text_sha256)
+      return changed(
+        `Page ${correction.number} changed; reopen this exact document and inspect it again.`,
+      );
+    const text_sha256 = sha256(correction.text);
+    if (text_sha256 === prior.text_sha256)
+      invalid(`Page ${correction.number} is unchanged; no correction version is needed.`);
+    pages[correction.number - 1] = {
+      number: correction.number,
+      text: correction.text,
+      text_sha256,
+    };
+    const diff = boundedSourceTextDiff(prior.text, correction.text);
+    return {
+      number: correction.number,
+      prior_text_sha256: prior.text_sha256,
+      text_sha256,
+      removed_sha256: diff.removed_sha256,
+      added_sha256: diff.added_sha256,
+      diff,
+    };
+  });
+  const units = pages.reduce((sum, page) => sum + page.text.length, 0);
+  const bytes = pages.reduce((sum, page) => sum + Buffer.byteLength(page.text), 0);
+  if (units > MAX_TEXT_UNITS || bytes > MAX_TEXT_BYTES)
+    invalid('Corrected extraction exceeds the original document text bounds.');
+  return { pages, changes };
+}
+async function exactDocument(root: string, reference: RecordRef) {
+  const store = await loadStore(root);
+  const record = store.documents.find((row) => row.id === reference.id);
+  if (!record) return notFound();
+  if (!sameRef(refOf(record.id, record), reference)) return changed();
+  return record;
+}
+
+/** Preview manual page corrections against exact retained page digests; this never writes. */
+export async function previewPrivateDocumentCorrection(root: string, input: unknown) {
+  const data = validateCorrection(input, false);
+  const record = await exactDocument(root, data.document_ref);
+  const prepared = prepareCorrection(record, data);
+  return {
+    schema_version: 'private-document-correction-preview-v1',
+    prior_document_ref: data.document_ref,
+    source: {
+      media_type: record.media_type,
+      raw_sha256: record.raw_sha256,
+      extractor: record.extractor,
+    },
+    page_changes: prepared.changes,
+    impact: data.impact,
+    rationale: data.rationale,
+    qualification: [
+      'This bounded diff compares only the selected retained extraction text; it does not establish source content, authenticity or factual impact.',
+      'Saving a correction creates a separate exact version and leaves original bytes, pages and citations unchanged.',
+    ],
+  };
+}
+
+/** Save a human extraction correction as an immutable successor in the existing document store. */
+export async function correctPrivateDocument(root: string, input: unknown) {
+  const data = validateCorrection(input, true);
+  const requestDigest = correctionDigest(data);
+  const stored = await withWriter(root, async () => {
+    const store = await loadStore(root);
+    const replay = store.documents.find(
+      (record) => record.revision?.request_id === data.request_id,
+    );
+    if (replay) {
+      if (replay.revision?.request_digest !== requestDigest)
+        return changed('This correction request UUID already names different input.');
+      return { record: replay, replay: true };
+    }
+    const prior = store.documents.find((record) => record.id === data.document_ref.id);
+    if (!prior) return notFound();
+    if (!sameRef(refOf(prior.id, prior), data.document_ref)) return changed();
+    if (store.documents.length >= MAX_DOCUMENTS)
+      unavailable(
+        `Private document capacity (${MAX_DOCUMENTS}) is full; retained history was preserved.`,
+      );
+    const prepared = prepareCorrection(prior, data);
+    const draft = {
+      schema_version: '1.0' as const,
+      id: randomUUID(),
+      name: prior.name,
+      media_type: prior.media_type,
+      imported_at: new Date().toISOString(),
+      raw_base64: prior.raw_base64,
+      raw_sha256: prior.raw_sha256,
+      extractor: 'operator-extraction-correction-v1',
+      pages: prepared.pages,
+      supersedes_ref: data.document_ref,
+      revision: {
+        kind: 'operator-extraction-correction-v1' as const,
+        request_id: data.request_id!,
+        request_digest: requestDigest,
+        parent_ref: data.document_ref,
+        source_raw_sha256: prior.raw_sha256,
+        source_media_type: prior.media_type,
+        source_extractor: prior.extractor,
+        corrected_pages: prepared.changes.map(
+          ({ number, prior_text_sha256, text_sha256, removed_sha256, added_sha256 }) => ({
+            number,
+            prior_text_sha256,
+            text_sha256,
+            removed_sha256,
+            added_sha256,
+          }),
+        ),
+        impact: data.impact,
+        rationale: data.rationale,
+      },
+      qualification: [
+        ...prior.qualification.slice(0, 6),
+        'This version contains a human-authored extraction correction; it retains the same original bytes and is not an independently verified source or OCR result.',
+        `Exact predecessor: ${data.document_ref.id}@${data.document_ref.revision}.`,
+      ],
+    };
+    const record: PrivateDocumentRecord = { ...draft, record_sha256: recordDigest(draft) };
+    if (!Value.Check(documentSchema, record))
+      invalid('Corrected document projection failed its closed schema.');
+    validateDocument(record);
+    const rawBytes = store.documents.reduce(
+      (sum, item) => sum + Buffer.byteLength(item.raw_base64, 'base64'),
+      0,
+    );
+    if (rawBytes + Buffer.byteLength(record.raw_base64, 'base64') > MAX_TOTAL_RAW_BYTES)
+      unavailable(
+        'Private document aggregate original-byte limit would be exceeded; prior versions were preserved.',
+      );
+    store.documents.push(record);
+    if (Buffer.byteLength(JSON.stringify(store, null, 2) + '\n') > MAX_STORE_BYTES)
+      unavailable(
+        'Private document state would exceed its 20 MiB bound; prior records were preserved.',
+      );
+    await atomicJson(resolve(root, '.signals/private-documents.json'), store);
+    return { record, replay: false };
+  });
+  return {
+    ref: refOf(stored.record.id, stored.record),
+    document: publicRecord(stored.record),
+    replay: stored.replay,
+  };
+}
+
 const pythonHelper = fileURLToPath(
   new URL('../../../scripts/private-pdf-extract.py', import.meta.url),
 );
@@ -667,6 +983,12 @@ export async function importPrivateDocument(
     invalid('This PDF has no extractable text layer; image-only PDFs are not OCRed.');
   if (pages.length === 1 && !pages[0]!.text.trim())
     invalid('A document with no readable text cannot be imported.');
+  const rawSha256 = sha256(data.bytes);
+  const importRequestDigest = data.request_id
+    ? sha256(
+        JSON.stringify({ name: data.name, media_type: data.media_type, raw_sha256: rawSha256 }),
+      )
+    : undefined;
   const draft = {
     schema_version: '1.0' as const,
     id: randomUUID(),
@@ -674,9 +996,15 @@ export async function importPrivateDocument(
     media_type: data.media_type,
     imported_at: new Date().toISOString(),
     raw_base64: data.bytes.toString('base64'),
-    raw_sha256: sha256(data.bytes),
+    raw_sha256: rawSha256,
     extractor: extracted.extractor,
     pages,
+    ...(data.request_id
+      ? {
+          import_request_id: data.request_id,
+          import_request_digest: importRequestDigest,
+        }
+      : {}),
     qualification: [
       data.media_type === 'application/pdf'
         ? 'PDF extraction reads the embedded text layer only; image-only pages are not OCRed.'
@@ -690,8 +1018,16 @@ export async function importPrivateDocument(
   const record: PrivateDocumentRecord = { ...draft, record_sha256: recordDigest(draft) };
   if (!Value.Check(documentSchema, record))
     invalid('Document projection failed its closed schema.');
-  await withWriter(root, async () => {
+  const stored = await withWriter(root, async () => {
     const store = await loadStore(root);
+    if (data.request_id) {
+      const existing = store.documents.find((item) => item.import_request_id === data.request_id);
+      if (existing) {
+        if (existing.import_request_digest !== importRequestDigest)
+          return changed('This import request UUID already names different document bytes.');
+        return { record: existing, replay: true };
+      }
+    }
     if (store.documents.length >= MAX_DOCUMENTS)
       unavailable(
         `Private document capacity (${MAX_DOCUMENTS}) is full; retained history was preserved.`,
@@ -708,8 +1044,13 @@ export async function importPrivateDocument(
         'Private document state would exceed its 20 MiB bound; prior records were preserved.',
       );
     await atomicJson(resolve(root, '.signals/private-documents.json'), store);
+    return { record, replay: false };
   });
-  return { ref: refOf(record.id, record), document: publicRecord(record) };
+  return {
+    ref: refOf(stored.record.id, stored.record),
+    document: publicRecord(stored.record),
+    replay: stored.replay,
+  };
 }
 
 /** List immutable document metadata without returning original bytes or page text. */
@@ -732,13 +1073,24 @@ export async function listPrivateDocuments(
 }
 
 /** Reopen one complete, integrity-checked page record without exposing the source bytes. */
-export async function openPrivateDocument(root: string, id: string) {
+export async function openPrivateDocument(root: string, id: string, expectedRef?: RecordRef) {
   if (!Value.Check(uuid, id)) invalid('Document identity must be a UUID.');
+  if (
+    expectedRef !== undefined &&
+    (!Value.Check(recordRefSchema, expectedRef) ||
+      expectedRef.owner !== 'signals-ai' ||
+      expectedRef.kind !== 'private_document' ||
+      expectedRef.id !== id ||
+      expectedRef.revision !== `sha256:${expectedRef.digest}`)
+  )
+    invalid('Reopen requires the exact Signals private-document ref.');
   try {
     const store = await loadStore(root);
     const record = store.documents.find((row) => row.id === id);
     if (!record) return notFound();
-    return { ref: refOf(record.id, record), document: publicRecord(record) };
+    const ref = refOf(record.id, record);
+    if (expectedRef && !sameRef(ref, expectedRef)) return changed();
+    return { ref, document: publicRecord(record) };
   } catch (error) {
     return privateDocumentError(error);
   }
