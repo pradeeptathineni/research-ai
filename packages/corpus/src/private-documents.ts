@@ -125,6 +125,7 @@ export type PrivateDocumentSummary = {
   raw_sha256: string;
   extractor: string;
   import_request_id?: string;
+  import_request_digest?: string;
   supersedes_ref?: RecordRef;
   revision?: Static<typeof correctionRevisionSchema>;
   qualification: string[];
@@ -350,7 +351,12 @@ function summary(record: PrivateDocumentRecord): PrivateDocumentSummary {
     page_count: record.pages.length,
     raw_sha256: record.raw_sha256,
     extractor: record.extractor,
-    ...(record.import_request_id ? { import_request_id: record.import_request_id } : {}),
+    ...(record.import_request_id && record.import_request_digest
+      ? {
+          import_request_id: record.import_request_id,
+          import_request_digest: record.import_request_digest,
+        }
+      : {}),
     ...(record.supersedes_ref ? { supersedes_ref: record.supersedes_ref } : {}),
     ...(record.revision ? { revision: record.revision } : {}),
     qualification: record.qualification,

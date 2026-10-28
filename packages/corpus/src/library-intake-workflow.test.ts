@@ -27,6 +27,11 @@ it('imports, previews and freezes an exact human correction successor without ch
       bytes_base64: bytes.toString('base64'),
     });
     expect(imported.replay).toBe(false);
+    expect((await listPrivateDocuments(root)).documents[0]).toMatchObject({
+      import_request_id: requestId,
+      import_request_digest: imported.document.import_request_digest,
+      raw_sha256: imported.document.raw_sha256,
+    });
     const priorRef = imported.ref;
     const priorBytes = await readFile(join(root, '.signals/private-documents.json'));
     const prior = await openPrivateDocument(root, priorRef.id, priorRef);
