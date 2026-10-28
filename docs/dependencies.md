@@ -19,6 +19,24 @@
 
 `@pradeeptathineni/research-ai` is first-party with no runtime dependencies. It uses the content-addressed archive under `vendor/research-ai/`, built from source commit `344a5ea30a36efaf3c10ca1fa4b6f3a319f01fa4`. The checker verifies exact SHA-256 bytes, lockfile SHA-512, version, MIT license, and an extracted installation instead of a directory link. The archive contains its MIT LICENSE, ALCE method notice independent-branch and bibliography MIT notices, and the retained SurfSense/GPT Researcher Apache-2.0 adaptation notices; no external judge weights or datasets are included. The prior accepted `c362b33a544bce8e3f4cce7f305bc32cddb90342` and preceding candidate archives remain tracked for rollback. Project-local `allow-remote=root` still limits remote dependencies under npm 12. Vitest inlines Research so process and OS test fakes apply.
 
+An explicitly configured Research workspace may use the same Methods package at
+`packages/methods`, with Library at `packages/library`. Set
+`SIGNALS_RESEARCH_LAYOUT=workspace`, `SIGNALS_RESEARCH_WORKSPACE_ROOT` and
+`SIGNALS_RESEARCH_WORKSPACE_MANIFEST` to exact absolute paths, and declare the
+SHA-256 values in `SIGNALS_RESEARCH_WORKSPACE_MANIFEST_SHA256` and
+`SIGNALS_RESEARCH_WORKSPACE_LOCK_SHA256`. The manifest uses
+`research.component-source-manifest.v1` and binds the Methods identity, frozen
+source commit and covered package bytes. The commit must remain an ancestor of
+the workspace; package metadata and every covered file must match its Git blobs
+and the manifest. The root lock must bind the Methods workspace link and identity.
+The existing archive declaration can remain when the private workspace root
+explicitly overrides it with the exact local Methods path. Dependency metadata
+is then read only from that verified root's `node_modules`, without searching
+arbitrary parents. An undeclared layout, substituted link, changed source or
+lock fails closed. Mutable private data is not used as an engine integrity check.
+Without this explicit configuration, all standalone archive checks and paths
+remain unchanged. This mode grants no installation, network, model or data access.
+
 Node HTTPS/DNS/filesystem/child-process primitives own safe acquisition, bounded project previews, file writes, the loopback API, headless supervision and interval scheduling. Linkedom does not grant transport authority; original outlinks are harvested before Readability. RSS entity declarations are rejected. Ajv does not coerce or insert defaults; domain checks own semantic references/privacy. Frozen schema bytes are excluded from formatting to preserve their digest.
 
 Optional local PDF document import uses `pypdf==6.15.0` from `requirements-private-documents.txt` (BSD-3-Clause; upstream commit `7f226a2771da4b71ed0b72d414f0e59d76a3dae9`). It is not installed by npm and is not needed for Markdown, HTML or plain text. The project calls the dependency API through a fixed stdin-only helper; no pypdf implementation is copied into this repository. Install it only in a Python environment you control and pass its executable with the private-document CLI when needed.

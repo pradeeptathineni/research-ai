@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
-import { checkResearchPin } from './research-pin.mjs';
+import { checkResearchPin, researchDependencyRoot } from './research-pin.mjs';
 
 const rootPath = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(rootPath, 'package.json'), 'utf8'));
@@ -22,11 +22,10 @@ const firstParty = new Map([
 ]);
 const lock = JSON.parse(await readFile(join(rootPath, 'package-lock.json'), 'utf8'));
 const errors = [];
+const installedRoot = await researchDependencyRoot(rootPath);
 
 for (const [name, declaredVersion] of Object.entries(direct)) {
-  const installed = JSON.parse(
-    await readFile(join(rootPath, 'node_modules', name, 'package.json'), 'utf8'),
-  );
+  const installed = JSON.parse(await readFile(join(installedRoot, name, 'package.json'), 'utf8'));
   const pinned = firstParty.get(name);
   if (pinned) {
     const locked = lock.packages?.[`node_modules/${name}`];
