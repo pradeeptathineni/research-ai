@@ -78,9 +78,9 @@
   "packageIdentityProjectionSha256": "0950ddc47a678ef501e66413f66d47207152355f16d505981d83dfbf33aa9da8",
   "frozenSource": {
     "acceptedResearchBase": "1722016738e1367f3e5a4900b6777297f83a69fd",
-    "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave6/research-rx01/publication",
-    "integrationCommit": "f59707b9286d55f8b642bf3b2c372b8190642840",
-    "integrationTree": "01e91d1bbca2b5da3d1fe1e62aaae0d9a41e3a4d",
+    "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave18/methods-consumer-fixture/research",
+    "integrationCommit": "c261de3ed9827b21b5a3c818c464ed7af905f51b",
+    "integrationTree": "01a4f47a87376070c1381566b401988a47bd8372",
     "binTree": "844ee77c0b21a32bd59033520edaaca8ad4998ca",
     "srcTree": "27fab30b05a5802a5898555334acba957a783586",
     "includedNativeCommits": [
@@ -90,7 +90,7 @@
       "4bd458e806d154a18f45a03fdcf185e5d83fde18",
       "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6"
     ],
-    "qualification": "History-preserving subtree refresh from the exact accepted f597 source descendant. Package identity projection and all 17 established CLI names/paths remain unchanged; the declared payload digest now binds current notebook Briefing-origin, report claim-register, investigation and document-recovery coverage APIs."
+    "qualification": "History-preserving subtree refresh from clean Methods revision c261de3. This child adds only the four f597 public exports to the package-consumer expected-export fixture; no production source, package identity, declared payload file, CLI path or runtime dependency changed."
   },
   "payloadManifest": {
     "algorithm": "Read package.json files entries; expand directories, deduplicate POSIX paths and sort. Hash compact UTF-8 JSON rows [{path,sha256}] for exact source bytes.",

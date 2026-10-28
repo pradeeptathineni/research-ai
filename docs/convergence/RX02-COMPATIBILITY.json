@@ -2,7 +2,7 @@
   "schema": "research-rx02-workspace-compatibility.v1",
   "componentSources": {
     "methods": {
-      "revision": "f59707b9286d55f8b642bf3b2c372b8190642840",
+      "revision": "c261de3ed9827b21b5a3c818c464ed7af905f51b",
       "target": "packages/methods"
     },
     "library": {
@@ -45,6 +45,16 @@
         "sourceHealth"
       ],
       "report": "createReport accepts caller-authored ResearchOutline with exact excerpt SHA and span; this does not assert a model Research answer."
+    },
+    "packageConsumerFixtureRepair": {
+      "path": "packages/methods/test/fixtures/package-consumer.mjs.txt",
+      "addedExpectedExports": [
+        "projectInvestigationClaimReviews",
+        "projectInvestigationMethodProgress",
+        "projectReportClaimRegister",
+        "reviewInvestigationClaim"
+      ],
+      "productionSourceChanged": false
     }
   },
   "library": {
@@ -89,7 +99,7 @@
   ],
   "workbenchConsumerFlow": {
     "command": "npm run verify:briefing-research --workspace research-workbench",
-    "path": "synthetic JSON Feed → existing Library refresh/workbench ranking and exact story/item/source refs → Methods Briefing-origin notebook cold reopen → caller-authored cited report + claim register",
+    "path": "synthetic JSON Feed \u2192 existing Library refresh/workbench ranking and exact story/item/source refs \u2192 Methods Briefing-origin notebook cold reopen \u2192 caller-authored cited report + claim register",
     "networkOrModel": false,
     "qualification": "Exact owner refs stay typed in the Research Notebook. The generic report retains canonical URI and exact excerpt digest/citation, with exact Signals refs included as caller qualifications; it is not a typed Briefing-origin report basis."
   }
