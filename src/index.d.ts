@@ -108,6 +108,38 @@ export function exportLiteratureStudyPlanningSource(prepared: PreparedLiterature
 export function validateLiteratureStudyPlanningSource(prepared: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult, requestId: string, candidate: unknown): LiteratureStudyPlanningSource;
 export function exportLiteratureSet(value: LiteratureSet): string;
 export function formatLiteratureSet(value: LiteratureSet): string;
+export interface LiteratureSynthesisCitation {
+  evidenceId: string;
+  paperIds: string[];
+  relation: string;
+  quote: string;
+  page: number;
+  start: number;
+  end: number;
+  sourceBinding: NonNullable<LiteraturePaper["source"]>;
+  sourceIndependence: "unknown" | "same-exact-source-aliases";
+  qualification: string[];
+}
+export interface LiteratureSynthesisExport {
+  schema: "research-literature-synthesis-export.v1";
+  question: string;
+  literatureSetId: LiteratureSet["id"];
+  literatureSetRevision: number;
+  literatureSetSha256: string;
+  preparedSha256: string;
+  resultSha256: string;
+  resultStatus: "complete" | "partial";
+  coverage: "answered" | "partial";
+  citations: LiteratureSynthesisCitation[];
+  duplicateSuggestions: ReturnType<typeof deduplicateLiteraturePapers>;
+  bibliographyMarkdown: string;
+  content: string;
+  contentSha256: string;
+  qualification: string;
+  exportSha256: string;
+}
+/** Exports one retained cross-notebook answer with exact evidence and same-revision bibliography bindings. */
+export function exportLiteratureStudySynthesis(prepared: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult): LiteratureSynthesisExport;
 
 export interface ResearchPerspectiveWorkflow {
   version: "research-perspective-workflow-v1";

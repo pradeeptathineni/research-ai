@@ -3,7 +3,7 @@ import { fakeCodex, message } from "./fake-codex.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { addLiteraturePaper, createLiteratureSet, createResearchNotebook, reviseResearchNotebook,
-  deduplicateLiteraturePapers, exportLiteratureSet, exportLiteratureStudyPlanningSource, validateLiteratureStudyPlanningSource,
+  deduplicateLiteraturePapers, exportLiteratureSet, exportLiteratureStudyPlanningSource, exportLiteratureStudySynthesis, validateLiteratureStudyPlanningSource,
   formatLiteratureSet, prepareLiteratureQuestion, prepareNotebookQuestion,
   resolveLiteratureSet, rebindLiteratureSet, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion,
   checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, researchDocumentCoverage, prepareDocumentCoverage } from "../src/index.mjs";
@@ -261,6 +261,26 @@ test("cross-notebook literature coverage preserves exact source identity, qualif
   assert.equal(planningSource.binding.selectedCoverage.find((row) => row.paperId === retracted.id).statusEvidence.kind, "retraction");
   assert.equal(planningSource.binding.citations.some((citation) => citation.quote && citation.paperIds.includes(firstAlias.id)), true);
   assert.deepEqual(validateLiteratureStudyPlanningSource(cold, result, planningSource.binding.requestId, planningSource), planningSource);
+  const synthesisExport = exportLiteratureStudySynthesis(cold, result);
+  assert.equal(synthesisExport.schema, "research-literature-synthesis-export.v1");
+  assert.equal(synthesisExport.literatureSetId, set.id);
+  assert.equal(synthesisExport.literatureSetSha256, set.sha256);
+  assert.equal(synthesisExport.preparedSha256, cold.sha256);
+  assert.equal(synthesisExport.coverage, "partial");
+  assert.equal(synthesisExport.resultStatus, "complete");
+  assert.equal(synthesisExport.citations.length, projected.evidence.length);
+  assert.equal(synthesisExport.citations.every((citation) => citation.sourceBinding
+    && citation.paperIds.every((paperId) => set.papers.some((paperRow) => paperRow.id === paperId))), true);
+  assert.equal(synthesisExport.citations.some((citation) => citation.paperIds.includes(firstAlias.id)), true);
+  assert.deepEqual(synthesisExport.duplicateSuggestions, deduplicateLiteraturePapers(set.papers));
+  assert.equal(synthesisExport.bibliographyMarkdown, formatLiteratureSet(set));
+  assert.match(synthesisExport.content, /Caller asserts retraction/u);
+  assert.match(synthesisExport.content, /The reason for the disagreement is not established/u);
+  assert.match(synthesisExport.content, /Exact retained citation bindings/u);
+  assert.equal(synthesisExport.contentSha256, sha(synthesisExport.content));
+  const { exportSha256, ...unsignedSynthesisExport } = synthesisExport;
+  assert.equal(exportSha256, sha(canonical(unsignedSynthesisExport)));
+  assert.throws(() => exportLiteratureStudySynthesis(cold, { ...result, draft: null }), /invalid_document_coverage/u);
   const alteredPlanningSource = structuredClone(planningSource);
   alteredPlanningSource.binding.citations[0].quote = "altered exact quote";
   assert.throws(() => validateLiteratureStudyPlanningSource(cold, result, planningSource.binding.requestId, alteredPlanningSource), /exact saved cross-notebook answer/u);
