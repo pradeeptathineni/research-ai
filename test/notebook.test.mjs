@@ -207,6 +207,37 @@ test("Shoulda selected-source origin is additive, exact-page bound and cold-reop
   assert.equal(validateResearchNotebook(starter()).sources[0].shouldaOrigin, undefined, "older source records remain compatible");
 });
 
+test("Briefing notebook sources retain exact item/source refs and only the owner excerpt", () => {
+  const excerpt = "Synthetic retained Briefing excerpt, observed from its source.";
+  const itemReference = { owner: "signals-ai", kind: "briefing-item", id: "item:rd02", revision: `sha256:${sha("item record")}` };
+  const sourceReference = { owner: "signals-ai", kind: "briefing-source", id: "source:rd02", revision: `sha256:${sha("source record")}` };
+  const origin = {
+    schemaVersion: 1, kind: "signals-briefing-item", itemReference, sourceReference,
+    contentDigest: sha("original captured content"), excerptSha256: sha(excerpt),
+    observedAt: "2026-10-28T10:00:00.000Z",
+    sourceHealth: { status: "unknown", lastGoodAt: null, lastAttemptAt: null, lastAttemptStatus: null,
+      lastSuccessfulLinkCount: null, failureClass: null, expectedIntervalSec: null },
+  };
+  const document = { id: `briefing-item-${sha(canonical([itemReference, sourceReference]))}`, title: "Synthetic Briefing item",
+    sha256: sha("caller asserted document header"), pages: [page(1, excerpt)] };
+  const notebook = reviseResearchNotebook(createResearchNotebook("Briefing handoff"), {
+    type: "add-briefing-source", document, origin,
+  });
+  const reopened = validateResearchNotebook(JSON.parse(renderResearchNotebook(notebook)));
+  assert.deepEqual(reopened, notebook);
+  assert.equal(reopened.sources[0].briefingOrigin.itemReference.revision, itemReference.revision);
+  assert.equal(reopened.sources[0].briefingOrigin.sourceReference.revision, sourceReference.revision);
+  assert.equal(reopened.sources[0].document.pages[0].text, excerpt);
+  assert.notEqual(reopened.sources[0].document.pages[0].text, "original captured content");
+
+  const changed = structuredClone(notebook);
+  changed.sources[0].briefingOrigin.excerptSha256 = sha("different excerpt");
+  changed.sha256 = sha(canonical(Object.fromEntries(Object.entries(changed).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => validateResearchNotebook(changed), /Briefing item excerpt/);
+  assert.equal(validateResearchNotebook(starter()).sources[0].briefingOrigin, undefined,
+    "legacy notebooks without a Briefing origin remain compatible");
+});
+
 test("default empty topic reopens and a large source stays available for reading and explicit planning", () => {
   let notebook = createResearchNotebook("Untitled notes");
   assert.equal(notebook.topic, "");
