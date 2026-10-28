@@ -3,8 +3,8 @@
   "workspaceBase": {
     "repository": "soluna3/research-reader/research-workspace",
     "commit": "9e9f8994820a7ca7b71e1d86031a1cbaf49af4e8",
-    "methodsSubtreeImportCommit": "cd32aab21d1edc12d370ae0198476d14ca63812e",
-    "librarySubtreeImportCommit": "7043b1f74f73c0656dbd9d34455b896a883a1779"
+    "methodsSubtreeImportCommit": "b12a2b3d72332f741dd59d57a8d466e140a65445",
+    "librarySubtreeImportCommit": "8011bdb3ae688e1c11cad0d1b43a18a1d1992bb0"
   },
   "components": [
     {
