@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { fetchEvidence } from '../search-fetch.js';
+import { fetchEvidence, normalizeText } from '../search-fetch.js';
+import { publicLink } from '../search-document.js';
 import { scanSources } from '../search-sources.js';
 import { loadSettings, updateSettingsForBriefingOpml } from '../search-settings.js';
 import type { SearchSettings } from '../search-settings.js';
@@ -8,6 +9,7 @@ import {
   beginBriefingRefresh,
   completeBriefingRefresh,
   createBriefingApi,
+  isHackerNewsIndexUri,
   listSourceTerms,
   retainBriefingRecords,
   type BriefingRefreshSummary,
@@ -18,6 +20,70 @@ function id(prefix: string, value: string) {
 }
 function hash(value: string) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+const hackerNewsItemLimit = 20;
+const hackerNewsItemUrl = (itemId: number) =>
+  `https://hacker-news.firebaseio.com/v0/item/${itemId}.json`;
+const hackerNewsDiscussionUrl = (itemId: number) =>
+  `https://news.ycombinator.com/item?id=${itemId}`;
+
+function parseHackerNewsIndex(value: unknown): number[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > 500 ||
+    value.some((itemId) => !Number.isSafeInteger(itemId) || typeof itemId !== 'number' || itemId < 1)
+  )
+    throw new Error('invalid_hacker_news_index');
+  return [...new Set(value as number[])];
+}
+
+function parseHackerNewsItem(
+  value: unknown,
+  expectedId: number,
+  source: Source,
+  observedAt: string,
+): Item | null {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('invalid_hacker_news_item');
+  const record = value as Record<string, unknown>;
+  if (record.id !== expectedId) throw new Error('hacker_news_item_identity_mismatch');
+  if (record.deleted === true || record.dead === true) return null;
+  if (record.type !== 'story' && record.type !== 'job') return null;
+  if (typeof record.title !== 'string') throw new Error('invalid_hacker_news_item');
+  const title = normalizeText(record.title).slice(0, 500);
+  if (!title) return null;
+  const discussionUrl = hackerNewsDiscussionUrl(expectedId);
+  const canonicalUrl =
+    typeof record.url === 'string' ? publicLink(record.url, discussionUrl) ?? discussionUrl : discussionUrl;
+  const author = typeof record.by === 'string' ? normalizeText(record.by).slice(0, 300) : null;
+  const seconds = record.time;
+  const publishedAt =
+    typeof seconds === 'number' && Number.isSafeInteger(seconds) && seconds > 0
+      ? Number.isFinite(new Date(seconds * 1000).getTime())
+        ? new Date(seconds * 1000).toISOString()
+        : null
+      : null;
+  const excerpt = typeof record.text === 'string' ? normalizeText(record.text).slice(0, 5000) : '';
+  const contentDigest = hash(
+    JSON.stringify({ id: expectedId, canonicalUrl, title, author, publishedAt, excerpt }),
+  );
+  const itemId = id('item', `${source.id}\n${canonicalUrl}\n${contentDigest}`);
+  return {
+    id: itemId,
+    sourceId: source.id,
+    canonicalUrl,
+    title,
+    author,
+    publishedAt,
+    observedAt,
+    contentDigest,
+    excerpt,
+    metrics: [],
+    interestIds: source.interestIds,
+    storyId: id('story', itemId),
+  };
 }
 
 function localTimeToUtc(value: string, zone: string) {
@@ -274,17 +340,75 @@ export async function refreshBriefing(
     persist: true,
     signal: options.signal,
     fetch: async (uri, signal, redirects, allowPdf, fetchOptions) => {
-      const document = await (options.fetch ?? fetchEvidence)(uri, signal, redirects, allowPdf, {
-        ...fetchOptions,
-        includeBytes: true,
-      });
+      const source = sourceByUri.get(uri);
+      // HN's index contains only IDs, so a conditional 304 could hide changed item details.
+      // One explicit pass therefore rechecks the bounded item set instead of trusting only
+      // the index validator; every other source keeps the established conditional behavior.
+      const documentOptions =
+        source?.kind === 'api:hacker-news'
+          ? { includeBytes: true }
+          : { ...fetchOptions, includeBytes: true };
+      let document = await (options.fetch ?? fetchEvidence)(
+        uri,
+        signal,
+        redirects,
+        allowPdf,
+        documentOptions,
+      );
+      if (document.response?.status !== 304 && source?.kind === 'api:hacker-news') {
+        if (!isHackerNewsIndexUri(uri)) throw new Error('invalid_hacker_news_source');
+        const itemIds = parseHackerNewsIndex(document.json);
+        const observedAt = new Date().toISOString();
+        const items: Item[] = [];
+        for (const itemId of itemIds.slice(0, hackerNewsItemLimit)) {
+          const detail = await (options.fetch ?? fetchEvidence)(
+            hackerNewsItemUrl(itemId),
+            signal,
+            0,
+            false,
+            { includeBytes: true },
+          );
+          if (detail.response?.status === 304) throw new Error('unexpected_hacker_news_item_304');
+          const item = parseHackerNewsItem(detail.json, itemId, source, observedAt);
+          if (item) items.push(item);
+        }
+        const stories: Story[] = items.map((item) => ({
+          id: item.storyId!,
+          itemIds: [item.id],
+          representativeItemId: item.id,
+          firstSeen: observedAt,
+          lastSeen: observedAt,
+          relation: 'single',
+          groupingEvidence: [],
+          interestMatches: [],
+        }));
+        await retainBriefingRecords(root, { items, stories });
+        document = {
+          ...document,
+          text: JSON.stringify({
+            ids: itemIds,
+            details: items.map(({ id: itemId, contentDigest }) => ({ itemId, contentDigest })),
+          }),
+          material: {
+            text: itemIds.map(String).join('\n'),
+            title: 'Hacker News public story index',
+            author: null,
+            publishedAt: null,
+            links: itemIds.map((itemId) => ({
+              uri: hackerNewsDiscussionUrl(itemId),
+              title: `Hacker News item ${itemId}`,
+            })),
+            sections: [],
+            extractor: 'hacker-news-public-api-v0',
+          },
+        };
+      }
       if (
         document.response?.status !== 304 &&
         ((document.material && /xml/i.test(document.contentType ?? '')) ||
-          sourceByUri.get(uri)?.kind === 'ics' ||
-          sourceByUri.get(uri)?.kind === 'jsonfeed')
+          source?.kind === 'ics' ||
+          source?.kind === 'jsonfeed')
       ) {
-        const source = sourceByUri.get(uri);
         if (source) {
           const now = new Date().toISOString();
           if (source.kind === 'ics') {

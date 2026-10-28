@@ -162,6 +162,33 @@ function currentTime() {
   return new Date().toISOString();
 }
 
+/** Only the official public HN story-index routes are treated as the HN API adapter. */
+export function isHackerNewsIndexUri(uri: string): boolean {
+  try {
+    const url = new URL(uri);
+    const allowedPaths = new Set([
+      '/v0/topstories.json',
+      '/v0/newstories.json',
+      '/v0/beststories.json',
+      '/v0/askstories.json',
+      '/v0/showstories.json',
+    ]);
+    const query = [...url.searchParams.entries()];
+    return (
+      url.protocol === 'https:' &&
+      url.hostname === 'hacker-news.firebaseio.com' &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      allowedPaths.has(url.pathname) &&
+      (query.length === 0 || (query.length === 1 && query[0]![0] === 'print' && query[0]![1] === 'pretty'))
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function projectedInterests(root: string, state: State): Promise<Interest[]> {
   const settings = await loadSettings(root);
   const overrides = new Map(state.interestPreferences.map((item) => [item.id, item]));
@@ -255,7 +282,9 @@ async function projectedSources(root: string, state: State): Promise<Source[]> {
     };
     return {
       id,
-      kind: /\.ics(?:$|\?)/i.test(configured.uri)
+      kind: isHackerNewsIndexUri(configured.uri)
+        ? 'api:hacker-news'
+        : /\.ics(?:$|\?)/i.test(configured.uri)
         ? 'ics'
         : /\.json(?:$|\?)/i.test(configured.uri)
           ? 'jsonfeed'
