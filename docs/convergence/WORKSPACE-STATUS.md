@@ -4,7 +4,7 @@ This private integration repository is a B1-owned prototype, not a promoted
 release. `packages/methods` is brought in as an unsquashed subtree from the
 frozen Research owner history. Its source package name, version, engine, bin
 map, export, declarations, and payload bytes remain those recorded in
-`../..`'s B1 Methods source manifest.
+[`packages/methods/docs/convergence/methods-component-manifest.json`](../../packages/methods/docs/convergence/methods-component-manifest.json).
 
 The root package is a private workspace coordinator. It does not publish a new
 Methods identity or replace the standalone tarball. The first workspace entry
