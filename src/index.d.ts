@@ -1158,7 +1158,7 @@ export interface ResearchShouldaSourceOrigin {
 }
 export interface ResearchBriefingRecordReference {
   owner: "signals-ai";
-  kind: "briefing-item" | "briefing-source";
+  kind: "briefing-item" | "briefing-source" | "briefing-story";
   id: string;
   revision: `sha256:${string}`;
 }
@@ -1176,6 +1176,7 @@ export interface ResearchBriefingSourceOrigin {
   kind: "signals-briefing-item";
   itemReference: ResearchBriefingRecordReference & { kind: "briefing-item" };
   sourceReference: ResearchBriefingRecordReference & { kind: "briefing-source" };
+  storyReference?: ResearchBriefingRecordReference & { kind: "briefing-story" };
   contentDigest: string;
   excerptSha256: string;
   observedAt: string;

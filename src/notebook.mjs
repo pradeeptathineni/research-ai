@@ -95,7 +95,9 @@ function shouldaSourceOrigin(value, document) {
 function briefingSourceOrigin(value, document) {
   const fields = ["schemaVersion", "kind", "itemReference", "sourceReference", "contentDigest",
     "excerptSha256", "observedAt", "sourceHealth"];
-  if (!keys(value, fields) || value.schemaVersion !== 1 || value.kind !== "signals-briefing-item")
+  const storyFields = [...fields, "storyReference"];
+  if ((!keys(value, fields) && !keys(value, storyFields))
+      || value.schemaVersion !== 1 || value.kind !== "signals-briefing-item")
     invalid("invalid Briefing source origin fields");
   const reference = (ref, kind) => keys(ref, ["owner", "kind", "id", "revision"])
     && ref.owner === "signals-ai" && ref.kind === kind
@@ -103,6 +105,7 @@ function briefingSourceOrigin(value, document) {
     && typeof ref.revision === "string" && /^sha256:[a-f0-9]{64}$/.test(ref.revision);
   if (!reference(value.itemReference, "briefing-item")
       || !reference(value.sourceReference, "briefing-source")
+      || (value.storyReference !== undefined && !reference(value.storyReference, "briefing-story"))
       || !digestPattern.test(value.contentDigest) || !digestPattern.test(value.excerptSha256)
       || typeof value.observedAt !== "string" || !Number.isFinite(Date.parse(value.observedAt))
       || value.observedAt.length > 40) invalid("invalid Briefing source identity or observation");
@@ -120,11 +123,15 @@ function briefingSourceOrigin(value, document) {
         && health.lastSuccessfulLinkCount >= 0 && health.lastSuccessfulLinkCount <= 10000))
       || !(health.expectedIntervalSec === null || (Number.isFinite(health.expectedIntervalSec) && health.expectedIntervalSec > 0)))
     invalid("invalid Briefing source health qualification");
+  const documentIdentity = value.storyReference
+    ? [value.storyReference, value.itemReference, value.sourceReference]
+    : [value.itemReference, value.sourceReference];
   if (document.pages.length !== 1 || hash(document.pages[0].text) !== value.excerptSha256
-      || document.id !== `briefing-item-${hash(canonical([value.itemReference, value.sourceReference]))}`)
+      || document.id !== `briefing-item-${hash(canonical(documentIdentity))}`)
     invalid("Briefing item excerpt or exact item identity does not match its retained source");
   return { schemaVersion: 1, kind: value.kind, itemReference: clone(value.itemReference),
     sourceReference: clone(value.sourceReference), contentDigest: value.contentDigest,
+    ...(value.storyReference ? { storyReference: clone(value.storyReference) } : {}),
     excerptSha256: value.excerptSha256, observedAt: value.observedAt, sourceHealth: clone(health) };
 }
 
