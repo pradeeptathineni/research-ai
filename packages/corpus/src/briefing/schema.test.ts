@@ -12,6 +12,7 @@ import {
   isRankingExplanation,
   MetricObservationSchema,
   RankingExplanationSchema,
+  RankingPreferencesSchema,
   SeenStateSchema,
   SourceSchema,
   SourcePreferenceSchema,
@@ -28,6 +29,7 @@ import {
   itemReferenceFixture,
   metricObservationFixture,
   rankingExplanationFixture,
+  rankingPreferencesFixture,
   rankInputFixture,
   seenStateFixture,
   sourceFixture,
@@ -66,11 +68,10 @@ describe('Briefing S0 schemas', () => {
     expect(Value.Check(SeenStateSchema, unknownSeenStateFixture)).toBe(true);
     expect(Value.Check(InterestPreferenceSchema, interestPreferenceFixture)).toBe(true);
     expect(Value.Check(SourcePreferenceSchema, sourcePreferenceFixture)).toBe(true);
+    expect(Value.Check(RankingPreferencesSchema, rankingPreferencesFixture)).toBe(true);
     expect(Value.Check(RankingExplanationSchema, rankingExplanationFixture)).toBe(true);
     expect(isRankingExplanation(rankingExplanationFixture)).toBe(true);
-    expect(
-      isRankingExplanation({ ...rankingExplanationFixture, score: 71 }),
-    ).toBe(false);
+    expect(isRankingExplanation({ ...rankingExplanationFixture, score: 71 })).toBe(false);
     expect(
       scoreFromContributions(
         rankingExplanationFixture.baseScore,

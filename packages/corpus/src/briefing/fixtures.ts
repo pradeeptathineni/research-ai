@@ -12,7 +12,7 @@ import type {
   Source,
   Story,
   SourcePreference,
-  Story,
+  RankingPreferences,
   TimedEvent,
 } from './schema.js';
 
@@ -164,8 +164,14 @@ export const sourcePreferenceFixture = {
   updatedAt: '2026-10-28T00:00:00.000Z',
 } satisfies SourcePreference;
 
+export const rankingPreferencesFixture = {
+  velocityWeight: 0.1,
+  updatedAt: '2026-10-28T00:00:00.000Z',
+} satisfies RankingPreferences;
+
 export const rankInputFixture = {
   item: itemFixture,
+  itemReference: itemReferenceFixture,
   source: sourceFixture,
   interests: [interestFixture],
   metrics: [metricObservationFixture],

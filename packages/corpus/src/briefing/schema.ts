@@ -2,7 +2,11 @@ import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
 
 const closed = { additionalProperties: false } as const;
-const opaqueId = Type.String({ minLength: 1, maxLength: 160, pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:-]*$' });
+const opaqueId = Type.String({
+  minLength: 1,
+  maxLength: 160,
+  pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
+});
 const digest = Type.String({ pattern: '^[a-f0-9]{64}$' });
 const instant = Type.String({ format: 'date-time', maxLength: 40 });
 const localDate = Type.String({ format: 'date', maxLength: 10 });
@@ -101,6 +105,7 @@ export const TimedEventSchema = Type.Object(
   closed,
 );
 
+/** endDate is the exclusive calendar date carried by ICS DTEND, never an inclusive label. */
 export const AllDayEventSchema = Type.Object(
   {
     id: opaqueId,
@@ -229,25 +234,34 @@ export const SourcePreferenceSchema = Type.Object(
   closed,
 );
 
+export const RankingPreferencesSchema = Type.Object(
+  {
+    velocityWeight: Type.Number({ minimum: 0, maximum: 0.25 }),
+    updatedAt: instant,
+  },
+  closed,
+);
+
+/** revision hashes the canonical serialized Signals record, not its source contentDigest. */
+export const BriefingRecordReferenceSchema = Type.Object(
+  {
+    owner: Type.Literal('signals-ai'),
+    kind: Type.Enum(['briefing-source', 'briefing-item', 'briefing-story', 'briefing-event']),
+    id: opaqueId,
+    revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
+  },
+  closed,
+);
+
 export const BriefingRankInputSchema = Type.Object(
   {
     item: ItemSchema,
+    itemReference: BriefingRecordReferenceSchema,
     source: SourceSchema,
     interests: Type.Array(InterestSchema, { maxItems: 30 }),
     metrics: Type.Array(MetricObservationSchema, { maxItems: 100 }),
     seen: SeenStateSchema,
     feedback: Type.Array(FeedbackSchema, { maxItems: 100 }),
-  },
-  closed,
-);
-
-/** Stable local references for consumers; opening one still reads the owning Signals record. */
-export const BriefingRecordReferenceSchema = Type.Object(
-  {
-    owner: Type.Literal('signals-ai'),
-    kind: Type.Enum(['briefing-item', 'briefing-story', 'briefing-event']),
-    id: opaqueId,
-    revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
   },
   closed,
 );
@@ -266,8 +280,13 @@ export type MetricObservation = Static<typeof MetricObservationSchema>;
 export type SeenState = Static<typeof SeenStateSchema>;
 export type InterestPreference = Static<typeof InterestPreferenceSchema>;
 export type SourcePreference = Static<typeof SourcePreferenceSchema>;
+export type RankingPreferences = Static<typeof RankingPreferencesSchema>;
 export type BriefingRankInput = Static<typeof BriefingRankInputSchema>;
 export type BriefingRecordReference = Static<typeof BriefingRecordReferenceSchema>;
+export type BriefingRecord<T, K extends BriefingRecordReference['kind']> = {
+  record: T;
+  reference: BriefingRecordReference & { kind: K };
+};
 
 export type BriefingReadOptions = {
   interestId?: string;
@@ -294,14 +313,19 @@ export type InterestPreferenceRequest = {
   halfLifeDays: number;
 };
 export type SourcePreferenceRequest = { requestId: string; sourceId: string; priority: number };
+export type RankingPreferencesRequest = { requestId: string; velocityWeight: number };
 
 /** S1 implementations use the existing Signals private store and writer lock. */
 export interface BriefingReadApi {
   listInterests(): Promise<Interest[]>;
-  listSources(): Promise<Source[]>;
-  listItems(options?: BriefingReadOptions): Promise<Item[]>;
-  listStories(options?: BriefingReadOptions): Promise<Story[]>;
-  listEvents(options?: BriefingReadOptions): Promise<Event[]>;
+  listSources(): Promise<Array<BriefingRecord<Source, 'briefing-source'>>>;
+  listItems(options?: BriefingReadOptions): Promise<Array<BriefingRecord<Item, 'briefing-item'>>>;
+  listStories(
+    options?: BriefingReadOptions,
+  ): Promise<Array<BriefingRecord<Story, 'briefing-story'>>>;
+  listEvents(
+    options?: BriefingReadOptions,
+  ): Promise<Array<BriefingRecord<Event, 'briefing-event'>>>;
   listFeedback(options?: BriefingReadOptions): Promise<Feedback[]>;
   listRankInputs(options?: BriefingReadOptions): Promise<BriefingRankInput[]>;
   recordFeedback(request: FeedbackRequest): Promise<FeedbackReceipt>;
@@ -309,7 +333,13 @@ export interface BriefingReadApi {
   recordMetricObservation(request: MetricObservationRequest): Promise<MetricObservation>;
   setInterestPreference(request: InterestPreferenceRequest): Promise<InterestPreference>;
   setSourcePreference(request: SourcePreferenceRequest): Promise<SourcePreference>;
-  markSeen(request: { requestId: string; targetKind: 'item' | 'story'; targetId: string }): Promise<SeenState>;
+  getRankingPreferences(): Promise<RankingPreferences>;
+  setRankingPreferences(request: RankingPreferencesRequest): Promise<RankingPreferences>;
+  markSeen(request: {
+    requestId: string;
+    targetKind: 'item' | 'story';
+    targetId: string;
+  }): Promise<SeenState>;
 }
 
 export function scoreFromContributions(
@@ -326,11 +356,10 @@ export function isRankingExplanation(value: unknown): value is RankingExplanatio
   if (!Value.Check(RankingExplanationSchema, value)) return false;
   const explanation = value as RankingExplanation;
   return (
-    explanation.score ===
-    scoreFromContributions(explanation.baseScore, explanation.contributions)
+    explanation.score === scoreFromContributions(explanation.baseScore, explanation.contributions)
   );
 }
 
 export const BRIEFING_SCHEMA_VERSION = 1 as const;
 export const FEEDBACK_API_CONTRACT = 'briefing-feedback/1' as const;
-
+export const DEFAULT_VELOCITY_WEIGHT = 0.1 as const;
