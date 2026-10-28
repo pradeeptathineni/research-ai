@@ -5,6 +5,7 @@ export function activeStoryFeedback(
   story: Story,
   item: Item,
   now: number,
+  matchedTerms: readonly string[] = story.interestMatches.flatMap((match) => match.matchedTerms),
 ) {
   const undone = new Set(
     feedback.filter((entry) => entry.action === 'undo').map((entry) => entry.undoesFeedbackId),
@@ -18,7 +19,11 @@ export function activeStoryFeedback(
     if (entry.action === 'mute-source' && entry.targetId === item.sourceId) return true;
     if (
       entry.action === 'mute-term' &&
-      story.interestMatches.some((match) => match.matchedTerms.includes(entry.targetId))
+      matchedTerms.some(
+        (term) =>
+          term.normalize('NFKC').toLocaleLowerCase() ===
+          entry.targetId.normalize('NFKC').toLocaleLowerCase(),
+      )
     )
       return true;
     return false;
@@ -30,8 +35,9 @@ export function isStoryHidden(
   story: Story,
   item: Item,
   now: number,
+  matchedTerms?: readonly string[],
 ) {
-  return activeStoryFeedback(feedback, story, item, now).some(
+  return activeStoryFeedback(feedback, story, item, now, matchedTerms).some(
     (entry) =>
       entry.action === 'dismiss' ||
       entry.action === 'mute-source' ||

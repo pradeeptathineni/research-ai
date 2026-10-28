@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { isStoryHidden } from '../briefing-feedback.js';
-import { rankBriefingStory } from '../briefing-rank.js';
+import { briefingMatchedTerms, rankBriefingStory } from '../briefing-rank.js';
 import { eventCalendar } from '../briefing-calendar.js';
 import {
   importBriefingOpml,
@@ -140,10 +140,7 @@ export async function briefingRoute(
       !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(entries[0]![1])
     )
       throw new Error('invalid_briefing_event_calendar_query');
-    const [events, items] = await Promise.all([
-      api.listEvents(),
-      api.listItems(),
-    ]);
+    const [events, items] = await Promise.all([api.listEvents(), api.listItems()]);
     const retained = events.find((entry) => entry.record.id === entries[0]![1]);
     if (!retained) throw new Error('unknown_briefing_event');
     const item = retained.record.itemId
@@ -211,13 +208,24 @@ export async function briefingRoute(
         const ranked = (
           await Promise.all(
             inputs.map(async (input) => {
+              const matchedTerms = briefingMatchedTerms(input);
               const representative = input.items.find(
                 ({ item }) => item.id === input.story.representativeItemId,
               );
-              if (!representative || isStoryHidden(feedback, input.story, representative.item, now))
+              if (
+                !representative ||
+                isStoryHidden(
+                  feedback,
+                  input.story,
+                  representative.item,
+                  now,
+                  matchedTerms.flatMap((match) => match.terms),
+                )
+              )
                 return null;
               return {
                 input,
+                matchedTerms,
                 explanation: await rankBriefingStory(input, {
                   now,
                   velocityWeight: preferences.ranking.velocityWeight,
@@ -277,13 +285,24 @@ export async function briefingRoute(
         (
           await Promise.all(
             inputs.map(async (input) => {
+              const matchedTerms = briefingMatchedTerms(input);
               const representative = input.items.find(
                 ({ item }) => item.id === input.story.representativeItemId,
               );
-              if (!representative || isStoryHidden(feedback, input.story, representative.item, now))
+              if (
+                !representative ||
+                isStoryHidden(
+                  feedback,
+                  input.story,
+                  representative.item,
+                  now,
+                  matchedTerms.flatMap((match) => match.terms),
+                )
+              )
                 return null;
               return {
                 input,
+                matchedTerms,
                 explanation: await rankBriefingStory(input, { now, velocityWeight }),
               };
             }),
@@ -308,7 +327,7 @@ export async function briefingRoute(
       const currentById = new Map(
         current.map((entry, index) => [entry.input.story.id, { entry, position: index + 1 }]),
       );
-      const stories = draft.map(({ input, explanation }, index) => {
+      const stories = draft.map(({ input, explanation, matchedTerms }, index) => {
         const currentEntry = currentById.get(input.story.id);
         const representative = input.items.find(
           ({ item }) => item.id === input.story.representativeItemId,
@@ -320,6 +339,7 @@ export async function briefingRoute(
           story: input.story,
           storyTitle: representative.item.title,
           storyReference: input.storyReference,
+          matchedTerms,
           currentPosition: currentEntry.position,
           draftPosition: index + 1,
           currentScore: currentEntry.entry.explanation.total,
