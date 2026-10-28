@@ -240,6 +240,80 @@ describe('Briefing same-store API', () => {
     );
   });
 
+  it('exposes exact F1 ranking explanations with retained workbench references', async () => {
+    const root = await fixtureRoot();
+    const sourceId = (await createBriefingApi(root).listSources())[0]!.record.id;
+    await retainBriefingRecords(root, {
+      items: [{ ...itemFixture, sourceId }],
+      stories: [storyFixture],
+      events: [allDayEventFixture],
+    });
+
+    const response = await briefingRoute(root, 'briefing/workbench', false, undefined, 0);
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        schema: 'signals.briefing-workbench.v1',
+        ranked: [
+          {
+            input: {
+              story: { id: storyFixture.id },
+              storyReference: {
+                owner: 'signals-ai',
+                kind: 'briefing-story',
+                id: storyFixture.id,
+              },
+            },
+            explanation: {
+              storyId: storyFixture.id,
+              formula: 'briefing-linear-v1',
+              inputDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+            },
+          },
+        ],
+        events: [
+          {
+            reference: {
+              owner: 'signals-ai',
+              kind: 'briefing-event',
+              id: allDayEventFixture.id,
+            },
+          },
+        ],
+        sources: [
+          {
+            reference: {
+              owner: 'signals-ai',
+              kind: 'briefing-source',
+              id: sourceId,
+            },
+          },
+        ],
+      },
+    });
+    const body = response?.body as {
+      ranked: Array<{
+        explanation: { completeness: string; total: number };
+        input: { storyReference: { revision: string } };
+      }>;
+      events: Array<{ reference: { revision: string } }>;
+    };
+    expect(body.ranked[0]?.input.storyReference.revision).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(body.ranked[0]?.explanation).toMatchObject({ completeness: 'partial' });
+    expect(body.ranked[0]?.explanation.total).toBeGreaterThanOrEqual(0);
+    expect(body.ranked[0]?.explanation.total).toBeLessThanOrEqual(100);
+    expect(body.events[0]?.reference.revision).toMatch(/^sha256:[a-f0-9]{64}$/);
+
+    await createBriefingApi(root).recordFeedback({
+      requestId: 'f07c0705-08f9-4772-9175-209699e068d9',
+      targetKind: 'source',
+      targetId: sourceId,
+      action: 'mute-source',
+    });
+    const muted = await briefingRoute(root, 'briefing/workbench', false, undefined, 0);
+    expect((muted?.body as { ranked: unknown[] }).ranked).toEqual([]);
+  });
+
   it('parses only bounded JSON Feed text fields and validates public entry URLs', async () => {
     const root = await fixtureRoot();
     const source = (await createBriefingApi(root).listSources())[0]!.record;
