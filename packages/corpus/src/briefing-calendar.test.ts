@@ -113,10 +113,11 @@ describe('Briefing ICS export', () => {
       title: itemFixture.title,
       filename: 'briefing-event-event-day.ics',
     });
-    expect(allDay?.body.ics).toContain('DTSTART;VALUE=DATE:20261028');
-    expect(allDay?.body.ics).toContain('DTEND;VALUE=DATE:20261029');
-    expect(allDay?.body.ics).toContain('X-ORIGINAL-TIMEZONE:America/New_York');
-    expect(allDay?.body.ics.length).toBeLessThanOrEqual(16_384);
+    const allDayIcs = (allDay?.body as { ics: string } | undefined)?.ics;
+    expect(allDayIcs).toContain('DTSTART;VALUE=DATE:20261028');
+    expect(allDayIcs).toContain('DTEND;VALUE=DATE:20261029');
+    expect(allDayIcs).toContain('X-ORIGINAL-TIMEZONE:America/New_York');
+    expect(allDayIcs?.length).toBeLessThanOrEqual(16_384);
 
     const timed = await briefingRoute(
       root,
@@ -126,8 +127,9 @@ describe('Briefing ICS export', () => {
       1,
       new URLSearchParams('eventId=event-timed'),
     );
-    expect(timed?.body.ics).toContain('DTSTART:20261028T090000Z');
-    expect(timed?.body.ics).toContain('X-DST-AMBIGUOUS:FALSE');
+    const timedIcs = (timed?.body as { ics: string } | undefined)?.ics;
+    expect(timedIcs).toContain('DTSTART:20261028T090000Z');
+    expect(timedIcs).toContain('X-DST-AMBIGUOUS:FALSE');
 
     await expect(
       briefingRoute(
