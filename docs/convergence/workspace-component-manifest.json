@@ -23,8 +23,15 @@
     {
       "component": "Library",
       "owner": "signals-ai",
-      "sourceCommit": "73d5ec9624effe111289e18da88e233bdd9a25a1",
-      "sourceTree": "4585db64dc7ec7ec3935b6376d068dc583a52774",
+      "sourceCommit": "6ba4a8bb451003447826fb6fd002cf7ef80f056e",
+      "sourceTree": "e2d06a7af64c320dd75ac1dbc442745c0204864a",
+      "sourceParent": "73d5ec9624effe111289e18da88e233bdd9a25a1",
+      "compositeImportMergeCommit": "d6eb86ae545fd9ca029057d823eef51c17d20560",
+      "compositeTreeBeforeManifestUpdate": "3eddf1f0f522c37f97d566ffb88f71bee39a79bd",
+      "integratedSourceChanges": [
+        "packages/corpus/src/briefing/http.ts",
+        "packages/corpus/src/briefing/store.test.ts"
+      ],
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -33,7 +40,7 @@
         "path": "packages/library/package.json",
         "originalSha256": "e7a6b8272f63fe9f53981f14bafb8d0ff2ebe7ad8ee7401d5598c25763ec0e85",
         "workspaceSha256": "9af0ff7bf0c543743a432ee6ebb33ce064774d98e2efdc7f5c5506a590520d44",
-        "change": "Only dependencies.@pradeeptathineni/research-ai changed from the frozen content-addressed archive to file:../methods. All Signals source files and package identity fields remain the frozen 73d values."
+        "change": "Only dependencies.@pradeeptathineni/research-ai changed from the frozen content-addressed archive to file:../methods. Signals source files and package identity fields remain frozen; Library source is 6ba4a8b."
       }
     }
   ],

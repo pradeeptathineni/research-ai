@@ -9,14 +9,15 @@ packages, or import a second executor or Library implementation.
 points, declarations and payload hash remain bound by
 [`methods-component-manifest.json`](../../packages/methods/docs/convergence/methods-component-manifest.json).
 
-`packages/library` is the whole Signals subtree from frozen commit
-`73d5ec9624effe111289e18da88e233bdd9a25a1`, including its S1/F1 history and
-approved Research pin guard. The subtree tree matches the source Git tree
-exactly. The only workspace adaptation is in `packages/library/package.json`:
-its Research dependency uses `file:../methods`, the local equivalent explicitly
-accepted by the frozen guard. No Signals engine source, package identity,
-standalone archive, package lock, or pin was changed. The original package
-manifest remains intact in the source repository.
+`packages/library` preserves the full Signals subtree history through frozen
+commit `6ba4a8bb451003447826fb6fd002cf7ef80f056e`, whose parent is
+`73d5ec9624effe111289e18da88e233bdd9a25a1`. It contains the approved Research
+pin guard and the native `briefing/workbench` route. All imported source blobs
+match the frozen source except the explicitly recorded workspace metadata shim
+in `packages/library/package.json`: its Research dependency uses
+`file:../methods`, the local equivalent accepted by the frozen guard. No Signals
+engine source, package identity, standalone archive, package lock, or pin was
+changed; the original package manifest remains intact in the source repository.
 
 The private root declares Methods, Library and Library's existing nested
 `apps/*` and `packages/*` workspaces. It carries the existing Repomix MCP SDK
