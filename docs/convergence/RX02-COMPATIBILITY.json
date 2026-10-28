@@ -1,0 +1,70 @@
+{
+  "schema": "research-rx02-workspace-compatibility.v1",
+  "componentSources": {
+    "methods": {
+      "revision": "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6",
+      "target": "packages/methods"
+    },
+    "library": {
+      "revision": "92c5cab967f975d4842d3ee7ddc7cad6594c7b03",
+      "target": "packages/library"
+    }
+  },
+  "methods": {
+    "package": "@pradeeptathineni/research-ai@0.4.0-rc.1",
+    "existingBinCount": 17,
+    "bins": {
+      "research-ai": "bin/research-ai.mjs",
+      "research-report-export": "bin/research-report-export.mjs",
+      "research-study-report": "bin/research-study-report.mjs",
+      "research-bibliography": "bin/research-bibliography.mjs",
+      "research-branches": "bin/research-branches.mjs",
+      "research-table-analysis": "bin/research-table-analysis.mjs",
+      "research-table-csv": "bin/research-table-csv.mjs",
+      "research-documents": "bin/research-documents.mjs",
+      "research-table-query": "bin/research-table-query.mjs",
+      "research-notebook": "bin/research-notebook.mjs",
+      "research-notebook-search": "bin/research-notebook-search.mjs",
+      "research-study": "bin/research-study.mjs",
+      "research-perspective-workflow": "bin/research-perspective-workflow.mjs",
+      "research-document-recovery": "bin/research-document-recovery.mjs",
+      "research-document-recovery-synthesis": "bin/research-document-recovery-synthesis.mjs",
+      "research-table-notebook": "bin/research-table-notebook.mjs",
+      "research-investigation": "bin/research-investigation.mjs"
+    },
+    "capabilityApi": "preserved frozen source package; no workspace API rewrite"
+  },
+  "library": {
+    "package": "signals-ai@0.3.0",
+    "capabilityIds": [
+      "source-change-review",
+      "project-topic-relevance",
+      "project-opportunity-brief"
+    ],
+    "providerContractConsumers": [
+      "src/owner-tools/capability-client.ts",
+      "src/owner-tools/source-change-review-panel.tsx",
+      "src/owner-tools/project-topic-relevance-panel.tsx",
+      "src/owner-tools/project-opportunity-brief-panel.tsx"
+    ]
+  },
+  "workspaceGuard": {
+    "mode": "workspace",
+    "rootEnv": "SIGNALS_RESEARCH_WORKSPACE_ROOT",
+    "manifestEnv": "SIGNALS_RESEARCH_WORKSPACE_MANIFEST",
+    "manifestShaEnv": "SIGNALS_RESEARCH_WORKSPACE_MANIFEST_SHA256",
+    "lockShaEnv": "SIGNALS_RESEARCH_WORKSPACE_LOCK_SHA256",
+    "layoutEnv": "SIGNALS_RESEARCH_LAYOUT"
+  },
+  "standaloneFallback": {
+    "layoutEnvValueAbsent": "default standalone fixed-tarball verification remains active",
+    "tarball": "packages/library/vendor/research-ai/0f7ab726f7267e1a7e85c4f7094d909db5a7e64671a2b319d3083aa39f6ce947.tgz",
+    "sha256": "0f7ab726f7267e1a7e85c4f7094d909db5a7e64671a2b319d3083aa39f6ce947",
+    "integrity": "sha512-WwROhHo9AMQHDsapnVDvhdBwTHMMYr5WzdutkbA0rb9x4wboXP8U6Qt48lD+11mQXPi60nteskdUNHuaTM2obA==",
+    "originalLibraryLockSha256": "6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa"
+  },
+  "qualificationLimits": [
+    "No external Deep consumer runtime was independently mounted",
+    "No publish, install, listener, live provider/model, or real store"
+  ]
+}

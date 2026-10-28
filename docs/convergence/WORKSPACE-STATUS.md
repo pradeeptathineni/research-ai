@@ -1,65 +1,27 @@
-# Research workspace integration status
+# RX02 private workspace convergence
 
-This private workspace composes the existing Research Methods and Signals Library
-packages. It does not publish new package identities, replace standalone
-packages, or import a second executor or Library implementation.
+This private integration workspace brings exact frozen Research Methods and Signals Library sources under one declared npm workspace. Standalone repositories and package identities remain the source of truth. No runtime package was installed during workspace or lock generation.
 
-`packages/methods` remains the unchanged Methods subtree from source commit
-`19b20c734e6ba9614a476dbb5fda2a9895b173ac`. Its name, version, engine, entry
-points, declarations and payload hash remain bound by
-[`methods-component-manifest.json`](../../packages/methods/docs/convergence/methods-component-manifest.json).
+## Imported components
 
-`packages/library` preserves the full Signals subtree history through frozen
-commit `6ba4a8bb451003447826fb6fd002cf7ef80f056e`, whose parent is
-`73d5ec9624effe111289e18da88e233bdd9a25a1`. It contains the approved Research
-pin guard and the native `briefing/workbench` route. All imported source blobs
-match the frozen source except the explicitly recorded workspace metadata shim
-in `packages/library/package.json`: its Research dependency uses
-`file:../methods`, the local equivalent accepted by the frozen guard. No Signals
-engine source, package identity, standalone archive, package lock, or pin was
-changed; the original package manifest remains intact in the source repository.
+`packages/methods` is a history-preserving subtree of frozen Research commit `0e0da1985fbf199b4723a64e8a51ee7d638ed6b6`. Its package name/version, Node engine, 17 existing CLI names and paths, ESM export/declaration and zero-runtime-dependency boundary are unchanged. `methods-component-manifest.json` binds the source Git tree, identity projection and exact 85-file package payload. The manifest is workspace metadata outside the package's published `files` list.
 
-The private root declares Methods, Library and Library's existing nested
-`apps/*` and `packages/*` workspaces. It carries the existing Repomix MCP SDK
-override and remote dependency policy. The root lock is lockfile v3, seeded
-from the frozen Library lock and canonicalized by npm 12.1.0 with Node 24.19.0
-using `--package-lock-only --ignore-scripts --offline`; no packages were
-installed and no remote lookup was allowed. It contains explicit links for
-`node_modules/@pradeeptathineni/research-ai → packages/methods`,
-`node_modules/signals-ai → packages/library`, and the nested `@signals/*`
-workspaces. See
-[`workspace-component-manifest.json`](workspace-component-manifest.json) for
-source, package and lock hashes.
+`packages/library` is a history-preserving subtree of frozen Signals commit `433f43cb17680d655477172599d925b328acc5b9`, descended from accepted Briefing baseline `14fe11e`. All imported source blobs are identical to that source except the recorded workspace-only `package.json` dependency rewrite from the fixed Research tarball to `file:../methods`. Library's own `package-lock.json`, original fixed tarball, tarball digest/integrity, Research pin guard, capability IDs, and standalone location remain unchanged. The root workspace lock creates an exact `@pradeeptathineni/research-ai → packages/methods` workspace link and a `signals-ai → packages/library` link.
 
-The canonical Deep application stays its own existing workbench and owns the
-Reader/report/literature UI. This package workspace does not copy that UI under
-`apps/workbench`; Sol-A owns any thin compatibility entrypoint. The Reuse
-package remains owned by the Reuse/Trials lane and is not imported here.
+`apps/workbench` is a thin package entrypoint. Its start, dev, test and build scripts forward to the existing `signals-ai` package scripts and its `verify:entrypoint` check resolves `packages/library/scripts/workbench.ts`. It contains no UI, server implementation, or duplicated workbench. The original Library workbench remains at its existing path.
 
-## Guard configuration
+## Preserved consumers
 
-For the existing Library Research dependency guard, set:
+The Research/Signals inventory remains unchanged: Research's `research-ai` CLI/API and the Signals CLI retain their names and paths. The three Deep capability IDs remain `source-change-review`, `project-topic-relevance`, and `project-opportunity-brief`; the four `SignalsProviderContractBinding` consumers remain `capability-client.ts` and the source-change, project-topic-relevance, and project-opportunity-brief panels. No Deep/Root file was edited here. Their external runtime mounts are not asserted by this workspace package test.
 
-```text
-SIGNALS_RESEARCH_LAYOUT=workspace
-SIGNALS_RESEARCH_WORKSPACE_ROOT=<absolute path to this workspace root>
-SIGNALS_RESEARCH_WORKSPACE_MANIFEST=<absolute path to packages/methods/docs/convergence/methods-component-manifest.json>
-SIGNALS_RESEARCH_WORKSPACE_MANIFEST_SHA256=b6ae349ae352284ee04f1703fbdf78117559a1adef3d6c8399811db4ea89084c
-SIGNALS_RESEARCH_WORKSPACE_LOCK_SHA256=74e6034da3cc6a4977cb08b77f0c17c0246c3f69c462f76fac719543d976f2ea
-```
+## Workspace integrity
 
-At runtime, the workspace manager must create the exact Methods link in the
-root `node_modules`. This integration did not run an installer; the guard was
-qualified separately using a temporary local link and removed after the
-check. Standalone Signals archive pin behavior remains unchanged when workspace
-mode is omitted.
+The Methods guard requires explicit workspace mode plus absolute root and manifest paths, manifest SHA-256, lock SHA-256, Git ancestry, package identity and every declared package payload blob. The workspace link is accepted only at the declared root. The guard does not search arbitrary parent `node_modules` directories and the default standalone mode remains unchanged. The Library source lock stays byte-for-byte at SHA-256 `6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa`; the generated root lock was produced with Node 24.19.0/npm 12.1.0 using `--package-lock-only --ignore-scripts --offline`, without creating `node_modules` or accessing the network.
 
-## Entrypoints
+The workspace component manifest records exact source roots/revisions, source package-lock hashes, package metadata shim hashes, root package/lock hashes and the unchanged archive bytes. Runtime guard variables are listed in that manifest's delivery companion `RX02-COMPATIBILITY.json`.
 
-- `npm run research -- <question>` forwards to the existing Methods CLI.
-- `npm run methods:test` invokes the existing Methods test script.
-- `npm run library:research -- <args>` forwards to the Signals research CLI.
-- `npm run library:dependencies` invokes the frozen Library dependency guard.
+## Checks
 
-`apps/workbench` and `python/reuse` remain external owned components; no
-duplicate app, Python engine, or data store was added.
+Run the full Methods test gate from the root with `npm run methods:test`. The Signals full verification is `npm run verify` in `packages/library`; it includes the established release, type, format, lint, unit, research-answer, provenance, security, corpus, local-query, workbench, and built-app gates. The workspace-specific Library dependency guard must receive the exact `SIGNALS_RESEARCH_LAYOUT=workspace`, absolute workspace root and Methods manifest paths, and recorded manifest/lock digests. The workbench forwarding smoke check is `npm run workbench:verify`; it reads package metadata and the existing script entrypoint and starts no server.
+
+No external consumer checkout, publish, tarball rebuild, install, listener, live provider or model call is claimed by this integration. The full gates were run only with the recorded Node 24.19.0 toolchain and an owned copy of the exact-lock Library dependency cache.

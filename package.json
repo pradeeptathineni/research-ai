@@ -9,6 +9,7 @@
   "workspaces": [
     "packages/methods",
     "packages/library",
+    "apps/workbench",
     "packages/library/apps/*",
     "packages/library/packages/*"
   ],
@@ -21,6 +22,9 @@
     "research": "node packages/methods/bin/research-ai.mjs",
     "methods:test": "npm test --workspace @pradeeptathineni/research-ai",
     "library:research": "node --import tsx packages/library/scripts/research.ts",
-    "library:dependencies": "node packages/library/scripts/dependency-check.mjs"
+    "library:dependencies": "node packages/library/scripts/dependency-check.mjs",
+    "workbench:start": "npm run start --workspace research-workbench",
+    "workbench:dev": "npm run dev --workspace research-workbench",
+    "workbench:verify": "npm run verify:entrypoint --workspace research-workbench"
   }
 }

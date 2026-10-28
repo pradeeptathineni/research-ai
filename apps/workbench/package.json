@@ -1,0 +1,20 @@
+{
+  "name": "research-workbench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "dependencies": {
+    "@pradeeptathineni/research-ai": "file:../../packages/methods",
+    "signals-ai": "file:../../packages/library"
+  },
+  "scripts": {
+    "start": "npm run start --workspace signals-ai",
+    "dev": "npm run dev --workspace signals-ai",
+    "test": "npm run test --workspace signals-ai",
+    "build": "npm run build --workspace signals-ai",
+    "verify:entrypoint": "node ./verify-entrypoint.mjs"
+  }
+}
