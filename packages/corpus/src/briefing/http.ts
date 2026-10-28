@@ -2,7 +2,12 @@ import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { isStoryHidden } from '../briefing-feedback.js';
 import { rankBriefingStory } from '../briefing-rank.js';
-import { refreshBriefing } from './ingest.js';
+import {
+  importBriefingOpml,
+  previewBriefingOpml,
+  readBriefingOpmlImport,
+  refreshBriefing,
+} from './ingest.js';
 import { createBriefingApi, listBriefingPreferences, listSourceTerms } from './store.js';
 
 const uuid = Type.String({ format: 'uuid' });
@@ -30,6 +35,17 @@ const refreshRequest = Type.Object(
   {
     once: Type.Literal(true),
     interest: Type.Optional(Type.String({ pattern: '^[a-z0-9-]{1,80}$' })),
+  },
+  closed,
+);
+const opmlPreviewRequest = Type.Object({ opml: Type.String({ maxLength: 1000000 }) }, closed);
+const opmlImportRequest = Type.Object(
+  {
+    opml: Type.String({ maxLength: 1000000 }),
+    requestId: uuid,
+    inputDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    settingsDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    previewDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
   },
   closed,
 );
@@ -100,8 +116,15 @@ export async function briefingRoute(
   mutation: boolean,
   body: unknown,
   queryCount: number,
+  query?: URLSearchParams,
 ) {
   const api = createBriefingApi(root);
+  if (!mutation && route === 'briefing/opml/import-status') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')
+      throw new Error('invalid_briefing_opml_import_status_query');
+    return { status: 200, body: await readBriefingOpmlImport(root, entries[0]![1]) };
+  }
   if (queryCount !== 0) throw new Error('briefing_query_not_supported');
   if (!mutation) {
     switch (route) {
@@ -188,6 +211,19 @@ export async function briefingRoute(
     case 'briefing/refresh':
       if (!Value.Check(refreshRequest, body)) throw new Error('invalid_briefing_refresh');
       return { status: 200, body: await refreshBriefing(root, { interest: body.interest }) };
+    case 'briefing/opml/preview':
+      if (!Value.Check(opmlPreviewRequest, body)) throw new Error('invalid_briefing_opml_preview');
+      return { status: 200, body: await previewBriefingOpml(root, body.opml) };
+    case 'briefing/opml/import':
+      if (!Value.Check(opmlImportRequest, body)) throw new Error('invalid_briefing_opml_import');
+      return {
+        status: 200,
+        body: await importBriefingOpml(root, body.opml, body.requestId, {
+          inputDigest: body.inputDigest,
+          settingsDigest: body.settingsDigest,
+          previewDigest: body.previewDigest,
+        }),
+      };
     case 'briefing/feedback':
       if (!Value.Check(feedbackRequest, body)) throw new Error('invalid_briefing_feedback');
       return { status: 201, body: await api.recordFeedback(body) };

@@ -159,7 +159,12 @@ async function projectedSources(root: string, state: State): Promise<Source[]> {
     {
       state?: string;
       fetchedAt?: string;
-      lastAttempt?: { checkedAt?: string; status?: string; reason?: string | null };
+      links?: string[];
+      lastAttempt?: {
+        checkedAt?: string;
+        status?: 'fetched' | 'not-modified' | 'failed';
+        reason?: string | null;
+      };
     }
   >;
   const preference = new Map(state.sourcePreferences.map((item) => [item.id, item.priority]));
@@ -200,6 +205,9 @@ async function projectedSources(root: string, state: State): Promise<Source[]> {
             : ('unknown' as const),
       lastGoodAt,
       lastAttemptAt,
+      lastAttemptStatus: prior?.lastAttempt?.status ?? null,
+      lastSuccessfulLinkCount:
+        prior?.state === 'fetched' && prior.fetchedAt ? (prior.links?.length ?? 0) : null,
       failureClass: failed ? ('other' as const) : null,
       expectedIntervalSec,
     };

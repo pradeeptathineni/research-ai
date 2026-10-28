@@ -400,7 +400,7 @@ export function searchApi(
       }
       if (route === 'briefing' || route.startsWith('briefing/')) {
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        const result = await briefingRoute(root, route, mutation, body, params.size);
+        const result = await briefingRoute(root, route, mutation, body, params.size, params);
         if (result) json(result.status, result.body);
         else json(404, { code: 'unknown_operation' });
       } else if (route === 'private-documents' || route.startsWith('private-documents/')) {

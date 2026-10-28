@@ -50,6 +50,8 @@ const base: BriefingRankInput = {
           status: 'unknown',
           lastGoodAt: null,
           lastAttemptAt: null,
+          lastAttemptStatus: null,
+          lastSuccessfulLinkCount: null,
           failureClass: null,
           expectedIntervalSec: null,
         },

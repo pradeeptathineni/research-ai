@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
 import { channels, parseRequest } from '../../domain/src/search-contract.js';
-import { atomicJson, readPrivateJson } from './search-store.js';
+import { atomicJson, readPrivateJson, withWriter } from './search-store.js';
 
 const closed = { additionalProperties: false };
 const settingsSchema = Type.Object(
@@ -36,6 +36,25 @@ const settingsSchema = Type.Object(
           closed,
         ),
         { maxItems: 50 },
+      ),
+    ),
+    briefingOpmlImports: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            requestId: Type.String({ format: 'uuid' }),
+            requestDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            previewDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            inputDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            resultingSettingsDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            imported: Type.Integer({ minimum: 0, maximum: 200 }),
+            configured: Type.Integer({ minimum: 0, maximum: 50 }),
+            changed: Type.Boolean(),
+            completedAt: Type.String({ maxLength: 40 }),
+          },
+          closed,
+        ),
+        { maxItems: 10000 },
       ),
     ),
     supplementalSites: Type.Optional(
@@ -183,7 +202,27 @@ export async function loadSettings(root = process.cwd()) {
   return validateSettings({ ...structuredClone(defaultSettings), ...raw });
 }
 export async function saveSettings(settings: unknown, root = process.cwd()) {
-  const validated = validateSettings(settings);
-  await atomicJson(resolve(root, '.signals/settings.json'), validated);
-  return validated;
+  return updateSettings(root, (current) => {
+    const validated = validateSettings(settings);
+    if (validated.briefingOpmlImports === undefined && current.briefingOpmlImports !== undefined)
+      validated.briefingOpmlImports = current.briefingOpmlImports;
+    return { settings: validated, result: validated };
+  }).then(({ result }) => result);
+}
+
+/** Serializes changes to the existing settings file and reads the committed value back. */
+export async function updateSettings<T>(
+  root: string,
+  change: (current: SearchSettings) => { settings: unknown; result: T },
+) {
+  return withWriter(root, async () => {
+    const current = await loadSettings(root);
+    const { settings, result } = change(current);
+    const validated = validateSettings(settings);
+    if (validated.briefingOpmlImports === undefined && current.briefingOpmlImports !== undefined)
+      validated.briefingOpmlImports = current.briefingOpmlImports;
+    await atomicJson(resolve(root, '.signals/settings.json'), validated);
+    const committed = await loadSettings(root);
+    return { settings: committed, result };
+  });
 }

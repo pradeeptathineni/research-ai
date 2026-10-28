@@ -37,6 +37,12 @@ export const SourceHealthSchema = Type.Object(
     status: Type.Enum(['unknown', 'healthy', 'stale', 'failed']),
     lastGoodAt: Type.Union([instant, Type.Null()]),
     lastAttemptAt: Type.Union([instant, Type.Null()]),
+    lastAttemptStatus: Type.Union([Type.Enum(['fetched', 'not-modified', 'failed']), Type.Null()]),
+    /** Zero is a successful empty snapshot; null means no successful snapshot is known. */
+    lastSuccessfulLinkCount: Type.Union([
+      Type.Integer({ minimum: 0, maximum: 10000 }),
+      Type.Null(),
+    ]),
     failureClass: Type.Union([
       Type.Enum(['unreachable', 'parse-error', 'refused', 'terms-blocked', 'other']),
       Type.Null(),

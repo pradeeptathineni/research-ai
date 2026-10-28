@@ -204,11 +204,30 @@ export async function providerCapabilities(
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
       { id: 'private-document-intake', versions: ['1.0'] },
+      { id: 'briefing-sources-and-workbench', versions: ['1.1'] },
       { id: 'smart-collections', versions: ['1.0'] },
       { id: 'frozen-followup-request', versions: ['1.0', '2.0'] },
       { id: 'research-activity', versions: ['1.0'] },
     ],
     operations: [
+      {
+        name: 'preview_following_opml',
+        target_kinds: ['briefing-source'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'import_following_opml',
+        target_kinds: ['briefing-source'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
+        name: 'read_following_opml_import',
+        target_kinds: ['briefing-source'],
+        mutating: false,
+        authority_required: false,
+      },
       {
         name: 'search_knowledge',
         target_kinds: [
@@ -511,6 +530,10 @@ export async function providerCapabilities(
       'source_change_review',
       'project_topic_relevance',
       'project_opportunity_brief',
+      'briefing_source',
+      'briefing_item',
+      'briefing_story',
+      'briefing_event',
       'project_opportunity_brief',
       'private_pdf_reader',
       'private_document',

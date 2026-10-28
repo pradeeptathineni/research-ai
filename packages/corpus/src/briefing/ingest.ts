@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { fetchEvidence } from '../search-fetch.js';
 import { scanSources } from '../search-sources.js';
-import { loadSettings } from '../search-settings.js';
+import { loadSettings, updateSettings } from '../search-settings.js';
+import type { SearchSettings } from '../search-settings.js';
 import type { AllDayEvent, Item, Source, Story, TimedEvent } from './schema.js';
 import { createBriefingApi, listSourceTerms, retainBriefingRecords } from './store.js';
 
@@ -369,29 +370,240 @@ export async function refreshBriefing(
 /** Pure parsers retain only explicit feed data and avoid executing embedded content. */
 export function parseOpml(input: string) {
   if (input.length > 1000000 || /<!DOCTYPE|<!ENTITY/i.test(input)) throw new Error('invalid_opml');
-  const rows: Array<{ url: string; label: string; type: 'rss' | 'ics' | 'jsonfeed' }> = [];
+  if (!/<opml\b[^>]*>/i.test(input) || !/<\/opml\s*>/i.test(input)) throw new Error('invalid_opml');
+  const decode = (value: string) =>
+    value.replace(/&(#x[0-9a-f]+|#\d+|amp|quot|apos|lt|gt);/gi, (_entity, name: string) => {
+      if (name[0] !== '#')
+        return ({ amp: '&', quot: '"', apos: "'", lt: '<', gt: '>' } as Record<string, string>)[
+          name.toLowerCase()
+        ]!;
+      const point =
+        name[1]?.toLowerCase() === 'x'
+          ? Number.parseInt(name.slice(2), 16)
+          : Number.parseInt(name.slice(1), 10);
+      if (
+        !Number.isSafeInteger(point) ||
+        point < 1 ||
+        point > 0x10ffff ||
+        (point >= 0xd800 && point <= 0xdfff)
+      )
+        throw new Error('invalid_opml_entity');
+      return String.fromCodePoint(point);
+    });
+  const rows: Array<{
+    url: string;
+    label: string;
+    type: 'rss' | 'atom' | 'ics' | 'jsonfeed';
+  }> = [];
   for (const match of input.matchAll(/<outline\b([^>]*)\/?\s*>/gi)) {
     const attrs = new Map<string, string>();
     for (const attribute of match[1]!.matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g))
       attrs.set(attribute[1]!.toLowerCase(), attribute[3]!);
-    const url = attrs.get('xmlurl') ?? attrs.get('url');
+    const rawUrl = attrs.get('xmlurl') ?? attrs.get('url');
+    const url = rawUrl === undefined ? undefined : decode(rawUrl);
     if (!url) continue;
     const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password)
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.toString().length > 2048 ||
+      [...parsed.searchParams.keys()].some((key) =>
+        /^(?:api[-_]?key|access[-_]?token|token|auth|authorization|password|secret|signature)$/i.test(
+          key,
+        ),
+      )
+    )
       throw new Error('invalid_opml_source');
+    const label = decode(attrs.get('text') ?? attrs.get('title') ?? parsed.hostname).trim();
+    if (!label || label.length > 200) throw new Error('invalid_opml_source_label');
     rows.push({
       url: parsed.toString(),
-      label: attrs.get('text') ?? attrs.get('title') ?? parsed.hostname,
+      label,
       type:
         /^(?:ical|ics)$/i.test(attrs.get('type') ?? '') || /\.ics$/i.test(parsed.pathname)
           ? 'ics'
           : /^(?:json|jsonfeed)$/i.test(attrs.get('type') ?? '') || /\.json$/i.test(parsed.pathname)
             ? 'jsonfeed'
-            : 'rss',
+            : /^(?:atom)$/i.test(attrs.get('type') ?? '') || /\.atom$/i.test(parsed.pathname)
+              ? 'atom'
+              : 'rss',
     });
   }
   if (rows.length > 200) throw new Error('opml_source_limit');
   return rows;
+}
+
+function canonicalSources(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalSources).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalSources(entry)}`)
+      .join(',')}}`;
+  return JSON.stringify(value) ?? 'null';
+}
+
+function buildOpmlPreview(
+  input: string,
+  current: NonNullable<Awaited<ReturnType<typeof loadSettings>>['followedSources']>,
+) {
+  const parsed = parseOpml(input);
+  if (
+    parsed.some(
+      (source) =>
+        (source.type === 'ics' && !/\.ics(?:$|\?)/i.test(source.url)) ||
+        (source.type === 'jsonfeed' && !/\.json(?:$|\?)/i.test(source.url)) ||
+        (source.type === 'atom' && !/\.atom(?:$|\?)/i.test(source.url)),
+    )
+  )
+    throw new Error('opml_source_type_must_match_url');
+  const byUrl = new Map(current.map((source) => [source.uri, source]));
+  const changes = parsed.map((source) => {
+    const prior = byUrl.get(source.url);
+    const next = {
+      uri: source.url,
+      label: source.label,
+      enabled: true,
+      interests: prior?.interests ?? [],
+    };
+    const status = !prior
+      ? 'add'
+      : canonicalSources(prior) === canonicalSources(next)
+        ? 'unchanged'
+        : 'update';
+    byUrl.set(source.url, next);
+    return { ...source, status };
+  });
+  if (byUrl.size > 50) throw new Error('following_source_limit');
+  const inputDigest = hash(input);
+  const settingsDigest = hash(canonicalSources(current));
+  const resultingSettingsDigest = hash(canonicalSources([...byUrl.values()]));
+  const content = {
+    schema: 'signals.briefing-opml-preview.v1',
+    inputDigest,
+    settingsDigest,
+    sources: changes,
+    currentCount: current.length,
+    resultingCount: byUrl.size,
+    resultingSettingsDigest,
+  };
+  return {
+    ...content,
+    previewDigest: hash(canonicalSources(content)),
+    acquisition: 'not_started' as const,
+  };
+}
+
+/** Preview and apply OPML to the existing Following settings; no acquisition occurs here. */
+export async function previewBriefingOpml(root: string, input: string) {
+  const settings = await loadSettings(root);
+  return buildOpmlPreview(input, settings.followedSources ?? []);
+}
+
+/** Deterministic URL-keyed merge over the existing settings file; exact repeats are write-free. */
+export async function importBriefingOpml(
+  root: string,
+  input: string,
+  requestId: string,
+  expected: { inputDigest: string; settingsDigest: string; previewDigest: string },
+) {
+  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(requestId))
+    throw new Error('invalid_briefing_opml_request');
+  if (
+    !/^[a-f0-9]{64}$/.test(expected.inputDigest) ||
+    !/^[a-f0-9]{64}$/.test(expected.settingsDigest) ||
+    !/^[a-f0-9]{64}$/.test(expected.previewDigest)
+  )
+    throw new Error('invalid_briefing_opml_preview_binding');
+  const requestDigest = hash(
+    canonicalSources({
+      actualInputDigest: hash(input),
+      settingsDigest: expected.settingsDigest,
+      previewDigest: expected.previewDigest,
+    }),
+  );
+  let expectedSources: NonNullable<SearchSettings['followedSources']> = [];
+  const { settings: retained, result } = await updateSettings(root, (settings) => {
+    const prior = (settings.briefingOpmlImports ?? []).find(
+      (entry) => entry.requestId === requestId,
+    );
+    if (prior) {
+      if (prior.requestDigest !== requestDigest) throw new Error('request_id_conflict');
+      return {
+        settings,
+        result: { ...prior, replayed: true, acquisition: 'not_started' as const },
+      };
+    }
+    if (hash(input) !== expected.inputDigest) throw new Error('opml_preview_stale');
+    const before = settings.followedSources ?? [];
+    const preview = buildOpmlPreview(input, before);
+    if (
+      preview.inputDigest !== expected.inputDigest ||
+      preview.settingsDigest !== expected.settingsDigest ||
+      preview.previewDigest !== expected.previewDigest
+    )
+      throw new Error('opml_preview_stale');
+    const byUrl = new Map(before.map((source) => [source.uri, source]));
+    for (const source of preview.sources)
+      byUrl.set(source.url, {
+        uri: source.url,
+        label: source.label,
+        enabled: true,
+        interests: byUrl.get(source.url)?.interests ?? [],
+      });
+    const followedSources = [...byUrl.values()];
+    expectedSources = followedSources;
+    if (followedSources.length > 50) throw new Error('following_source_limit');
+    const changed = canonicalSources(before) !== canonicalSources(followedSources);
+    const imports = settings.briefingOpmlImports ?? [];
+    if (imports.length >= 10000) throw new Error('briefing_import_receipts_full');
+    const receipt = {
+      requestId,
+      requestDigest,
+      previewDigest: preview.previewDigest,
+      inputDigest: preview.inputDigest,
+      resultingSettingsDigest: preview.resultingSettingsDigest,
+      imported: preview.sources.length,
+      configured: followedSources.length,
+      changed,
+      completedAt: new Date().toISOString(),
+    };
+    return {
+      settings: { ...settings, followedSources, briefingOpmlImports: [...imports, receipt] },
+      result: {
+        ...receipt,
+        replayed: false,
+        acquisition: 'not_started' as const,
+        sources: preview.sources,
+      },
+    };
+  });
+  if (result.replayed) return result;
+  if (canonicalSources(retained.followedSources ?? []) !== canonicalSources(expectedSources))
+    throw new Error('opml_import_readback_mismatch');
+  const savedReceipt = (retained.briefingOpmlImports ?? []).find(
+    (entry) => entry.requestId === requestId,
+  );
+  if (!savedReceipt || savedReceipt.requestDigest !== requestDigest)
+    throw new Error('opml_import_receipt_readback_mismatch');
+  return result;
+}
+
+export async function readBriefingOpmlImport(root: string, requestId: string) {
+  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(requestId))
+    throw new Error('invalid_briefing_opml_request');
+  const settings = await loadSettings(root);
+  const receipt = (settings.briefingOpmlImports ?? []).find(
+    (entry) => entry.requestId === requestId,
+  );
+  return {
+    requestId,
+    found: Boolean(receipt),
+    ...(receipt ? { receipt } : {}),
+    followedSources: settings.followedSources ?? [],
+    settingsDigest: hash(canonicalSources(settings.followedSources ?? [])),
+  };
 }
 
 export function exportOpml(sources: Source[]) {
@@ -404,7 +616,7 @@ export function exportOpml(sources: Source[]) {
   const outlines = sources
     .map(
       (source) =>
-        `<outline text="${escape(source.attribution)}" title="${escape(source.attribution)}" type="${source.kind === 'ics' ? 'ical' : 'rss'}" xmlUrl="${escape(source.url)}"/>`,
+        `<outline text="${escape(source.attribution)}" title="${escape(source.attribution)}" type="${source.kind === 'ics' ? 'ical' : source.kind === 'jsonfeed' ? 'json' : source.kind === 'atom' ? 'atom' : 'rss'}" xmlUrl="${escape(source.url)}"/>`,
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0"><head><title>Signals Following</title></head><body>\n${outlines}\n</body></opml>\n`;
