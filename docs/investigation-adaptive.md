@@ -4,6 +4,10 @@ The existing `guided-investigation-v1` state stays readable. An explicit `revise
 
 `planInvestigation(state)` is an offline review snapshot. It shows completed and remaining question IDs and binds all fields, including source digests, exact budgets and prior plan checkpoints, in its digest. `advanceInvestigationPlan(state, plan, { confirmedPlanDigest, action: 'investigate', branchIds, lease })` requires that exact fresh plan digest, explicit branches, and caller-provided frozen source text. It rejects completed compatible branches. Failed, partial and cancelled attempts remain visible; retrying them is explicit and spends the existing budget. No search or source acquisition is introduced. A source/topic/goal/scope/branch-mode change invalidates previous findings for current use, even if later edits revert the values.
 
+The plan also carries a deterministic method-progress projection against a zero-completion baseline: current completed/remaining branches, findings, reviewed findings, reported gaps, blocked state, and the remaining fixed budget. This is retained-work accounting only; it does not judge answer adequacy, truth or whether further research is useful. `renderInvestigation` shows the same progress and any caller-authored source-span reviews.
+
+`reviewInvestigationClaim(state, input)` appends a bounded caller-authored assessment for one finding from a current completed branch. Each citation must point to the exact text and SHA-256 of a frozen source used by that attempt. Reviews survive JSON cold reopen; a changed question, scope, source or quote makes them historical without retargeting the span. Exact occurrence and the caller's assessment remain distinct from model output and do not establish entailment or truth. Reviews do not invoke Codex or consume/reset any budget.
+
 ```js
 let state = createInvestigation('Question', {
   questions: [{ id: 'q1', parentId: null, question: 'What does the retained source say?' }],

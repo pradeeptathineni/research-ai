@@ -3,6 +3,7 @@ import { frozenSources, leasePath, profiles } from './research.mjs';
 import { withCodexWorkspace, sessionCompleted } from './codex.mjs';
 
 const maxQuestions = 32, maxHistory = 64, maxStateBytes = 1024 * 1024;
+const maxClaimReviews = 256;
 const actions = ['clarify', 'expand', 'investigate', 'synthesize'];
 const validLine = (s, max) => typeof s === 'string' && !!s.trim() && s.length <= max && s.isWellFormed() && !/[\p{Cc}]/u.test(s);
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -49,6 +50,24 @@ function validate(value) {
     return !entry || typeof entry.preservesCompleted!=='boolean' || !p || p.version!=='investigation-plan-v1' || p.digest!==hash(Object.fromEntries(Object.entries(p).filter(([key])=>key!=='digest')))
       || !/^[a-f0-9]{64}$/.test(p.scopeIdentity??'') || !/^[a-f0-9]{64}$/.test(p.contextIdentity??'') || !Array.isArray(p.questions);
   }))) fail('invalid plan history');
+  if (s.claimReviews !== undefined && (!Array.isArray(s.claimReviews) || s.claimReviews.length > maxClaimReviews || s.claimReviews.some((review, index) => {
+    const attempt = s.history.find(item => item?.id === review?.attemptId);
+    return !exactKeys(review, ['id', 'scopeIdentity', 'attemptId', 'branchId', 'findingIndex', 'findingSha256', 'assessment', 'rationale', 'citations'])
+      || review.id !== `review-${index + 1}` || !/^[a-f0-9]{64}$/.test(review.scopeIdentity ?? '')
+      || !validLine(review.attemptId, 100) || !attempt || attempt.action !== 'investigate'
+      || review.branchId !== attempt.branchId || !Number.isInteger(review.findingIndex)
+      || review.findingIndex < 0 || typeof attempt.findings?.[review.findingIndex] !== 'string'
+      || hash(attempt.findings[review.findingIndex]) !== review.findingSha256 || !/^[a-f0-9]{64}$/.test(review.findingSha256 ?? '')
+      || !['supports', 'contradicts', 'context', 'unresolved'].includes(review.assessment)
+      || !validLine(review.rationale, 2000) || !Array.isArray(review.citations)
+      || review.citations.length < 1 || review.citations.length > 4
+      || review.citations.some(citation => !exactKeys(citation, ['sourceIndex', 'sourceUri', 'sourceSha256', 'start', 'end', 'quote']) || !Number.isInteger(citation.sourceIndex)
+        || citation.sourceIndex < 0 || !validLine(citation.sourceUri, 2000)
+        || !/^[a-f0-9]{64}$/.test(citation.sourceSha256 ?? '')
+        || !Number.isInteger(citation.start) || citation.start < 0
+        || !Number.isInteger(citation.end) || citation.end <= citation.start
+        || !multiline(citation.quote, 4000));
+  }))) fail('invalid claim review history');
   if (s.identity !== identityOf(s)) fail('identity mismatch');
   if (s.report !== null && (!s.report || s.report.identity!==s.identity || typeof s.report.markdown!=='string' || !s.report.markdown.trim() || s.report.markdown.length>24000 || !s.history.some(a=>a.id===s.report.attemptId && a.action==='synthesize'))) fail('invalid report');
   for (const a of s.history) if (!a || !validLine(a.id,100) || !validLine(a.identity,100) || !/^[a-f0-9]{64}$/.test(a.contextIdentity??'') || !Number.isInteger(a.revision) || a.revision<0 || ![...actions,'compare'].includes(a.action) || !['complete','partial','failed','cancelled','not_run'].includes(a.status) || !(a.branchId===null||typeof a.branchId==='string') || !(a.question===null||typeof a.question==='string') || !Array.isArray(a.findings) || a.findings.length>12 || !a.findings.every(x=>validLine(x,2000)) || !Array.isArray(a.gaps) || a.gaps.length>12 || !a.gaps.every(x=>validLine(x,500)) || !Array.isArray(a.sources) || a.sources.length>16 || !a.sources.every(x=>x&&typeof x.uri==='string'&&(x.sha256===undefined||/^[a-f0-9]{64}$/.test(x.sha256))) || typeof a.answer!=='string' || a.answer.length>24000 || !(a.reason===null||typeof a.reason==='string') || !(a.receipt===null || a.receipt&&typeof a.receipt==='object'&&typeof a.receipt.cleanup?.complete==='boolean'&&Number.isFinite(a.receipt.searches)&&Number.isFinite(a.receipt.actionCounts?.reads)&&Number.isFinite(a.receipt.stages?.nativeSessionMonotonicMs))) fail('invalid attempt');
@@ -119,8 +138,112 @@ export function planInvestigation(state) {
     attempts:s.history.length,lastAttemptId:s.history.at(-1)?.id??null,
     blocked:dispatchBlocked(s)
   };
+  checkpoint.methodProgress = projectInvestigationMethodProgress(s);
   checkpoint.digest=hash(checkpoint);
   return checkpoint;
+}
+
+/** Deterministic method progress against a zero-completion baseline; not an adequacy score. */
+function reviewSpansCurrent(s, review) {
+  return review.citations.every(citation => {
+    const source = s.sources?.[citation.sourceIndex];
+    return source?.uri === citation.sourceUri && source.sha256 === citation.sourceSha256
+      && source.text.slice(citation.start, citation.end) === citation.quote;
+  });
+}
+
+export function projectInvestigationMethodProgress(value) {
+  const s = validate(value);
+  const branches = s.questions.map(question => {
+    const attempts = s.history.filter(attempt => attempt.action === 'investigate'
+      && attempt.branchId === question.id && attempt.question === question.question
+      && adaptiveCompatibleAttempt(s, attempt));
+    const completed = attempts.find(attempt => attempt.status === 'complete');
+    const latest = attempts.at(-1) ?? null;
+    const findingCount = completed?.findings.length ?? 0;
+    const currentReviews = (s.claimReviews ?? []).filter(review => review.scopeIdentity === scopeIdentity(s)
+      && review.attemptId === completed?.id && review.findingIndex < findingCount
+      && review.findingSha256 === hash(completed.findings[review.findingIndex]) && reviewSpansCurrent(s, review));
+    return {
+      branchId: question.id,
+      status: completed ? 'complete' : latest?.status ?? 'unstarted',
+      attemptId: completed?.id ?? latest?.id ?? null,
+      findings: findingCount,
+      reviewedFindings: new Set(currentReviews.map(review => review.findingIndex)).size,
+      gaps: completed?.gaps.length ?? 0,
+      sourceIdentities: completed?.sources.length ?? 0,
+    };
+  });
+  const completedBranches = branches.filter(branch => branch.status === 'complete').length;
+  const findings = branches.reduce((sum, branch) => sum + branch.findings, 0);
+  const reviewedFindings = branches.reduce((sum, branch) => sum + branch.reviewedFindings, 0);
+  const totalGaps = branches.reduce((sum, branch) => sum + branch.gaps, 0);
+  return {
+    schema: 'research-investigation-method-progress.v1',
+    baseline: { completedBranches: 0, reviewedFindings: 0, description: 'All current questions unattempted; no claim reviews.' },
+    current: {
+      branchCount: branches.length,
+      completedBranches,
+      remainingBranches: branches.length - completedBranches,
+      findings,
+      reviewedFindings,
+      unreviewedFindings: findings - reviewedFindings,
+      reportedGaps: totalGaps,
+      remaining: { calls: Math.max(0, s.budget.calls - s.used.calls), searches: Math.max(0, s.budget.searches - s.used.searches), reads: Math.max(0, s.budget.documents - s.used.documents), seconds: Math.max(0, s.budget.seconds - s.used.seconds) },
+      blocked: dispatchBlocked(s),
+    },
+    branches,
+    qualification: 'Counts describe retained attempts, caller-authored exact-span reviews and reported gaps only. They do not assess answer adequacy, entailment, truth or whether more research is warranted.',
+  };
+}
+
+/** Appends a caller-authored finding review bound to exact frozen source text and current scope. */
+export function reviewInvestigationClaim(value, input) {
+  const s = validate(value);
+  if (!input || typeof input !== 'object' || Array.isArray(input)
+    || Object.keys(input).sort().join() !== ['attemptId', 'findingIndex', 'assessment', 'rationale', 'citations'].sort().join()) fail('exact claim review input required');
+  if (!Array.isArray(s.sources) || s.sources.length === 0) fail('claim review requires caller-frozen source text');
+  if (!validLine(input.attemptId, 100) || !Number.isInteger(input.findingIndex) || input.findingIndex < 0
+    || !['supports', 'contradicts', 'context', 'unresolved'].includes(input.assessment)
+    || !validLine(input.rationale, 2000) || !Array.isArray(input.citations) || input.citations.length < 1 || input.citations.length > 4) fail('invalid claim review');
+  const attempt = s.history.find(item => item.id === input.attemptId);
+  if (!attempt || attempt.status !== 'complete' || attempt.action !== 'investigate'
+    || !adaptiveCompatibleAttempt(s, attempt) || typeof attempt.findings[input.findingIndex] !== 'string') fail('finding is not a current completed investigation result');
+  const citations = input.citations.map(citation => {
+    if (!exactKeys(citation, ['sourceIndex', 'start', 'end', 'quote']) || !Number.isInteger(citation.sourceIndex) || !Number.isInteger(citation.start) || !Number.isInteger(citation.end)
+      || typeof citation.quote !== 'string') fail('invalid exact source span');
+    const source = s.sources[citation.sourceIndex];
+    const attemptSource = attempt.sources.find(item => item.uri === source?.uri && item.sha256 === source?.sha256);
+    if (!source || !attemptSource || citation.start < 0 || citation.end <= citation.start
+      || source.text.slice(citation.start, citation.end) !== citation.quote || !multiline(citation.quote, 4000)) fail('citation does not match a source used by this exact attempt');
+    return { sourceIndex: citation.sourceIndex, sourceUri: source.uri, sourceSha256: source.sha256, start: citation.start, end: citation.end, quote: citation.quote };
+  });
+  const reviews = [...(s.claimReviews ?? [])];
+  if (reviews.length >= maxClaimReviews) fail(`claim review limit of ${maxClaimReviews} reached`);
+  reviews.push({
+    id: `review-${reviews.length + 1}`,
+    scopeIdentity: scopeIdentity(s),
+    attemptId: attempt.id,
+    branchId: attempt.branchId,
+    findingIndex: input.findingIndex,
+    findingSha256: hash(attempt.findings[input.findingIndex]),
+    assessment: input.assessment,
+    rationale: input.rationale,
+    citations,
+  });
+  return validate({ ...s, claimReviews: reviews });
+}
+
+/** Projects caller-authored reviews as current or historical without retargeting source spans. */
+export function projectInvestigationClaimReviews(value) {
+  const s = validate(value);
+  return (s.claimReviews ?? []).map(review => {
+    const attempt = s.history.find(item => item.id === review.attemptId);
+    const current = review.scopeIdentity === scopeIdentity(s) && attempt && adaptiveCompatibleAttempt(s, attempt)
+      && attempt.findings[review.findingIndex] !== undefined && hash(attempt.findings[review.findingIndex]) === review.findingSha256
+      && reviewSpansCurrent(s, review);
+    return { ...structuredClone(review), finding: attempt?.findings[review.findingIndex] ?? null, status: current ? 'current' : 'historical', qualification: 'Caller-authored source-span review; exact occurrence is checked, but entailment and truth are not established.' };
+  });
 }
 
 /** Continues only from a freshly generated checkpoint bound to this exact state snapshot. */
@@ -263,14 +386,21 @@ export async function advanceInvestigation(state, options) {
   return validate(s);
 }
 
+function renderMethodProgress(state) {
+  const progress = projectInvestigationMethodProgress(state);
+  const reviews = projectInvestigationClaimReviews(state);
+  return `## Method progress\n\nBaseline: ${progress.baseline.description}. Current: ${progress.current.completedBranches}/${progress.current.branchCount} branches complete; ${progress.current.remainingBranches} remaining; ${progress.current.reviewedFindings}/${progress.current.findings} findings reviewed against exact frozen-source spans; ${progress.current.reportedGaps} reported gaps. Remaining fixed budget: ${progress.current.remaining.calls} calls, ${progress.current.remaining.searches} searches, ${progress.current.remaining.reads} reads, ${progress.current.remaining.seconds} seconds. Execution blocked: ${progress.current.blocked ? 'yes' : 'no'}.\n\n${progress.branches.map(branch => `- ${branch.branchId}: ${branch.status}; ${branch.findings} findings, ${branch.reviewedFindings} reviewed, ${branch.gaps} reported gaps, ${branch.sourceIdentities} source identities.`).join('\n') || '- No branches are in the current plan.'}\n\n${progress.qualification}\n\n## Finding-to-source reviews\n\n${reviews.map(review => `### ${review.branchId} · ${review.finding ?? 'Historical finding'} (${review.status}; caller assessment: ${review.assessment})\n\n${review.rationale}\n\n${review.citations.map(citation => `- ${citation.sourceUri} SHA-256 ${citation.sourceSha256}, UTF-16 ${citation.start}–${citation.end}: “${citation.quote}”`).join('\n')}\n\n${review.qualification}`).join('\n\n') || 'No caller-authored source-span reviews.'}`;
+}
+
 export function renderInvestigation(state,{format='markdown'}={}) {
   const s=validate(state); if(format==='json')return `${JSON.stringify(s,null,2)}\n`; if(format!=='markdown')fail('unknown format');
+  const methodProgress = renderMethodProgress(s);
   if(s.report?.identity===s.identity) {
     const historical=s.history.filter(a=>!(a.status==='complete'&&(a.action==='investigate'?adaptiveCompatibleAttempt(s,a):a.contextIdentity===contextIdentity(s))));
     const branches=s.history.filter(a=>a.status==='complete'&&a.action==='investigate'&&adaptiveCompatibleAttempt(s,a));
-    return `${s.report.markdown}${branches.length?`\n\n## Retained branch findings\n${branches.map(a=>`### ${a.question}\n${a.answer||a.findings.join('\n')}${a.gaps.length?`\nGaps: ${a.gaps.join('; ')}`:''}\n${a.sources.map(x=>`Source identity: ${x.uri}`).join('\n')}`).join('\n\n')}`:''}${historical.length?`\n\n## Historical attempts (excluded from this report)\n${historical.map(a=>`- ${a.question??a.action} — ${a.status}${a.answer?`: ${a.answer}`:''}${a.reason?` (reason: ${a.reason})`:''}`).join('\n')}`:''}`;
+    return `${s.report.markdown}${branches.length?`\n\n## Retained branch findings\n${branches.map(a=>`### ${a.question}\n${a.answer||a.findings.join('\n')}${a.gaps.length?`\nGaps: ${a.gaps.join('; ')}`:''}\n${a.sources.map(x=>`Source identity: ${x.uri}`).join('\n')}`).join('\n\n')}`:''}${historical.length?`\n\n## Historical attempts (excluded from this report)\n${historical.map(a=>`- ${a.question??a.action} — ${a.status}${a.answer?`: ${a.answer}`:''}${a.reason?` (reason: ${a.reason})`:''}`).join('\n')}`:''}\n\n${methodProgress}`;
   }
   const current=s.history.filter(a=>a.status==='complete'&&(a.action==='investigate'?adaptiveCompatibleAttempt(s,a):a.contextIdentity===contextIdentity(s)));
   const historical=s.history.filter(a=>!current.includes(a));
-  return `# ${s.topic}\n\nGoal: ${s.goal}\n\nScope: ${s.scope||'Not specified'}\n\n## Questions\n${s.questions.map(q=>`- ${q.id}: ${q.question}`).join('\n')||'- None'}\n\n## Current findings\n${current.map(a=>`### ${a.question??a.action} — ${a.status}\n${a.answer||a.findings.join('\n')}\n${a.gaps.length?`Gaps: ${a.gaps.join('; ')}`:''}\n${a.sources.map(x=>`Source identity: ${x.uri}`).join('\n')}`).join('\n\n')||'No current findings.'}\n\n${historical.length?`## Historical attempts (not current)\n${historical.map(a=>`- ${a.question??a.action} — ${a.status}${a.answer?`: ${a.answer}`:''}${a.reason?` (reason: ${a.reason})`:''}`).join('\n')}\n\n`:''}Coverage: ${s.history.map(a=>`${a.action}/${a.branchId??'-'}=${a.status}`).join(', ')||'not started'}\n`;
+  return `# ${s.topic}\n\nGoal: ${s.goal}\n\nScope: ${s.scope||'Not specified'}\n\n## Questions\n${s.questions.map(q=>`- ${q.id}: ${q.question}`).join('\n')||'- None'}\n\n## Current findings\n${current.map(a=>`### ${a.question??a.action} — ${a.status}\n${a.answer||a.findings.join('\n')}\n${a.gaps.length?`Gaps: ${a.gaps.join('; ')}`:''}\n${a.sources.map(x=>`Source identity: ${x.uri}`).join('\n')}`).join('\n\n')||'No current findings.'}\n\n${historical.length?`## Historical attempts (not current)\n${historical.map(a=>`- ${a.question??a.action} — ${a.status}${a.answer?`: ${a.answer}`:''}${a.reason?` (reason: ${a.reason})`:''}`).join('\n')}\n\n`:''}Coverage: ${s.history.map(a=>`${a.action}/${a.branchId??'-'}=${a.status}`).join(', ')||'not started'}\n\n${methodProgress}\n`;
 }
