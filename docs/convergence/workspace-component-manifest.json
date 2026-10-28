@@ -1,0 +1,55 @@
+{
+  "schema": "research.workspace-component-manifest.v1",
+  "workspaceBase": {
+    "repository": "opus-wave1/B1/research-workspace",
+    "commit": "85f600b779da7559c9de90f5175aac624699aa2a",
+    "librarySubtreeImportCommit": "b1adb8870df4d40f4ffd6b12f1815bafb75c379a",
+    "workspaceTreeAfterLibraryImport": "55f3686452e34009b69d1e6d4777a04428efc6ac"
+  },
+  "components": [
+    {
+      "component": "Methods",
+      "owner": "research-ai",
+      "sourceCommit": "19b20c734e6ba9614a476dbb5fda2a9895b173ac",
+      "includedNativeCommits": [
+        "2eeeb06ee063fa4c3fcfdc5e6272cd9d40db5858",
+        "911b48d5b13aef1ffa921dfb66d24d87d943ba91"
+      ],
+      "targetPath": "packages/methods",
+      "packageIdentityManifest": "packages/methods/docs/convergence/methods-component-manifest.json",
+      "packageIdentityManifestSha256": "b6ae349ae352284ee04f1703fbdf78117559a1adef3d6c8399811db4ea89084c",
+      "payloadManifestSha256": "379d80489b61d82cc1dd695357c7bc112c93f7bd5eebabec4863491baaa91412"
+    },
+    {
+      "component": "Library",
+      "owner": "signals-ai",
+      "sourceCommit": "73d5ec9624effe111289e18da88e233bdd9a25a1",
+      "sourceTree": "4585db64dc7ec7ec3935b6376d068dc583a52774",
+      "targetPath": "packages/library",
+      "packageName": "signals-ai",
+      "packageVersion": "0.3.0",
+      "sourcePackageLockSha256": "6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa",
+      "workspaceMetadataAdaptation": {
+        "path": "packages/library/package.json",
+        "originalSha256": "e7a6b8272f63fe9f53981f14bafb8d0ff2ebe7ad8ee7401d5598c25763ec0e85",
+        "workspaceSha256": "9af0ff7bf0c543743a432ee6ebb33ce064774d98e2efdc7f5c5506a590520d44",
+        "change": "Only dependencies.@pradeeptathineni/research-ai changed from the frozen content-addressed archive to file:../methods. All Signals source files and package identity fields remain the frozen 73d values."
+      }
+    }
+  ],
+  "workspacePolicy": {
+    "methodsLibraryWorkspaces": [
+      "packages/methods",
+      "packages/library",
+      "packages/library/apps/*",
+      "packages/library/packages/*"
+    ],
+    "rootNpmrcSha256": "8a62002fc1d79d6d0f06174e5900931232558fa56617990f0de6b7c13e56b010",
+    "repomixMcpSdkOverride": "1.32.0",
+    "packageLockSha256": "74e6034da3cc6a4977cb08b77f0c17c0246c3f69c462f76fac719543d976f2ea",
+    "packageLockFormat": 3,
+    "rootPackageJsonSha256": "236cc2cd37a36d14ac4222b5b7ec22d808a9d2383401159d6fecc8ac149e5ad1",
+    "lockGeneration": "Preseeded from frozen Library lock and canonicalized with npm 12.1.0, Node 24.19.0, --package-lock-only --ignore-scripts --offline. No node_modules installation or remote lookup."
+  },
+  "status": "Candidate workspace integration; not a published package or installed runtime."
+}

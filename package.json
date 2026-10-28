@@ -2,15 +2,25 @@
   "name": "research-ai-workspace",
   "version": "0.0.0",
   "private": true,
-  "description": "Private integration workspace for the RX02 prototype; distributable Methods identity remains under packages/methods.",
+  "description": "Private integration workspace for existing Research Methods and Signals Library packages; distributable package identities remain owned by their source packages.",
   "engines": {
     "node": ">=24.19.0 <25"
   },
   "workspaces": [
-    "packages/methods"
+    "packages/methods",
+    "packages/library",
+    "packages/library/apps/*",
+    "packages/library/packages/*"
   ],
+  "overrides": {
+    "repomix": {
+      "@modelcontextprotocol/sdk": "1.32.0"
+    }
+  },
   "scripts": {
     "research": "node packages/methods/bin/research-ai.mjs",
-    "methods:test": "npm test --workspace @pradeeptathineni/research-ai"
+    "methods:test": "npm test --workspace @pradeeptathineni/research-ai",
+    "library:research": "node --import tsx packages/library/scripts/research.ts",
+    "library:dependencies": "node packages/library/scripts/dependency-check.mjs"
   }
 }

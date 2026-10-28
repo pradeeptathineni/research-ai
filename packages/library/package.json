@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "0.6.0",
-    "@pradeeptathineni/research-ai": "file:vendor/research-ai/0f7ab726f7267e1a7e85c4f7094d909db5a7e64671a2b319d3083aa39f6ce947.tgz",
+    "@pradeeptathineni/research-ai": "file:../methods",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "linkedom": "0.18.13",
