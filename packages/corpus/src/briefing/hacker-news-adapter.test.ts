@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings, saveSettings } from '../search-settings.js';
 import { refreshDue } from './ingest.js';
-import { createBriefingApi } from './store.js';
+import { createBriefingApi, isHackerNewsIndexUri } from './store.js';
 import { briefingRoute } from './http.js';
 import { type fetchEvidence } from '../search-fetch.js';
 
@@ -71,6 +71,16 @@ function response(uri: string, json: unknown) {
 
 describe('Hacker News public API Following adapter', () => {
   it('retains a bounded top-story pass with exact source/item/story identity and ranking', async () => {
+    expect(isHackerNewsIndexUri(indexUri)).toBe(true);
+    expect(isHackerNewsIndexUri(`${indexUri}?print=pretty`)).toBe(true);
+    expect(isHackerNewsIndexUri('http://hacker-news.firebaseio.com/v0/topstories.json')).toBe(
+      false,
+    );
+    expect(
+      isHackerNewsIndexUri('https://hacker-news.firebaseio.com.attacker.test/v0/topstories.json'),
+    ).toBe(false);
+    expect(isHackerNewsIndexUri('https://hacker-news.firebaseio.com/v0/user/ada.json')).toBe(false);
+    expect(isHackerNewsIndexUri(`${indexUri}?print=pretty&other=1`)).toBe(false);
     const root = await sourceRoot();
     const ids = Array.from({ length: 21 }, (_, index) => index + 101);
     const calls: Array<{
