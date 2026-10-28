@@ -165,6 +165,7 @@ import {
   loadQueryBatch,
   type QueryBatch,
 } from './search-query-list.js';
+import { briefingRoute } from './briefing/http.js';
 
 const selection = Type.Object(
   {
@@ -395,7 +396,12 @@ export function searchApi(
         }
         body = JSON.parse(raw);
       }
-      if (route === 'private-documents' || route.startsWith('private-documents/')) {
+      if (route === 'briefing' || route.startsWith('briefing/')) {
+        const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        const result = await briefingRoute(root, route, mutation, body, params.size);
+        if (result) json(result.status, result.body);
+        else json(404, { code: 'unknown_operation' });
+      } else if (route === 'private-documents' || route.startsWith('private-documents/')) {
         await validateProcessObserver(
           root,
           request.headers['x-signals-provider-version'],
