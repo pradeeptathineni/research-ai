@@ -2,7 +2,7 @@
   "schema": "research-rx02-workspace-compatibility.v1",
   "componentSources": {
     "methods": {
-      "revision": "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6",
+      "revision": "17eb2bdd240a1318a8ae2b211947e7311ae1d31b",
       "target": "packages/methods"
     },
     "library": {
@@ -66,5 +66,8 @@
   "qualificationLimits": [
     "No external Deep consumer runtime was independently mounted",
     "No publish, install, listener, live provider/model, or real store"
+  ],
+  "integrationNotes": [
+    "Methods workspace source is the local 17eb release-check descendant of 0e0; package.json identity and all declared payload content hashes remain unchanged. Public push of this local candidate remains stopped; no publication is claimed."
   ]
 }

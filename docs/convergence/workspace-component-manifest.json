@@ -10,12 +10,12 @@
     {
       "component": "Methods",
       "owner": "research-ai",
-      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave10/rd02-question/research",
-      "sourceCommit": "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6",
-      "sourceTree": "b49890c010fe11843bcb99e4ff7ffe4c0b23c60f",
+      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave6/research-rx01/publication",
+      "sourceCommit": "17eb2bdd240a1318a8ae2b211947e7311ae1d31b",
+      "sourceTree": "0d3d8d05d3b18b27242ae37d553dcb99d3c37a50",
       "targetPath": "packages/methods",
       "packageIdentityManifest": "packages/methods/docs/convergence/methods-component-manifest.json",
-      "packageIdentityManifestSha256": "878eb96b6bdd0533025f46a789b21df4e724f1f5a6f424274a04c90bfd5b6765",
+      "packageIdentityManifestSha256": "4b2d8bddae7170b8f3ad92cc4338b0209f5a9c2138a9580c9472ada897889b69",
       "packageIdentityProjectionSha256": "0950ddc47a678ef501e66413f66d47207152355f16d505981d83dfbf33aa9da8",
       "payloadFileCount": 85,
       "payloadManifestSha256": "02e29f778b46aa378c09393c6e0db17d277254a65e3b0f48292501e3acd28ea6",
@@ -44,10 +44,10 @@
     {
       "component": "Library",
       "owner": "signals-ai",
-      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave9/hn-observations/signals/signals",
+      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave9/hn-observations/signals",
       "sourceCommit": "92c5cab967f975d4842d3ee7ddc7cad6594c7b03",
       "sourceTree": "b6deae7c9492a16ab5b445d4e932af631184b5a3",
-      "sourceParent": "acd966ae440fbf8e390d2ec2d3156fdf987249f6",
+      "sourceParent": "433f43cb17680d655477172599d925b328acc5b9",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -80,7 +80,8 @@
       "targetPath": "apps/workbench",
       "packageName": "research-workbench",
       "manifestSha256": "7f7923cb95520cd55be77978f4b1bfbe6d294d59447ea3001e97e93eb4ca28bc",
-      "purpose": "Thin npm workspace entrypoint forwarding start/dev/test/build to existing signals-ai package scripts; contains no copied UI or server implementation."
+      "purpose": "Thin npm workspace entrypoint forwarding start/dev/test/build to existing signals-ai package scripts; contains no copied UI or server implementation.",
+      "verificationScriptSha256": "00eab15eeed4b6ed85d5f6bb48a483abea1db851dba8db33e24f60d08116f132"
     }
   ],
   "workspacePolicy": {
