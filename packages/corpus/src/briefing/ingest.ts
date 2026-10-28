@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { fetchEvidence, normalizeText } from '../search-fetch.js';
 import { publicLink } from '../search-document.js';
 import { scanSources } from '../search-sources.js';
@@ -27,6 +27,24 @@ const hackerNewsItemUrl = (itemId: number) =>
   `https://hacker-news.firebaseio.com/v0/item/${itemId}.json`;
 const hackerNewsDiscussionUrl = (itemId: number) =>
   `https://news.ycombinator.com/item?id=${itemId}`;
+
+function deterministicUuid(value: string) {
+  const bytes = Buffer.from(createHash('sha256').update(value).digest().subarray(0, 16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function hackerNewsMetrics(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const record = value as Record<string, unknown>;
+  return (['score', 'descendants'] as const).flatMap((field) => {
+    const metric = record[field];
+    if (typeof metric !== 'number' || !Number.isSafeInteger(metric) || metric < 0) return [];
+    return [{ name: field === 'descendants' ? 'comments' : 'score', value: metric }];
+  });
+}
 
 function parseHackerNewsIndex(value: unknown): number[] {
   if (
@@ -317,7 +335,13 @@ export function parseJsonFeed(
 /** One caller-requested pass through the established Following acquisition path. */
 export async function refreshBriefing(
   root: string,
-  options: { interest?: string; signal?: AbortSignal; fetch?: typeof fetchEvidence } = {},
+  options: {
+    interest?: string;
+    signal?: AbortSignal;
+    fetch?: typeof fetchEvidence;
+    requestId?: string;
+    clock?: () => Date;
+  } = {},
 ) {
   const settings = await loadSettings(root);
   const api = createBriefingApi(root);
@@ -358,8 +382,15 @@ export async function refreshBriefing(
       if (document.response?.status !== 304 && source?.kind === 'api:hacker-news') {
         if (!isHackerNewsIndexUri(uri)) throw new Error('invalid_hacker_news_source');
         const itemIds = parseHackerNewsIndex(document.json);
-        const observedAt = new Date().toISOString();
+        const observedAt = (options.clock ?? (() => new Date()))().toISOString();
+        const observationBatchId = options.requestId ?? randomUUID();
         const items: Item[] = [];
+        const observations: Array<{
+          item: Item;
+          name: string;
+          value: number;
+          sourceRef: string;
+        }> = [];
         for (const itemId of itemIds.slice(0, hackerNewsItemLimit)) {
           const detail = await (options.fetch ?? fetchEvidence)(
             hackerNewsItemUrl(itemId),
@@ -370,7 +401,16 @@ export async function refreshBriefing(
           );
           if (detail.response?.status === 304) throw new Error('unexpected_hacker_news_item_304');
           const item = parseHackerNewsItem(detail.json, itemId, source, observedAt);
-          if (item) items.push(item);
+          if (item) {
+            items.push(item);
+            observations.push(
+              ...hackerNewsMetrics(detail.json).map((metric) => ({
+                item,
+                ...metric,
+                sourceRef: hackerNewsItemUrl(itemId),
+              })),
+            );
+          }
         }
         const stories: Story[] = items.map((item) => ({
           id: item.storyId!,
@@ -383,11 +423,35 @@ export async function refreshBriefing(
           interestMatches: [],
         }));
         await retainBriefingRecords(root, { items, stories });
+        const briefingApi = createBriefingApi(root);
+        for (const observation of observations) {
+          const identity = `${observationBatchId}\n${observation.item.id}\n${observation.name}`;
+          await briefingApi.recordMetricObservation({
+            requestId: deterministicUuid(`request\n${identity}`),
+            observation: {
+              id: id('metric', identity),
+              itemId: observation.item.id,
+              platform: 'hacker-news',
+              name: observation.name,
+              value: observation.value,
+              observedAt,
+              scope: 'public Hacker News item detail snapshot',
+              method: 'public-adapter',
+              sourceRef: observation.sourceRef,
+            },
+          });
+        }
         document = {
           ...document,
           text: JSON.stringify({
             ids: itemIds,
-            details: items.map(({ id: itemId, contentDigest }) => ({ itemId, contentDigest })),
+            details: items.map((item) => ({
+              itemId: item.id,
+              contentDigest: item.contentDigest,
+              metrics: observations
+                .filter((observation) => observation.item.id === item.id)
+                .map(({ name, value }) => ({ name, value })),
+            })),
           }),
           material: {
             text: itemIds.map(String).join('\n'),
@@ -502,7 +566,7 @@ export async function refreshBriefing(
 export async function refreshDue(
   root: string,
   request: { once: true; requestId: string; interest?: string },
-  options: { fetch?: typeof fetchEvidence } = {},
+  options: { fetch?: typeof fetchEvidence; clock?: () => Date } = {},
 ) {
   if (request.once !== true) throw new Error('briefing_refresh_once_required');
   const claim = await beginBriefingRefresh(root, request.requestId, request.interest);
@@ -511,7 +575,12 @@ export async function refreshDue(
   // This uses the existing Following scan, including its conditional ETag/Last-Modified path.
   // If the process stops before its receipt is completed, the durable request remains pending;
   // a duplicate caller can read status, but it will not reacquire any source automatically.
-  const pass = await refreshBriefing(root, { interest: request.interest, fetch: options.fetch });
+  const pass = await refreshBriefing(root, {
+    interest: request.interest,
+    fetch: options.fetch,
+    requestId: request.requestId,
+    clock: options.clock,
+  });
   const sources = await createBriefingApi(root).listSources();
   const sourceIds = new Map(sources.map(({ record }) => [record.url, record.id]));
   const summary: BriefingRefreshSummary = {
