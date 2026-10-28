@@ -5,9 +5,9 @@ export { basicFacts, perspectiveCandidates, chooseLenses, perspectiveResearch } 
 export { outlineResearch, validateOutline, reviseOutline, renderOutline } from './outline.mjs';
 export { mindMapLimits, createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch } from './mindmap.mjs';
 export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch } from './evidence-table.mjs';
-export { createReport, validateReport, reviseReport, draftReportSection, renderReport } from './report.mjs';
+export { createReport, validateReport, reviseReport, draftReportSection, renderReport, projectReportClaimRegister } from './report.mjs';
 export { exportReportHtml } from './report-export.mjs';
-export { createInvestigation, reviseInvestigation, validateInvestigation, getInvestigationIncompleteCandidate, planInvestigation, advanceInvestigation, advanceInvestigationPlan, resumeInvestigation, renderInvestigation } from './investigation.mjs';
+export { createInvestigation, reviseInvestigation, validateInvestigation, getInvestigationIncompleteCandidate, planInvestigation, projectInvestigationMethodProgress, reviewInvestigationClaim, projectInvestigationClaimReviews, advanceInvestigation, advanceInvestigationPlan, resumeInvestigation, renderInvestigation } from './investigation.mjs';
 export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';

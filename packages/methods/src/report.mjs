@@ -344,7 +344,64 @@ function renderCurrent(report) {
     return `- [${index + 1}] ${code(source.uri)} — SHA-256 ${code(source.sha256)}${study}${source.observedAt ? `; caller observation: ${md(source.observedAt)}` : ''}${(source.omissions ?? []).map((note) => `; caller qualification: ${md(note)}`).join('')}`;
   }).join('\n');
   const usage = `Calls ${report.usage.calls}; native sessions ${report.usage.nativeSessions}; searches ${report.usage.searches}; reads ${report.usage.reads}; seconds ${report.usage.seconds.toFixed(3)}.`;
-  return `# ${md(report.topic)}\n\n${sections}\n\n## Sources\n\n${sources}\n\n## Run accounting\n\n${usage}\n\n## Limits\n\n${report.limits.map((limit) => `- ${md(limit)}`).join('\n')}\n`;
+  const register = reportClaimRegisterValidated(report);
+  const cited = register.citedClaims.length ? register.citedClaims.map((claim) => `- **${md(claim.sectionTitle)}** — ${md(claim.text)} (citation span matched; entailment and truth unassessed; source ${code(claim.source.uri)} SHA-256 ${code(claim.source.sha256)}, UTF-16 ${claim.citation.start}–${claim.citation.end}; selection ${code(claim.source.selectionId ?? 'unbound')})`).join('\n') : '- No cited paragraphs in the current report revision.';
+  const unresolved = register.unresolvedClaims.length ? register.unresolvedClaims.map((claim) => `- **${md(claim.sectionTitle)}** — ${md(claim.text)} (unresolved; no citation asserted)`).join('\n') : '- No unresolved gaps recorded in the current report revision.';
+  return `# ${md(report.topic)}\n\n${sections}\n\n## Sources\n\n${sources}\n\n## Review register\n\nRevision ${register.revision}; report SHA-256 ${code(register.reportSha256)}. This register is derived from the current saved section versions. Citation matching confirms exact retained text spans only; it does not establish entailment or truth.\n\n### Cited paragraphs\n\n${cited}\n\n### Unresolved claims and gaps\n\n${unresolved}\n\n## Run accounting\n\n${usage}\n\n## Limits\n\n${report.limits.map((limit) => `- ${md(limit)}`).join('\n')}\n`;
+}
+
+/** Projects the current reviewed section versions into an exact-span and unresolved-gap register. */
+export function projectReportClaimRegister(report) {
+  return reportClaimRegisterValidated(validate(report));
+}
+
+function reportClaimRegisterValidated(state) {
+  const citedClaims = [];
+  const unresolvedClaims = [];
+  for (const section of state.sections) {
+    const basis = state.basis.sections.find((item) => item.id === section.id);
+    const version = section.currentVersion === null ? null : section.versions[section.currentVersion];
+    const paragraphs = version?.paragraphs ?? basis.points;
+    const gaps = version?.gaps ?? basis.gaps;
+    paragraphs.forEach((paragraph, paragraphIndex) => paragraph.citations.forEach((citation, citationIndex) => {
+      const source = state.basis.sources[citation.source];
+      citedClaims.push({
+        id: `${section.id}:${version?.id ?? 'outline'}:p${paragraphIndex + 1}:c${citationIndex + 1}`,
+        sectionId: section.id,
+        sectionTitle: section.title,
+        versionId: version?.id ?? null,
+        text: paragraph.text,
+        citation: { sourceIndex: citation.source, start: citation.start, end: citation.end, quote: citation.quote },
+        source: {
+          uri: source.uri,
+          sha256: source.sha256,
+          selectionId: source.retainedOrigin?.selectionId ?? null,
+          studyId: source.retainedOrigin?.studyId ?? null,
+          questionId: source.retainedOrigin?.questionId ?? null,
+          resultSha256: source.retainedOrigin?.resultSha256 ?? null,
+          notebookId: source.retainedOrigin?.notebookId ?? null,
+          sourceDigest: source.retainedOrigin?.sourceDigest ?? null,
+        },
+        review: 'exact-span-matched; entailment-and-truth-unassessed',
+      });
+    }));
+    gaps.forEach((text, index) => unresolvedClaims.push({
+      id: `${section.id}:${version?.id ?? 'outline'}:gap${index + 1}`,
+      sectionId: section.id,
+      sectionTitle: section.title,
+      versionId: version?.id ?? null,
+      text,
+      status: 'unresolved',
+      citations: [],
+    }));
+  }
+  return {
+    schema: 'research-report-claim-register.v1',
+    revision: state.revision,
+    reportSha256: hash(state),
+    citedClaims,
+    unresolvedClaims,
+  };
 }
 
 /** Exports the current assembled report as Markdown or complete JSON state. */

@@ -6,6 +6,11 @@ revision, or its original outline content when no revision exists. Earlier
 versions and attempts are not shown as current. Unwritten sections and recorded
 gaps remain visible.
 
+Both Markdown and HTML include a revision-bound review register of current
+validated citation spans and saved unresolved gaps. Span matching confirms
+occurrence only; it does not establish entailment or truth. JSON remains the
+complete validated report state.
+
 Each current citation links to a retained source span containing the exact quote,
 URI as plain text, source SHA-256, UTF-16 offsets and caller observation or
 omission notes. Repeated citations share a span when source URI, content digest

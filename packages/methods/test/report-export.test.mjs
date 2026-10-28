@@ -41,6 +41,9 @@ test('exports validated current text with exact distinct source spans and explic
   assert.match(html, /human-edited statement: 7 days/i);
   assert.match(html, /No paragraph draft yet\./);
   assert.match(html, /The source set does not describe backup retention\./);
+  assert.match(html, /Review register/);
+  assert.match(html, /unresolved; no citation asserted/);
+  assert.match(html, /entailment and truth unassessed/);
   assert.equal((html.match(/class="source" id=/g) ?? []).length, 2);
   assert.match(html, /href="#source-1"/);
   assert.match(html, /href="#source-2"/);

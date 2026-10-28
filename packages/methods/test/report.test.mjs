@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEvidenceTable, reviseEvidenceTable } from '../src/index.mjs';
 import { validateOutline } from '../src/index.mjs';
-import { createReport, draftReportSection, renderReport, reviseReport, validateReport } from '../src/index.mjs';
+import { createReport, draftReportSection, projectReportClaimRegister, renderReport, reviseReport, validateReport } from '../src/index.mjs';
 import { fakeCodex, message } from './fake-codex.mjs';
 
 const a = 'The service retains logs for 7 days.';
@@ -76,6 +76,12 @@ test('table converts to a report, selected sections draft in sequence, edits ret
     assert.ok(second.prompt.includes('Edited: the first capture states seven days.'));
     assert.ok(second.prompt.includes('The service retains logs for 30 days. Backups are weekly.'));
     const reopened = validateReport(JSON.parse(JSON.stringify(report)));
+    const register = projectReportClaimRegister(reopened);
+    assert.equal(register.schema, 'research-report-claim-register.v1');
+    assert.equal(register.revision, reopened.revision);
+    assert.equal(register.citedClaims[0].review, 'exact-span-matched; entailment-and-truth-unassessed');
+    assert.deepEqual(register.unresolvedClaims.map((item) => item.text), ['Backup retention is not stated.']);
+    assert.match(renderReport(reopened), /Review register/);
     assert.match(renderReport(reopened), /Edited: the first capture states seven days\./);
     assert.match(renderReport(reopened), /The second capture states that backups are weekly\./);
     assert.match(renderReport(reopened), /Scope is not specified\./);

@@ -195,11 +195,18 @@ export interface DocumentRecoveryDispatchRequest {
   executionId: string;
 }
 export type DocumentRecoveryDispatch = (request: DocumentRecoveryDispatchRequest) => Promise<DocumentCoverageResult | { status: "unknown"; reason: string }>;
+export interface DocumentRecoveryPageCoverage {
+  documentId: string; documentSha256: string; page: number; pageSha256: string; sectionId: string; extractedUtf16Units: number;
+  executionStatus: "complete" | "partial" | "failed" | "cancelled" | "not_run" | "unknown";
+  reviewStatus: "empty-extracted-text" | "unknown" | "not_run" | "no_validated_result" | "fully_reviewed" | "partially_reviewed" | "unreviewed";
+  totalWindows: number; reviewedWindowIds: string[]; unreviewedWindowIds: string[];
+  citationStatus: "cited" | "no_citation" | "unavailable"; citationEvidenceIds: string[]; extractionGapIds: string[];
+}
 export interface ResearchDocumentRecovery {
   version: "research-document-recovery-v1"; owner: "research-ai"; id: `recovery:${string}`; question: string; revision: number;
   sources: ResearchDocumentInput[]; manifest: DocumentRecoverySection[]; policy: DocumentRecoveryPolicy; plannedMaximumCalls: number;
   sections: Array<{ sectionId: string; attempts: Array<{ number: number; status: "complete" | "partial" | "failed" | "cancelled" | "not_run" | "unknown"; result: DocumentCoverageResult | null; failure: string | null }>; pageMap: Array<{ documentId: string; localPage: number; originalPage: number; sourceSha256: string; pageSha256: string }>; reservedMaximumCalls: number }>;
-  aggregate: { status: "complete" | "partial" | "failed" | "unknown"; answer: Array<{ sectionId: string; sectionTitle: string; text: string; citations: Array<{ evidenceId: string; documentId: string; documentSha256: string; page: number; pageSha256: string; start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context" }> }>; gaps: string[]; cleanup: "complete" | "unconfirmed" | "incomplete"; plannedMaximumCalls: number; startedCalls: number; qualification: string };
+  aggregate: { status: "complete" | "partial" | "failed" | "unknown"; answer: Array<{ sectionId: string; sectionTitle: string; text: string; citations: Array<{ evidenceId: string; documentId: string; documentSha256: string; page: number; pageSha256: string; start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context" }> }>; pageCoverage?: DocumentRecoveryPageCoverage[]; gaps: string[]; cleanup: "complete" | "unconfirmed" | "incomplete"; plannedMaximumCalls: number; startedCalls: number; qualification: string };
   sha256: string;
 }
 export function createDocumentRecovery(question: string, options: { id?: string; documents: ResearchDocumentInput[]; sections: DocumentRecoverySection[]; policy?: Partial<DocumentRecoveryPolicy> }): ResearchDocumentRecovery;
@@ -894,8 +901,22 @@ export interface ResearchReport {
   usage: { calls: number; nativeSessions: number; searches: number; reads: number; seconds: number };
   revision: number; parentHash: string | null; limits: string[];
 }
+export interface ReportClaimRegister {
+  schema: "research-report-claim-register.v1";
+  revision: number;
+  reportSha256: string;
+  citedClaims: Array<{
+    id: string; sectionId: string; sectionTitle: string; versionId: string | null; text: string;
+    citation: { sourceIndex: number; start: number; end: number; quote: string };
+    source: { uri: string; sha256: string; selectionId: string | null; studyId: string | null; questionId: string | null; resultSha256: string | null; notebookId: string | null; sourceDigest: string | null };
+    review: "exact-span-matched; entailment-and-truth-unassessed";
+  }>;
+  unresolvedClaims: Array<{ id: string; sectionId: string; sectionTitle: string; versionId: string | null; text: string; status: "unresolved"; citations: [] }>;
+}
 /** Converts an outline or evidence table into a report without inference or loss. */
 export function createReport(input: ResearchOutline | ResearchEvidenceTable): ResearchReport;
+/** Derives a revision-bound register from current section versions and exact validated citations. */
+export function projectReportClaimRegister(report: ResearchReport): ReportClaimRegister;
 /** Validates current report content and returns self-contained, offline HTML, capped at 8 MiB. */
 export function exportReportHtml(report: ResearchReport): string;
 /** Rechecks the basis, bounded version history, accounting and exact source spans. */
@@ -918,9 +939,18 @@ export interface InvestigationEdit { topic?: string; goal?: string; scope?: stri
 export type InvestigationAction = "clarify" | "expand" | "investigate" | "synthesize";
 export type InvestigationBranchStatus = "complete" | "partial" | "failed" | "cancelled" | "not_run";
 export interface InvestigationAttempt { id: string; identity: string; /** Compatibility hash for unchanged topic/scope/source/budget context; historical identity is retained. */ contextIdentity: string; revision: number; /** `compare` appears only from `compareInvestigation`. */ action: InvestigationAction | "compare"; branchId: string | null; question: string | null; status: InvestigationBranchStatus; findings: string[]; gaps: string[]; sources: { uri: string; sha256?: string }[]; answer: string; reason: string | null; receipt: SessionOutcome | null }
-export interface Investigation { version: "guided-investigation-v1"; owner: "research-ai"; /** Present only in independent mode; joins identity hashes only when present. */ branchContext?: "independent"; topic: string; goal: string; scope: string; revision: number; identity: string; questions: InvestigationQuestion[]; sources: (FrozenSource & { sha256: string })[] | null; budget: InvestigationBudget; used: { searches: number; documents: number; seconds: number; calls: number }; history: InvestigationAttempt[]; /** Added only after an explicit revision; old v1 state bytes remain unchanged before revision. */ planHistory?: { plan: InvestigationPlan; preservesCompleted: boolean }[]; clarifications: string[]; report: { identity: string; markdown: string; attemptId: string } | null }
+export interface InvestigationClaimReview { id: string; scopeIdentity: string; attemptId: string; branchId: string; findingIndex: number; findingSha256: string; assessment: "supports" | "contradicts" | "context" | "unresolved"; rationale: string; citations: Array<{ sourceIndex: number; sourceUri: string; sourceSha256: string; start: number; end: number; quote: string }> }
+export interface InvestigationMethodProgress {
+  schema: "research-investigation-method-progress.v1";
+  baseline: { completedBranches: 0; reviewedFindings: 0; description: string };
+  current: { branchCount: number; completedBranches: number; remainingBranches: number; findings: number; reviewedFindings: number; unreviewedFindings: number; reportedGaps: number; remaining: { calls: number; searches: number; reads: number; seconds: number }; blocked: boolean };
+  branches: Array<{ branchId: string; status: InvestigationBranchStatus | "unstarted"; attemptId: string | null; findings: number; reviewedFindings: number; gaps: number; sourceIdentities: number }>;
+  qualification: string;
+}
+export interface ProjectedInvestigationClaimReview extends InvestigationClaimReview { finding: string | null; status: "current" | "historical"; qualification: string }
+export interface Investigation { version: "guided-investigation-v1"; owner: "research-ai"; /** Present only in independent mode; joins identity hashes only when present. */ branchContext?: "independent"; topic: string; goal: string; scope: string; revision: number; identity: string; questions: InvestigationQuestion[]; sources: (FrozenSource & { sha256: string })[] | null; budget: InvestigationBudget; used: { searches: number; documents: number; seconds: number; calls: number }; history: InvestigationAttempt[]; /** Added only after an explicit revision; old v1 state bytes remain unchanged before revision. */ planHistory?: { plan: InvestigationPlan; preservesCompleted: boolean }[]; /** Optional append-only claim reviews; absent in older v1 states. */ claimReviews?: InvestigationClaimReview[]; clarifications: string[]; report: { identity: string; markdown: string; attemptId: string } | null }
 /** Offline review snapshot. Its digest binds the investigation identity, source digests, budget, usage and history checkpoint. */
-export interface InvestigationPlan { version: "investigation-plan-v1"; owner: "research-ai"; identity: string; scopeIdentity: string; contextIdentity: string; revision: number; topic: string; goal: string; scope: string; questions: (InvestigationQuestion & { depth: number })[]; sourceDigests: { uri: string; sha256: string }[] | null; budget: InvestigationBudget; used: Investigation["used"]; remaining: { calls: number; searches: number; reads: number; seconds: number }; completedBranchIds: string[]; remainingBranchIds: string[]; stopConditions: string[]; attempts: number; lastAttemptId: string | null; blocked: boolean; digest: string }
+export interface InvestigationPlan { version: "investigation-plan-v1"; owner: "research-ai"; identity: string; scopeIdentity: string; contextIdentity: string; revision: number; topic: string; goal: string; scope: string; questions: (InvestigationQuestion & { depth: number })[]; sourceDigests: { uri: string; sha256: string }[] | null; budget: InvestigationBudget; used: Investigation["used"]; remaining: { calls: number; searches: number; reads: number; seconds: number }; completedBranchIds: string[]; remainingBranchIds: string[]; stopConditions: string[]; attempts: number; lastAttemptId: string | null; blocked: boolean; methodProgress: InvestigationMethodProgress; digest: string }
 export function createInvestigation(topic: string, options?: Omit<InvestigationEdit, "topic">): Investigation;
 export function reviseInvestigation(state: Investigation, edit: InvestigationEdit): Investigation;
 export function validateInvestigation(value: unknown): Investigation;
@@ -935,6 +965,12 @@ export interface InvestigationIncompleteCandidate {
 /** Returns schema-valid final text from a compatible unfinished investigate attempt, or null. */
 export function getInvestigationIncompleteCandidate(state: Investigation, attemptId: string): InvestigationIncompleteCandidate | null;
 export function planInvestigation(state: Investigation): InvestigationPlan;
+/** Counts retained branch progress against a zero-work baseline; does not infer adequacy or truth. */
+export function projectInvestigationMethodProgress(state: Investigation): InvestigationMethodProgress;
+/** Appends a caller-authored exact-span review of a current finding over frozen source text. */
+export function reviewInvestigationClaim(state: Investigation, input: { attemptId: string; findingIndex: number; assessment: InvestigationClaimReview["assessment"]; rationale: string; citations: Array<{ sourceIndex: number; start: number; end: number; quote: string }> }): Investigation;
+/** Rechecks retained review identity and source spans without retargeting historical entries. */
+export function projectInvestigationClaimReviews(state: Investigation): ProjectedInvestigationClaimReview[];
 export function advanceInvestigation(state: Investigation, options: { action: InvestigationAction; branchIds?: string[]; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<Investigation>;
 /** Strict, digest-confirmed continuation. Requires frozen caller-provided sources and refuses completed compatible branches. */
 export function advanceInvestigationPlan(state: Investigation, checkpoint: InvestigationPlan, options: { confirmedPlanDigest: string; action: "investigate"; branchIds: string[]; signal?: AbortSignal; lease?: string; model?: string; effort?: string; progress?: (event: string) => void }): Promise<Investigation>;

@@ -21,6 +21,13 @@ the original Study answer. Exact quotation proves occurrence in the frozen
 source only, not entailment or truth. The portable report retains source
 lineage; Deep may separately recheck present-day source availability.
 
+Markdown and HTML also include a deterministic review register derived from
+the current section versions. It lists exact validated quote spans with source
+digests and retained Study selection identity where available, and preserves
+saved gaps as unresolved without adding citations. Span matching confirms
+occurrence only; it does not establish entailment or truth. The register digest
+binds the projection to the exact report revision and is recomputed on reopen.
+
 The offline CLI accepts a saved Study JSON value on stdin:
 
 ```sh
