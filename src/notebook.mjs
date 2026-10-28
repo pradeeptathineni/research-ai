@@ -92,6 +92,42 @@ function shouldaSourceOrigin(value, document) {
     files, nearbyDocuments, qualificationBasis: "caller-authored-only", legalCompatibility: "not-assessed" };
 }
 
+function briefingSourceOrigin(value, document) {
+  const fields = ["schemaVersion", "kind", "itemReference", "sourceReference", "contentDigest",
+    "excerptSha256", "observedAt", "sourceHealth"];
+  if (!keys(value, fields) || value.schemaVersion !== 1 || value.kind !== "signals-briefing-item")
+    invalid("invalid Briefing source origin fields");
+  const reference = (ref, kind) => keys(ref, ["owner", "kind", "id", "revision"])
+    && ref.owner === "signals-ai" && ref.kind === kind
+    && typeof ref.id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(ref.id)
+    && typeof ref.revision === "string" && /^sha256:[a-f0-9]{64}$/.test(ref.revision);
+  if (!reference(value.itemReference, "briefing-item")
+      || !reference(value.sourceReference, "briefing-source")
+      || !digestPattern.test(value.contentDigest) || !digestPattern.test(value.excerptSha256)
+      || typeof value.observedAt !== "string" || !Number.isFinite(Date.parse(value.observedAt))
+      || value.observedAt.length > 40) invalid("invalid Briefing source identity or observation");
+  const healthFields = ["status", "lastGoodAt", "lastAttemptAt", "lastAttemptStatus",
+    "lastSuccessfulLinkCount", "failureClass", "expectedIntervalSec"];
+  const health = value.sourceHealth;
+  if (!keys(health, healthFields) || !["unknown", "healthy", "stale", "failed"].includes(health.status)
+      || ![null, "fetched", "not-modified", "failed"].includes(health.lastAttemptStatus)
+      || ![null, "unreachable", "parse-error", "refused", "terms-blocked", "other"].includes(health.failureClass)
+      || ![null, "string"].includes(health.lastGoodAt === null ? null : typeof health.lastGoodAt)
+      || ![null, "string"].includes(health.lastAttemptAt === null ? null : typeof health.lastAttemptAt)
+      || (health.lastGoodAt !== null && !Number.isFinite(Date.parse(health.lastGoodAt)))
+      || (health.lastAttemptAt !== null && !Number.isFinite(Date.parse(health.lastAttemptAt)))
+      || !(health.lastSuccessfulLinkCount === null || (Number.isSafeInteger(health.lastSuccessfulLinkCount)
+        && health.lastSuccessfulLinkCount >= 0 && health.lastSuccessfulLinkCount <= 10000))
+      || !(health.expectedIntervalSec === null || (Number.isFinite(health.expectedIntervalSec) && health.expectedIntervalSec > 0)))
+    invalid("invalid Briefing source health qualification");
+  if (document.pages.length !== 1 || hash(document.pages[0].text) !== value.excerptSha256
+      || document.id !== `briefing-item-${hash(canonical(value.itemReference))}`)
+    invalid("Briefing item excerpt or exact item identity does not match its retained source");
+  return { schemaVersion: 1, kind: value.kind, itemReference: clone(value.itemReference),
+    sourceReference: clone(value.sourceReference), contentDigest: value.contentDigest,
+    excerptSha256: value.excerptSha256, observedAt: value.observedAt, sourceHealth: clone(health) };
+}
+
 
 function noteVersion(value, expectedVersion, noteId, questionIds) {
   sealed(value, ["version", "title", "text", "origin", "sha256"], "note version");
@@ -203,7 +239,8 @@ function validateState(value) {
   const sourceIds = new Set();
   const documents = new Set();
   for (const entry of value.sources) {
-    if (!allowed(entry, ["id", "document", "digest"], ["shouldaOrigin"])) invalid("source record has unknown or missing fields");
+    if (!allowed(entry, ["id", "document", "digest"], ["shouldaOrigin", "briefingOrigin"])
+        || (entry.shouldaOrigin !== undefined && entry.briefingOrigin !== undefined)) invalid("source record has unknown or missing fields");
     recordId("source", entry.id);
     if (sourceIds.has(entry.id) || !digestPattern.test(entry.digest)) invalid("duplicate source or invalid digest");
     const document = sourceDocument(entry.document);
@@ -214,6 +251,7 @@ function validateState(value) {
     sourceIds.add(entry.id);
     const source = { id: entry.id, document, digest };
     if (entry.shouldaOrigin !== undefined) source.shouldaOrigin = shouldaSourceOrigin(entry.shouldaOrigin, document);
+    if (entry.briefingOrigin !== undefined) source.briefingOrigin = briefingSourceOrigin(entry.briefingOrigin, document);
     sources.push(source);
   }
   const noteIds = new Set();
@@ -291,6 +329,16 @@ export function reviseResearchNotebook(value, edit) {
     const shouldaOrigin = shouldaSourceOrigin(edit.origin, document);
     const digest = hash(canonical(document));
     return changed(notebook, { sources: [...notebook.sources, { id, document, digest, shouldaOrigin }] });
+  }
+  if (edit.type === "add-briefing-source" && allowed(edit, ["type", "document", "origin"], ["id"])) {
+    if (notebook.sources.length >= caps.sources) invalid("notebook source capacity reached");
+    const id = recordId("source", edit.id);
+    if (notebook.sources.some((entry) => entry.id === id)) invalid("source ID already exists");
+    const document = sourceDocument(edit.document);
+    if (notebook.sources.some((entry) => entry.document.id === document.id)) invalid("document ID already exists");
+    const briefingOrigin = briefingSourceOrigin(edit.origin, document);
+    const digest = hash(canonical(document));
+    return changed(notebook, { sources: [...notebook.sources, { id, document, digest, briefingOrigin }] });
   }
   if (edit.type === "add-note" && allowed(edit, ["type", "title", "text"], ["id"])) {
     if (notebook.notes.length >= caps.notes) invalid("notebook note capacity reached");

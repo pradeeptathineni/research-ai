@@ -1156,7 +1156,35 @@ export interface ResearchShouldaSourceOrigin {
     truncated: boolean; state: "observed" | "missing" | "symlink" | "unavailable" }>;
   qualificationBasis: "caller-authored-only"; legalCompatibility: "not-assessed";
 }
-export interface ResearchNotebookSource { id: string; document: ResearchDocumentInput; digest: string; shouldaOrigin?: ResearchShouldaSourceOrigin }
+export interface ResearchBriefingRecordReference {
+  owner: "signals-ai";
+  kind: "briefing-item" | "briefing-source";
+  id: string;
+  revision: `sha256:${string}`;
+}
+export interface ResearchBriefingSourceHealth {
+  status: "unknown" | "healthy" | "stale" | "failed";
+  lastGoodAt: string | null;
+  lastAttemptAt: string | null;
+  lastAttemptStatus: "fetched" | "not-modified" | "failed" | null;
+  lastSuccessfulLinkCount: number | null;
+  failureClass: "unreachable" | "parse-error" | "refused" | "terms-blocked" | "other" | null;
+  expectedIntervalSec: number | null;
+}
+export interface ResearchBriefingSourceOrigin {
+  schemaVersion: 1;
+  kind: "signals-briefing-item";
+  itemReference: ResearchBriefingRecordReference & { kind: "briefing-item" };
+  sourceReference: ResearchBriefingRecordReference & { kind: "briefing-source" };
+  contentDigest: string;
+  excerptSha256: string;
+  observedAt: string;
+  sourceHealth: ResearchBriefingSourceHealth;
+}
+export interface ResearchNotebookSource {
+  id: string; document: ResearchDocumentInput; digest: string;
+  shouldaOrigin?: ResearchShouldaSourceOrigin; briefingOrigin?: ResearchBriefingSourceOrigin;
+}
 export interface ResearchNotebookSourceMap {
   documentId: string; kind: "document" | "note"; recordId: string; version: number | null; digest: string; title: string;
 }
@@ -1175,6 +1203,7 @@ export type ResearchNotebookEdit =
   | { type: "rename"; title?: string; topic?: string }
   | { type: "add-source"; id?: string; document: ResearchDocumentInput }
   | { type: "add-shoulda-source"; id?: string; document: ResearchDocumentInput; origin: ResearchShouldaSourceOrigin }
+  | { type: "add-briefing-source"; id?: string; document: ResearchDocumentInput; origin: ResearchBriefingSourceOrigin }
   | { type: "add-note"; id?: string; title: string; text: string }
   | { type: "edit-note"; id: string; title: string; text: string };
 export interface PreparedNotebookQuestion {
