@@ -103,6 +103,7 @@ describe('JSON Feed HTTP media compatibility', () => {
     const [item] = await api.listItems();
     const [story] = await api.listStories();
     expect(source?.record).toMatchObject({ kind: 'jsonfeed', health: { status: 'healthy' } });
+    expect(source?.record.termsRef).toBeNull();
     expect(item?.record).toMatchObject({
       sourceId: source?.record.id,
       canonicalUrl: feed.items[0]!.url,
@@ -129,6 +130,19 @@ describe('JSON Feed HTTP media compatibility', () => {
         }),
       ]),
     );
+
+    await api.setSourceTermsPolicy({
+      requestId: '4d5a3900-7e58-4c56-91ac-e11d13d04901',
+      sourceId: source!.record.id,
+      termsUrl: null,
+      status: 'blocked',
+    });
+    mocks.request.mockClear();
+    const policyBlockedPass = await refreshBriefing(root);
+    expect(policyBlockedPass.sources).toEqual([]);
+    expect(policyBlockedPass.briefing.blockedSources).toEqual(['https://feeds.example.test/climate.json']);
+    expect(mocks.request).not.toHaveBeenCalled();
+    expect((await api.listSources())[0]?.record.termsRef).not.toBeNull();
   });
 
   it('does not accept unrelated vendor +json media types as feed documents', async () => {
