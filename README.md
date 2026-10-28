@@ -590,6 +590,15 @@ with question origin. Validation, reading, editing, citation lookup and export
 work offline. See [notebook usage and limits](docs/notebook.md). The standalone
 entry point is `research-notebook --action ...`.
 
+`createResearchNotebookFromBriefingSelection(workbench, selection)` is an
+explicit, pure bridge from the current Signals Briefing workbench response.
+The caller supplies one exact story reference and only the exact item
+references the user selected. The result retains those owner revisions,
+source health, terms status and excerpts as unassessed leads; it does not
+persist a notebook, fetch a URL, or infer a Research result. Blocked terms
+refuse the bridge, and unknown terms remain unknown. See the Briefing handoff
+section in [notebook usage and limits](docs/notebook.md).
+
 `searchResearchNotebooks(notebooks, query, options)` searches only the explicit
 validated notebook selection for retained source pages and note versions.
 `openNotebookSearchHit` revalidates and replays a result before returning the

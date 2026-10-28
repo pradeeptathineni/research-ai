@@ -65,6 +65,10 @@ Notebook state remains caller-owned JSON. The module validates immutable
 complete documents, note-version digests, explicit source maps, and the exact
 existing document-coverage result for each retained question. It invokes no
 storage or provider for create, edit, prepare, citation, validation or render.
+The additive Briefing bridge validates one explicitly selected story and its
+selected exact item refs against a caller-supplied current owner workbench
+snapshot, and retains the owner revisions, source health and terms status as
+unassessed leads without persistence or URL fetch.
 The optional ask path delegates to the existing coverage owner after explicit
 notebook, scope and plan confirmation. Donor concepts and exact MIT terms are
 recorded in `src/notebook-NOTICE.txt` and `THIRD-PARTY-NOTICES.md`.

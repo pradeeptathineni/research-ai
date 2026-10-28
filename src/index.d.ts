@@ -1202,10 +1202,18 @@ export interface ResearchBriefingSourceHealth {
   status: "unknown" | "healthy" | "stale" | "failed";
   lastGoodAt: string | null;
   lastAttemptAt: string | null;
-  lastAttemptStatus: "fetched" | "not-modified" | "failed" | null;
-  lastSuccessfulLinkCount: number | null;
+  /** Present only when the producing Signals revision exposes these observations. */
+  lastAttemptStatus?: "fetched" | "not-modified" | "failed" | null;
+  lastSuccessfulLinkCount?: number | null;
   failureClass: "unreachable" | "parse-error" | "refused" | "terms-blocked" | "other" | null;
   expectedIntervalSec: number | null;
+}
+export interface ResearchBriefingSourceTerms {
+  sourceId: string;
+  termsRef: string | null;
+  status: "unknown" | "recorded" | "blocked";
+  termsUrl: string | null;
+  reviewedAt: string | null;
 }
 export interface ResearchBriefingSourceOrigin {
   schemaVersion: 1;
@@ -1213,6 +1221,9 @@ export interface ResearchBriefingSourceOrigin {
   itemReference: ResearchBriefingRecordReference & { kind: "briefing-item" };
   sourceReference: ResearchBriefingRecordReference & { kind: "briefing-source" };
   storyReference?: ResearchBriefingRecordReference & { kind: "briefing-story" };
+  canonicalUrl?: string;
+  sourceTerms?: ResearchBriefingSourceTerms;
+  assessmentStatus?: "unassessed-lead";
   contentDigest: string;
   excerptSha256: string;
   observedAt: string;
@@ -1243,6 +1254,42 @@ export type ResearchNotebookEdit =
   | { type: "add-briefing-source"; id?: string; document: ResearchDocumentInput; origin: ResearchBriefingSourceOrigin }
   | { type: "add-note"; id?: string; title: string; text: string }
   | { type: "edit-note"; id: string; title: string; text: string };
+export interface ResearchBriefingWorkbenchItem {
+  item: { id: string; title: string; canonicalUrl: string; excerpt: string; contentDigest: string; observedAt: string };
+  itemReference: ResearchBriefingRecordReference & { kind: "briefing-item" };
+  source: { id: string; termsRef: string | null; health: ResearchBriefingSourceHealth };
+  sourceReference: ResearchBriefingRecordReference & { kind: "briefing-source" };
+}
+export interface ResearchBriefingWorkbenchInput {
+  story: { id: string; itemIds: string[] };
+  storyReference: ResearchBriefingRecordReference & { kind: "briefing-story" };
+  items: ResearchBriefingWorkbenchItem[];
+}
+export interface ResearchBriefingWorkbenchResponse {
+  schema: "signals.briefing-workbench.v1";
+  ranked: Array<{ input: ResearchBriefingWorkbenchInput }>;
+  sourceTerms: Array<{
+    id: string; sourceId: string; termsUrl: string | null;
+    status: "unknown" | "recorded" | "blocked"; reviewedAt: string | null;
+  }>;
+}
+export interface ResearchBriefingNotebookSelection {
+  storyReference: ResearchBriefingRecordReference & { kind: "briefing-story" };
+  /** Exact item record references selected by the caller; no siblings are inferred. */
+  itemReferences: Array<ResearchBriefingRecordReference & { kind: "briefing-item" }>;
+  title?: string;
+  topic?: string;
+  id?: string;
+}
+/**
+ * Returns a cold-valid in-memory Notebook from explicit refs in a native Briefing workbench
+ * response. It performs no persistence, inference or network request; callers save through
+ * the existing Notebook owner only after the user confirms.
+ */
+export function createResearchNotebookFromBriefingSelection(
+  workbench: ResearchBriefingWorkbenchResponse,
+  selection: ResearchBriefingNotebookSelection,
+): ResearchNotebook;
 export interface PreparedNotebookQuestion {
   version: "research-notebook-question-preview-v1"; notebookId: string; notebookDigest: string;
   spec: ResearchNotebookQuestionSpec; scopeDigest: string; sourceMap: ResearchNotebookSourceMap[];

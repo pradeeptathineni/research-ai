@@ -68,6 +68,32 @@ document or note. A saved answer is marked as question-originated and stays an
 unverified prior synthesis. It can be edited in a later note version; the
 original answer and citations remain unchanged.
 
+## Briefing investigation seed
+
+`createResearchNotebookFromBriefingSelection(workbench, selection)` converts a
+current native `signals.briefing-workbench.v1` response into a portable Notebook
+for one exact story. The caller must pass the story reference and the exact item
+references the user selected; the operation never includes sibling items or
+matches by URL. Selection is limited to the Notebook's existing source capacity.
+
+```js
+const notebook = createResearchNotebookFromBriefingSelection(workbench, {
+  storyReference: selectedStory.reference,
+  itemReferences: selectedItems.map((item) => item.itemReference),
+  title: "Investigate selected Briefing story",
+});
+```
+
+Each source retains only the owner-supplied excerpt, canonical URL, exact story,
+item and source revisions, content and excerpt digests, observation time,
+source health, and the matching source-terms record (or explicit unknown). A
+known blocked source-terms policy refuses the handoff. Sources are marked as
+unassessed leads; recording a Notebook does not assess claims or legal rights.
+The function performs no persistence, fetch, inference or provider call. The
+caller may present the returned Notebook and save it only through the existing
+Notebook owner after the user's explicit action. Markdown rendering exposes
+the unassessed classification and retained source policy details.
+
 ## CLI
 
 `research-notebook --action create|revise|preview|ask|record|citation|save-note|render`

@@ -22,6 +22,7 @@ export { researchNotebookLimits, createResearchNotebook, validateResearchNoteboo
   prepareNotebookQuestion, recordNotebookQuestion, saveNotebookQuestionAsNote, getNotebookCitation,
   renderResearchNotebook } from './notebook.mjs';
 export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from './notebook-search.mjs';
+export { createResearchNotebookFromBriefingSelection } from './briefing-notebook.mjs';
 export { exportResearchRetrievalArm } from './retrieval-arm.mjs';
 export { exportResearchAnswerCitationMap } from './answer-citation-map.mjs';
 
