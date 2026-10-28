@@ -108,6 +108,38 @@ export function exportLiteratureStudyPlanningSource(prepared: PreparedLiterature
 export function validateLiteratureStudyPlanningSource(prepared: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult, requestId: string, candidate: unknown): LiteratureStudyPlanningSource;
 export function exportLiteratureSet(value: LiteratureSet): string;
 export function formatLiteratureSet(value: LiteratureSet): string;
+export interface LiteratureSynthesisCitation {
+  evidenceId: string;
+  paperIds: string[];
+  relation: string;
+  quote: string;
+  page: number;
+  start: number;
+  end: number;
+  sourceBinding: NonNullable<LiteraturePaper["source"]>;
+  sourceIndependence: "unknown" | "same-exact-source-aliases";
+  qualification: string[];
+}
+export interface LiteratureSynthesisExport {
+  schema: "research-literature-synthesis-export.v1";
+  question: string;
+  literatureSetId: LiteratureSet["id"];
+  literatureSetRevision: number;
+  literatureSetSha256: string;
+  preparedSha256: string;
+  resultSha256: string;
+  resultStatus: "complete" | "partial";
+  coverage: "answered" | "partial";
+  citations: LiteratureSynthesisCitation[];
+  duplicateSuggestions: ReturnType<typeof deduplicateLiteraturePapers>;
+  bibliographyMarkdown: string;
+  content: string;
+  contentSha256: string;
+  qualification: string;
+  exportSha256: string;
+}
+/** Exports one retained cross-notebook answer with exact evidence and same-revision bibliography bindings. */
+export function exportLiteratureStudySynthesis(prepared: PreparedLiteratureStudyQuestion, result: DocumentCoverageResult): LiteratureSynthesisExport;
 
 export interface ResearchPerspectiveWorkflow {
   version: "research-perspective-workflow-v1";
@@ -1115,7 +1147,45 @@ export interface ResearchNotebookNoteVersion {
   version: number; title: string; text: string; origin: ResearchNotebookOrigin; sha256: string;
 }
 export interface ResearchNotebookNote { id: string; versions: ResearchNotebookNoteVersion[] }
-export interface ResearchNotebookSource { id: string; document: ResearchDocumentInput; digest: string }
+export interface ResearchShouldaSourceOrigin {
+  schemaVersion: 1; kind: "shoulda-source-selection"; sourceSelectionId: string; selectionReceiptSha256: string;
+  repository: string; sourceId: string; headCommit: string; snapshotFingerprint: string;
+  sourceInspectionId: string; sourceAssessmentId: string; decisionId: string;
+  files: Array<{ page: number; path: string; role: string; sha256: string; byteCount: number }>;
+  nearbyDocuments: Array<{ path: string; kind: "readme" | "license" | "notice"; sha256: string | null;
+    truncated: boolean; state: "observed" | "missing" | "symlink" | "unavailable" }>;
+  qualificationBasis: "caller-authored-only"; legalCompatibility: "not-assessed";
+}
+export interface ResearchBriefingRecordReference {
+  owner: "signals-ai";
+  kind: "briefing-item" | "briefing-source" | "briefing-story";
+  id: string;
+  revision: `sha256:${string}`;
+}
+export interface ResearchBriefingSourceHealth {
+  status: "unknown" | "healthy" | "stale" | "failed";
+  lastGoodAt: string | null;
+  lastAttemptAt: string | null;
+  lastAttemptStatus: "fetched" | "not-modified" | "failed" | null;
+  lastSuccessfulLinkCount: number | null;
+  failureClass: "unreachable" | "parse-error" | "refused" | "terms-blocked" | "other" | null;
+  expectedIntervalSec: number | null;
+}
+export interface ResearchBriefingSourceOrigin {
+  schemaVersion: 1;
+  kind: "signals-briefing-item";
+  itemReference: ResearchBriefingRecordReference & { kind: "briefing-item" };
+  sourceReference: ResearchBriefingRecordReference & { kind: "briefing-source" };
+  storyReference?: ResearchBriefingRecordReference & { kind: "briefing-story" };
+  contentDigest: string;
+  excerptSha256: string;
+  observedAt: string;
+  sourceHealth: ResearchBriefingSourceHealth;
+}
+export interface ResearchNotebookSource {
+  id: string; document: ResearchDocumentInput; digest: string;
+  shouldaOrigin?: ResearchShouldaSourceOrigin; briefingOrigin?: ResearchBriefingSourceOrigin;
+}
 export interface ResearchNotebookSourceMap {
   documentId: string; kind: "document" | "note"; recordId: string; version: number | null; digest: string; title: string;
 }
@@ -1133,6 +1203,8 @@ export interface ResearchNotebook {
 export type ResearchNotebookEdit =
   | { type: "rename"; title?: string; topic?: string }
   | { type: "add-source"; id?: string; document: ResearchDocumentInput }
+  | { type: "add-shoulda-source"; id?: string; document: ResearchDocumentInput; origin: ResearchShouldaSourceOrigin }
+  | { type: "add-briefing-source"; id?: string; document: ResearchDocumentInput; origin: ResearchBriefingSourceOrigin }
   | { type: "add-note"; id?: string; title: string; text: string }
   | { type: "edit-note"; id: string; title: string; text: string };
 export interface PreparedNotebookQuestion {

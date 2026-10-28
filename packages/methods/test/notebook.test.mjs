@@ -168,6 +168,104 @@ test("whole-state and scope tampering refuse without mutating retained input", (
   assert.equal(prepared.spec.id, spec.id);
 });
 
+test("Shoulda selected-source origin is additive, exact-page bound and cold-reopen validated", () => {
+  const content = "# Retained selected file\n\nExact synthetic bytes.\n";
+  const document = doc("shoulda-sfs_0123456789abcdef01234567", [page(1, content)]);
+  const origin = {
+    schemaVersion: 1,
+    kind: "shoulda-source-selection",
+    sourceSelectionId: "sfs_0123456789abcdef01234567",
+    selectionReceiptSha256: sha("exact synthetic Shoulda receipt"),
+    repository: "example/synthetic-repo",
+    sourceId: "fixture",
+    headCommit: "1".repeat(40),
+    snapshotFingerprint: `srcsnap_${"2".repeat(64)}`,
+    sourceInspectionId: "sdi_0123456789abcdef01234567",
+    sourceAssessmentId: "sda_0123456789abcdef01234567",
+    decisionId: "dec_0123456789abcdef",
+    files: [{ page: 1, path: "README.md", role: "implementation overview", sha256: sha(content), byteCount: Buffer.byteLength(content) }],
+    nearbyDocuments: [{ path: "NOTICE", kind: "notice", sha256: sha("Synthetic notice."), truncated: false, state: "observed" }],
+    qualificationBasis: "caller-authored-only",
+    legalCompatibility: "not-assessed",
+  };
+  const documentId = document.id;
+  let notebook = createResearchNotebook("Selected repository evidence");
+  notebook = reviseResearchNotebook(notebook, { type: "add-shoulda-source", document, origin });
+  assert.equal(notebook.sources[0].document.id, documentId);
+  assert.equal(notebook.sources[0].shouldaOrigin.sourceSelectionId, origin.sourceSelectionId);
+  assert.equal(notebook.sources[0].shouldaOrigin.repository, origin.repository);
+  assert.equal(notebook.sources[0].shouldaOrigin.legalCompatibility, "not-assessed");
+  assert.deepEqual(validateResearchNotebook(JSON.parse(renderResearchNotebook(notebook))), notebook);
+
+  const tampered = structuredClone(notebook);
+  tampered.sources[0].shouldaOrigin.files[0].sha256 = sha("different bytes");
+  tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => validateResearchNotebook(tampered), /Shoulda source file identity/);
+  assert.throws(() => reviseResearchNotebook(notebook, { type: "add-shoulda-source",
+    document: doc("second-shoulda-selection", [page(1, content)]),
+    origin: { ...origin, legalCompatibility: "compatible" } }), /qualification/);
+  assert.equal(validateResearchNotebook(starter()).sources[0].shouldaOrigin, undefined, "older source records remain compatible");
+});
+
+test("Briefing notebook sources retain exact item/source refs and only the owner excerpt", () => {
+  const excerpt = "Synthetic retained Briefing excerpt, observed from its source.";
+  const itemReference = { owner: "signals-ai", kind: "briefing-item", id: "item:rd02", revision: `sha256:${sha("item record")}` };
+  const sourceReference = { owner: "signals-ai", kind: "briefing-source", id: "source:rd02", revision: `sha256:${sha("source record")}` };
+  const origin = {
+    schemaVersion: 1, kind: "signals-briefing-item", itemReference, sourceReference,
+    contentDigest: sha("original captured content"), excerptSha256: sha(excerpt),
+    observedAt: "2026-10-28T10:00:00.000Z",
+    sourceHealth: { status: "unknown", lastGoodAt: null, lastAttemptAt: null, lastAttemptStatus: null,
+      lastSuccessfulLinkCount: null, failureClass: null, expectedIntervalSec: null },
+  };
+  const document = { id: `briefing-item-${sha(canonical([itemReference, sourceReference]))}`, title: "Synthetic Briefing item",
+    sha256: sha("caller asserted document header"), pages: [page(1, excerpt)] };
+  const notebook = reviseResearchNotebook(createResearchNotebook("Briefing handoff"), {
+    type: "add-briefing-source", document, origin,
+  });
+  const reopened = validateResearchNotebook(JSON.parse(renderResearchNotebook(notebook)));
+  assert.deepEqual(reopened, notebook);
+  assert.equal(reopened.sources[0].briefingOrigin.itemReference.revision, itemReference.revision);
+  assert.equal(reopened.sources[0].briefingOrigin.sourceReference.revision, sourceReference.revision);
+  assert.equal(reopened.sources[0].document.pages[0].text, excerpt);
+  assert.notEqual(reopened.sources[0].document.pages[0].text, "original captured content");
+
+  const changed = structuredClone(notebook);
+  changed.sources[0].briefingOrigin.excerptSha256 = sha("different excerpt");
+  changed.sha256 = sha(canonical(Object.fromEntries(Object.entries(changed).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => validateResearchNotebook(changed), /Briefing item excerpt/);
+  assert.equal(validateResearchNotebook(starter()).sources[0].briefingOrigin, undefined,
+    "legacy notebooks without a Briefing origin remain compatible");
+});
+
+test("Briefing story context is additive to existing item/source origin records", () => {
+  const excerpt = "Synthetic story member excerpt.";
+  const storyReference = { owner: "signals-ai", kind: "briefing-story", id: "story:rd02", revision: `sha256:${sha("story record")}` };
+  const itemReference = { owner: "signals-ai", kind: "briefing-item", id: "item:rd02-story", revision: `sha256:${sha("story item")}` };
+  const sourceReference = { owner: "signals-ai", kind: "briefing-source", id: "source:rd02-story", revision: `sha256:${sha("story source")}` };
+  const origin = {
+    schemaVersion: 1, kind: "signals-briefing-item", storyReference, itemReference, sourceReference,
+    contentDigest: sha("captured item content"), excerptSha256: sha(excerpt),
+    observedAt: "2026-10-28T10:00:00.000Z",
+    sourceHealth: { status: "unknown", lastGoodAt: null, lastAttemptAt: null, lastAttemptStatus: null,
+      lastSuccessfulLinkCount: null, failureClass: null, expectedIntervalSec: null },
+  };
+  const document = { id: `briefing-item-${sha(canonical([storyReference, itemReference, sourceReference]))}`,
+    title: "Synthetic Briefing story member", sha256: sha("header"), pages: [page(1, excerpt)] };
+  const notebook = reviseResearchNotebook(createResearchNotebook("Story context"), {
+    type: "add-briefing-source", document, origin,
+  });
+  const reopened = validateResearchNotebook(JSON.parse(renderResearchNotebook(notebook)));
+  assert.deepEqual(reopened, notebook);
+  assert.equal(reopened.sources[0].briefingOrigin.storyReference.revision, storyReference.revision);
+  assert.equal(reopened.sources[0].briefingOrigin.itemReference.revision, itemReference.revision);
+
+  const tampered = structuredClone(notebook);
+  tampered.sources[0].briefingOrigin.storyReference.revision = `sha256:${"0".repeat(64)}`;
+  tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => validateResearchNotebook(tampered), /Briefing item excerpt or exact item identity/);
+});
+
 test("default empty topic reopens and a large source stays available for reading and explicit planning", () => {
   let notebook = createResearchNotebook("Untitled notes");
   assert.equal(notebook.topic, "");

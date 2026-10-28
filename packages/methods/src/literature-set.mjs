@@ -507,3 +507,119 @@ export function formatLiteratureSet(value) {
   }
   return `${lines.join("\n").trim()}\n`;
 }
+
+/**
+ * Exports one retained cross-notebook answer with its exact evidence bindings
+ * and the bibliography for the same frozen Literature set revision.
+ */
+export function exportLiteratureStudySynthesis(preparedValue, resultValue) {
+  const prepared = validateLiteratureStudyQuestion(preparedValue);
+  const projection = projectLiteratureStudyEvidence(prepared, resultValue);
+  if (!projection.answer?.length || !projection.evidence.length
+      || !["complete", "partial"].includes(projection.resultStatus)
+      || !["answered", "partial"].includes(projection.coverage))
+    fail("retained literature answer export requires answer text, citations and answered or partial coverage");
+
+  const set = validateState(prepared.literatureSet);
+  const papers = new Map(set.papers.map((paper) => [paper.id, paper]));
+  const evidenceById = new Map();
+  const citations = projection.evidence.map((item) => {
+    if (typeof item.id !== "string" || !item.id || evidenceById.has(item.id))
+      fail("retained literature answer has an ambiguous evidence ID");
+    if (!Array.isArray(item.paperReferences) || !item.paperReferences.length
+        || !item.sourceBinding || !Number.isSafeInteger(item.page) || item.page < 1
+        || !Number.isSafeInteger(item.start) || !Number.isSafeInteger(item.end) || item.start < 0 || item.end < item.start
+        || typeof item.quote !== "string")
+      fail("retained literature evidence has no exact source citation");
+    const paperIds = item.paperReferences.map((reference) => {
+      const paper = papers.get(reference.paperId);
+      if (!paper || !isDeepStrictEqual(paperReference(paper), reference))
+        fail("retained literature citation does not resolve to the exact saved paper record");
+      if (!paper.source || !isDeepStrictEqual(paper.source, item.sourceBinding))
+        fail("retained literature citation source binding does not match its paper record");
+      return reference.paperId;
+    });
+    const citation = {
+      evidenceId: item.id,
+      paperIds,
+      relation: item.relation,
+      quote: item.quote,
+      page: item.page,
+      start: item.start,
+      end: item.end,
+      sourceBinding: clone(item.sourceBinding),
+      sourceIndependence: item.sourceIndependence,
+      qualification: clone(item.qualification ?? []),
+    };
+    evidenceById.set(item.id, citation);
+    return citation;
+  });
+
+  const answer = projection.answer.map((row) => {
+    if (typeof row.text !== "string" || !Array.isArray(row.evidenceIds)
+        || row.evidenceIds.some((id) => !evidenceById.has(id)))
+      fail("retained literature answer references an unresolved citation");
+    return clone(row);
+  });
+  const bibliographyMarkdown = formatLiteratureSet(set);
+  const result = validateDocumentCoverage(resultValue);
+  const citationLedger = {
+    schema: "research-literature-citation-ledger.v1",
+    literatureSetId: set.id,
+    literatureSetSha256: set.sha256,
+    citations,
+    duplicateSuggestions: deduplicateLiteraturePapers(set.papers),
+  };
+  const ledgerJson = JSON.stringify(citationLedger, null, 2);
+  const maxTicks = Math.max(3, ...[...ledgerJson.matchAll(/`+/g)].map((match) => match[0].length + 1));
+  const fence = "`".repeat(maxTicks);
+  const answerMarkdown = answer.map((row) => `- ${row.text} [${row.evidenceIds.join(", ")}]`);
+  const content = [
+    "# Unverified Research literature synthesis",
+    "",
+    `Question: ${projection.question}`,
+    `Literature set: ${set.id} · revision ${set.revision} · SHA-256 ${set.sha256}`,
+    `Execution status: ${projection.resultStatus} · reported coverage: ${projection.coverage}`,
+    "",
+    "## Answer",
+    "",
+    ...answerMarkdown,
+    ...(projection.gaps.length ? ["", "## Gaps and qualifications", "", ...projection.gaps.map((gap) => `- ${gap}`)] : []),
+    "",
+    "## Exact retained citation bindings",
+    "",
+    "Each evidence ID below resolves to its saved Literature paper record and exact notebook/source/document digest, page and span. Snapshot binding does not establish current availability, support, truth or independent evidence.",
+    "",
+    fence + "json",
+    ledgerJson,
+    fence,
+    "",
+    "## Bibliography and source review",
+    "",
+    bibliographyMarkdown.trimEnd(),
+    "",
+    "## Overall qualification",
+    "",
+    projection.qualification,
+    "The citation ledger uses the exact retained Literature set revision above. Source currentness was not rechecked by this export.",
+    "",
+  ].join("\n");
+  const output = {
+    schema: "research-literature-synthesis-export.v1",
+    question: projection.question,
+    literatureSetId: set.id,
+    literatureSetRevision: set.revision,
+    literatureSetSha256: set.sha256,
+    preparedSha256: prepared.sha256,
+    resultSha256: hash(canonical(result)),
+    resultStatus: projection.resultStatus,
+    coverage: projection.coverage,
+    citations,
+    duplicateSuggestions: citationLedger.duplicateSuggestions,
+    bibliographyMarkdown,
+    content,
+    contentSha256: hash(content),
+    qualification: "Source currentness was not rechecked by this export; citation and bibliography identities bind to the exact retained Literature set snapshot.",
+  };
+  return { ...output, exportSha256: hash(canonical(output)) };
+}
