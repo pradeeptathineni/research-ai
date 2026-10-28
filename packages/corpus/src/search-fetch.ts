@@ -127,7 +127,7 @@ export async function fetchEvidence(
         headers: {
           'user-agent':
             'SignalsAI/0.3 public-evidence (+https://github.com/pradeeptathineni/signals-ai)',
-          accept: 'text/html,text/plain,application/json',
+          accept: 'text/html,text/plain,application/json,application/feed+json',
           ...(options.conditional?.etag ? { 'if-none-match': options.conditional.etag } : {}),
           ...(options.conditional?.lastModified
             ? { 'if-modified-since': options.conditional.lastModified }
@@ -179,7 +179,7 @@ export async function fetchEvidence(
         }
         if (
           !(allowPdf && /application\/pdf/i.test(response.headers['content-type'] ?? '')) &&
-          !/text\/|application\/(?:json|(?:[\w.-]+\+)?xml)/i.test(
+          !/text\/|application\/(?:json|feed\+json|(?:[\w.-]+\+)?xml)/i.test(
             response.headers['content-type'] ?? '',
           )
         ) {
@@ -202,6 +202,8 @@ export async function fetchEvidence(
           const received = Buffer.concat(chunks);
           const contentType = response.headers['content-type'] ?? '';
           const raw = received.toString('utf8');
+              const jsonContentType =
+                /^application\/(?:json|feed\+json)(?:\s*;|$)/i.test(contentType);
           void (async () => {
             try {
               if (/application\/pdf/i.test(contentType)) {
@@ -231,7 +233,7 @@ export async function fetchEvidence(
                 response: metadata,
                 ...(options.includeBytes ? { bytes: received, contentType } : {}),
                 ...(material ? { material } : {}),
-                ...(/application\/json/i.test(response.headers['content-type'] ?? '')
+                ...(jsonContentType
                   ? { json: JSON.parse(raw) as unknown }
                   : {}),
               });
