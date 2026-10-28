@@ -4,7 +4,14 @@ import { scanSources } from '../search-sources.js';
 import { loadSettings, updateSettingsForBriefingOpml } from '../search-settings.js';
 import type { SearchSettings } from '../search-settings.js';
 import type { AllDayEvent, Item, Source, Story, TimedEvent } from './schema.js';
-import { createBriefingApi, listSourceTerms, retainBriefingRecords } from './store.js';
+import {
+  beginBriefingRefresh,
+  completeBriefingRefresh,
+  createBriefingApi,
+  listSourceTerms,
+  retainBriefingRecords,
+  type BriefingRefreshSummary,
+} from './store.js';
 
 function id(prefix: string, value: string) {
   return `${prefix}-${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
@@ -365,6 +372,53 @@ export async function refreshBriefing(
       eventRecords: (await api.listEvents({ limit: 100000 })).length,
     },
   };
+}
+
+/** One explicit, request-identified Following refresh. Pending claims are never replayed. */
+export async function refreshDue(
+  root: string,
+  request: { once: true; requestId: string; interest?: string },
+  options: { fetch?: typeof fetchEvidence } = {},
+) {
+  if (request.once !== true) throw new Error('briefing_refresh_once_required');
+  const claim = await beginBriefingRefresh(root, request.requestId, request.interest);
+  if (!claim.claimed) return { ...claim.receipt, replayed: true };
+
+  // This uses the existing Following scan, including its conditional ETag/Last-Modified path.
+  // If the process stops before its receipt is completed, the durable request remains pending;
+  // a duplicate caller can read status, but it will not reacquire any source automatically.
+  const pass = await refreshBriefing(root, { interest: request.interest, fetch: options.fetch });
+  const sources = await createBriefingApi(root).listSources();
+  const sourceIds = new Map(sources.map(({ record }) => [record.url, record.id]));
+  const summary: BriefingRefreshSummary = {
+    capturedDocuments: pass.briefing.capturedDocuments,
+    retainedItems: pass.briefing.retainedItems,
+    eventRecords: pass.briefing.eventRecords,
+    blockedSourceIds: pass.briefing.blockedSources.flatMap((url) => {
+      const sourceId = sourceIds.get(url);
+      return sourceId ? [sourceId] : [];
+    }),
+    sources: pass.sources.map((source) => {
+      const sourceId = sourceIds.get(source.uri);
+      if (!sourceId) throw new Error('briefing_refresh_source_identity_changed');
+      return {
+        sourceId,
+        state: source.state === 'failed' ? 'failed' as const : 'fetched' as const,
+        delta: (source.state === 'failed' ? null : source.delta ?? null) as
+          BriefingRefreshSummary['sources'][number]['delta'],
+        newLinkCount: source.newLinks.length,
+        checkedAt: source.health?.lastAttempt?.checkedAt ?? null,
+        failureReason: source.state === 'failed' ? source.reason ?? null : null,
+      };
+    }),
+  };
+  const receipt = await completeBriefingRefresh(
+    root,
+    request.requestId,
+    claim.receipt.inputDigest,
+    summary,
+  );
+  return { ...receipt, replayed: false };
 }
 
 /** Pure parsers retain only explicit feed data and avoid executing embedded content. */

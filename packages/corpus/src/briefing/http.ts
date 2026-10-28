@@ -7,9 +7,15 @@ import {
   importBriefingOpml,
   previewBriefingOpml,
   readBriefingOpmlImport,
+  refreshDue,
   refreshBriefing,
 } from './ingest.js';
-import { createBriefingApi, listBriefingPreferences, listSourceTerms } from './store.js';
+import {
+  createBriefingApi,
+  listBriefingPreferences,
+  listSourceTerms,
+  readBriefingRefresh,
+} from './store.js';
 
 const uuid = Type.String({ format: 'uuid' });
 const closed = { additionalProperties: false } as const;
@@ -35,6 +41,7 @@ const feedbackRequest = Type.Object(
 const refreshRequest = Type.Object(
   {
     once: Type.Literal(true),
+    requestId: Type.Optional(uuid),
     interest: Type.Optional(Type.String({ pattern: '^[a-z0-9-]{1,80}$' })),
   },
   closed,
@@ -161,6 +168,18 @@ export async function briefingRoute(
     if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')
       throw new Error('invalid_briefing_opml_import_status_query');
     return { status: 200, body: await readBriefingOpmlImport(root, entries[0]![1]) };
+  }
+  if (!mutation && route === 'briefing/refresh-status') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    const requestId = entries[0]?.[1] ?? '';
+    if (
+      queryCount !== 1 ||
+      entries.length !== 1 ||
+      entries[0]![0] !== 'requestId' ||
+      !Value.Check(uuid, requestId)
+    )
+      throw new Error('invalid_briefing_refresh_status_query');
+    return { status: 200, body: await readBriefingRefresh(root, requestId) };
   }
   if (queryCount !== 0) throw new Error('briefing_query_not_supported');
   if (!mutation) {
@@ -320,6 +339,15 @@ export async function briefingRoute(
     }
     case 'briefing/refresh':
       if (!Value.Check(refreshRequest, body)) throw new Error('invalid_briefing_refresh');
+      if (body.requestId)
+        return {
+          status: 200,
+          body: await refreshDue(root, {
+            once: true,
+            requestId: body.requestId,
+            interest: body.interest,
+          }),
+        };
       return { status: 200, body: await refreshBriefing(root, { interest: body.interest }) };
     case 'briefing/opml/preview':
       if (!Value.Check(opmlPreviewRequest, body)) throw new Error('invalid_briefing_opml_preview');

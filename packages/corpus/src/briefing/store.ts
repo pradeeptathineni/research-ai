@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { Type, type TSchema } from 'typebox';
+import { Type, type Static, type TSchema } from 'typebox';
 import { Value } from 'typebox/value';
 import { atomicJson, readPrivateJson, withWriter } from '../search-store.js';
 import { loadSettings } from '../search-settings.js';
@@ -53,6 +53,44 @@ const emptyState = {
   sourceTerms: [] as SourceTermsPolicy[],
   requests: {} as Record<string, { digest: string; result: unknown }>,
 };
+const refreshSourceSummarySchema = Type.Object(
+  {
+    sourceId: Type.String({ minLength: 1, maxLength: 160 }),
+    state: Type.Enum(['fetched', 'failed']),
+    delta: Type.Union([
+      Type.Enum(['first-inspection', 'unchanged', 'content-changed-meaning-unassessed']),
+      Type.Null(),
+    ]),
+    newLinkCount: Type.Integer({ minimum: 0, maximum: 10000 }),
+    checkedAt: Type.Union([Type.String({ format: 'date-time', maxLength: 40 }), Type.Null()]),
+    failureReason: Type.Union([Type.String({ maxLength: 500 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+const refreshSummarySchema = Type.Object(
+  {
+    capturedDocuments: Type.Integer({ minimum: 0, maximum: 50 }),
+    retainedItems: Type.Integer({ minimum: 0, maximum: 100000 }),
+    eventRecords: Type.Integer({ minimum: 0, maximum: 100000 }),
+    blockedSourceIds: Type.Array(Type.String({ minLength: 1, maxLength: 160 }), { maxItems: 50 }),
+    sources: Type.Array(refreshSourceSummarySchema, { maxItems: 50 }),
+  },
+  { additionalProperties: false },
+);
+const refreshReceiptSchema = Type.Object(
+  {
+    schema: Type.Literal('signals.briefing-refresh-receipt.v1'),
+    requestId: Type.String({ format: 'uuid' }),
+    inputDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    status: Type.Enum(['pending', 'complete']),
+    startedAt: Type.String({ format: 'date-time', maxLength: 40 }),
+    completedAt: Type.Union([Type.String({ format: 'date-time', maxLength: 40 }), Type.Null()]),
+    result: Type.Union([refreshSummarySchema, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+export type BriefingRefreshSummary = Static<typeof refreshSummarySchema>;
+export type BriefingRefreshReceipt = Static<typeof refreshReceiptSchema>;
 const stateSchema = Type.Object(
   {
     version: Type.Literal(1),
@@ -75,6 +113,10 @@ const stateSchema = Type.Object(
   { additionalProperties: false },
 );
 type State = typeof emptyState;
+
+function refreshReceipt(value: unknown): BriefingRefreshReceipt | null {
+  return Value.Check(refreshReceiptSchema, value) ? value : null;
+}
 
 function hash(value: string | Buffer) {
   return createHash('sha256').update(value).digest('hex');
@@ -557,6 +599,84 @@ export async function listBriefingPreferences(root: string) {
     interests: state.interestPreferences,
     sources: state.sourcePreferences,
   };
+}
+
+function briefingRefreshInputDigest(interest?: string) {
+  return hash(canonical({ operation: 'briefing.refreshDue', once: true, interest: interest ?? null }));
+}
+
+/** Claims one explicit refresh in the existing Briefing request ledger before any acquisition. */
+export async function beginBriefingRefresh(
+  root: string,
+  requestId: string,
+  interest?: string,
+): Promise<{ claimed: boolean; replayed: boolean; receipt: BriefingRefreshReceipt }> {
+  if (!Value.Check(Type.String({ format: 'uuid' }), requestId))
+    throw new Error('invalid_briefing_refresh_request_id');
+  const inputDigest = briefingRefreshInputDigest(interest);
+  return withWriter(root, async () => {
+    const state = await readState(root);
+    const prior = state.requests[requestId];
+    if (prior) {
+      if (prior.digest !== inputDigest) throw new Error('request_id_conflict');
+      const receipt = refreshReceipt(prior.result);
+      if (!receipt || receipt.requestId !== requestId || receipt.inputDigest !== inputDigest)
+        throw new Error('request_id_conflict');
+      return { claimed: false, replayed: true, receipt: structuredClone(receipt) };
+    }
+    const receipt: BriefingRefreshReceipt = {
+      schema: 'signals.briefing-refresh-receipt.v1',
+      requestId,
+      inputDigest,
+      status: 'pending',
+      startedAt: currentTime(),
+      completedAt: null,
+      result: null,
+    };
+    state.requests[requestId] = { digest: inputDigest, result: receipt };
+    await writeState(root, state);
+    return { claimed: true, replayed: false, receipt };
+  });
+}
+
+/** Completes only a receipt previously claimed with this exact request identity and input. */
+export async function completeBriefingRefresh(
+  root: string,
+  requestId: string,
+  inputDigest: string,
+  result: BriefingRefreshSummary,
+): Promise<BriefingRefreshReceipt> {
+  if (!Value.Check(refreshSummarySchema, result)) throw new Error('invalid_briefing_refresh_result');
+  return withWriter(root, async () => {
+    const state = await readState(root);
+    const prior = state.requests[requestId];
+    if (!prior || prior.digest !== inputDigest) throw new Error('briefing_refresh_claim_missing');
+    const current = refreshReceipt(prior.result);
+    if (!current || current.inputDigest !== inputDigest)
+      throw new Error('briefing_refresh_claim_missing');
+    if (current.status === 'complete') return structuredClone(current);
+    const receipt: BriefingRefreshReceipt = {
+      ...current,
+      status: 'complete',
+      completedAt: currentTime(),
+      result: structuredClone(result),
+    };
+    state.requests[requestId] = { digest: inputDigest, result: receipt };
+    await writeState(root, state);
+    return receipt;
+  });
+}
+
+/** Cold readback for one request ID. Other native operations sharing the request ledger stay hidden. */
+export async function readBriefingRefresh(root: string, requestId: string) {
+  if (!Value.Check(Type.String({ format: 'uuid' }), requestId))
+    throw new Error('invalid_briefing_refresh_request_id');
+  const state = await readState(root);
+  const value = state.requests[requestId]?.result;
+  const receipt = refreshReceipt(value);
+  return receipt && receipt.requestId === requestId
+    ? { found: true as const, receipt: structuredClone(receipt) }
+    : { found: false as const, requestId };
 }
 
 export async function retainBriefingRecords(
