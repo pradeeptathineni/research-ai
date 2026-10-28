@@ -210,6 +210,77 @@ test(
 );
 
 test(
+  "R07 exact dataset identity survives analysis, chart result, export and offline reopen",
+  { skip: !engineRoot },
+  async () => {
+    const table = registerTable({
+      version: "research-table-v1",
+      id: `table-${randomUUID()}`,
+      columns: [
+        { id: "c0", label: "Region", type: "text" },
+        { id: "c1", label: "Amount", type: "number" }
+      ],
+      rows: [["east", 10], ["east", 15], ["west", 7]],
+      origin: { type: "caller-supplied", label: "Synthetic R07 fixture" }
+    });
+    const tables = [{ name: "sales", table }];
+    const analysis = createAnalysis({
+      id: "analysis-r07-cold-read",
+      title: "Regional totals",
+      tables: [{ name: "sales", id: table.id, sha256: table.sha256 }],
+      steps: [
+        { name: "s1", sql: "SELECT c0 AS region, c1 AS amount FROM sales" },
+        { name: "s2", sql: "SELECT region, SUM(amount) AS total FROM s1 GROUP BY region ORDER BY region" }
+      ],
+      chart: { mark: "bar", step: "s2", x: "q0", y: "q1", aggregate: "sum", series: null, order: "x" }
+    });
+    assert.equal(analysis.tables[0].sha256, table.sha256);
+    const preview = prepareAnalysisQuery(analysis, tables, { kind: "step", step: "s2", mode: "rows" });
+    assert.deepEqual(preview.inputs.map(input => ({ id: input.id, sha256: input.sha256 })), [{ id: table.id, sha256: table.sha256 }]);
+
+    const first = await runAnalysisTarget(analysis, tables, { kind: "step", step: "s1", mode: "rows" }, { engineRoot });
+    const second = await runAnalysisTarget(analysis, tables, { kind: "step", step: "s2", mode: "rows" }, { engineRoot });
+    const chart = await runAnalysisTarget(analysis, tables, { kind: "chart", columns: second.columns }, { engineRoot });
+    assert.equal(first.status, "complete");
+    assert.equal(second.status, "complete");
+    assert.equal(chart.status, "complete");
+    assert.deepEqual(chart.rows, [["east", 25], ["west", 7]]);
+    assert.deepEqual(chart.inputs.map(input => ({ id: input.id, sha256: input.sha256 })), [{ id: table.id, sha256: table.sha256 }]);
+    assert.equal(chart.inputs[0].origin.type, "caller-supplied");
+    assert.ok(chart.qualifications.some(item => /not independently verified evidence/u.test(item)));
+    assert.ok(chart.qualifications.some(item => /does not infer row or cell lineage/u.test(item)));
+    assert.ok(chart.qualifications.some(item => /Floating-point calculations may round/u.test(item)));
+    assert.ok(chart.qualifications.some(item => /Reopening a retained result must not execute it again/u.test(item)));
+
+    const entries = [
+      { target: { kind: "step", step: "s1", mode: "rows" }, result: first },
+      { target: { kind: "step", step: "s2", mode: "rows" }, result: second },
+      { target: { kind: "chart", columns: second.columns }, result: chart }
+    ];
+    const run = buildAnalysisRun(analysis, entries, { id: "run-r07-cold-read" });
+    const exported = exportAnalysisBundle(analysis, run);
+    assert.match(exported, new RegExp(table.sha256));
+    assert.match(exported, new RegExp(chart.input_digest));
+    assert.match(exported, new RegExp(chart.query_digest));
+    assert.match(exported, new RegExp(chart.result_sha256));
+    const series = chartSeries(chart, analysis.chart);
+    assert.deepEqual(series.points.map(point => [point.x, point.y]), [["east", "25"], ["west", "7"]]);
+
+    const cold = JSON.parse(JSON.stringify(run));
+    assert.deepEqual(validateAnalysisRun(cold, { analysis }), cold, "cold reopen validates embedded saved result without executing SQL");
+    assert.deepEqual(validateAnalysisRun(cold, { analysis, tables }), cold, "current exact dataset identity still matches");
+    const reopenedChart = cold.entries.find(entry => entry.target.kind === "chart").artifact;
+    assert.deepEqual(chartSeries(reopenedChart, analysis.chart).points, series.points);
+
+    const changedTable = registerTable({ version: "research-table-v1", id: table.id, columns: table.columns,
+      rows: [["east", 999], ["east", 15], ["west", 7]], origin: table.origin });
+    assert.notEqual(changedTable.sha256, table.sha256);
+    assert.throws(() => validateAnalysisRun(cold, { analysis, tables: [{ name: "sales", table: changedTable }] }), /Dataset .* is missing or changed/u);
+    assert.match(exported, /not independently verified evidence or confidence judgments/u);
+  }
+);
+
+test(
   "profile and retained run validate offline and export exact result strings",
   { skip: !engineRoot },
   async () => {
