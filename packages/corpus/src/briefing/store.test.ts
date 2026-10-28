@@ -603,6 +603,58 @@ describe('Briefing same-store API', () => {
     expect((muted?.body as { ranked: unknown[] }).ranked).toEqual([]);
   });
 
+  it('previews a draft velocity weight against the same retained stories without saving it', async () => {
+    const root = await fixtureRoot();
+    const sourceId = (await createBriefingApi(root).listSources())[0]!.record.id;
+    await retainBriefingRecords(root, {
+      items: [{ ...itemFixture, sourceId }],
+      stories: [storyFixture],
+    });
+
+    const before = await briefingRoute(root, 'briefing/preferences', false, undefined, 0);
+    const preview = await briefingRoute(
+      root,
+      'briefing/preferences/ranking-preview',
+      true,
+      { velocityWeight: 0.2 },
+      0,
+    );
+    expect(preview).toMatchObject({
+      status: 200,
+      body: {
+        schema: 'signals.briefing-ranking-preview.v1',
+        currentVelocityWeight: 0.05,
+        draftVelocityWeight: 0.2,
+        stories: [
+          {
+            storyId: storyFixture.id,
+            storyTitle: itemFixture.title,
+            storyReference: {
+              owner: 'signals-ai',
+              kind: 'briefing-story',
+              id: storyFixture.id,
+            },
+            currentPosition: 1,
+            draftPosition: 1,
+          },
+        ],
+      },
+    });
+    const row = (preview?.body as { stories: Array<{ currentScore: number; draftScore: number }> })
+      .stories[0]!;
+    expect(row.currentScore).toBeGreaterThanOrEqual(0);
+    expect(row.currentScore).toBeLessThanOrEqual(100);
+    expect(row.draftScore).toBeGreaterThanOrEqual(0);
+    expect(row.draftScore).toBeLessThanOrEqual(100);
+    expect(await briefingRoute(root, 'briefing/preferences', false, undefined, 0)).toEqual(before);
+    await expect(
+      briefingRoute(root, 'briefing/preferences/ranking-preview', true, { velocityWeight: 0.3 }, 0),
+    ).rejects.toThrow('invalid_briefing_ranking_preview');
+    await expect(
+      briefingRoute(root, 'briefing/preferences/ranking-preview', true, { velocityWeight: 0.1 }, 1),
+    ).rejects.toThrow('briefing_query_not_supported');
+  });
+
   it('parses only bounded JSON Feed text fields and validates public entry URLs', async () => {
     const root = await fixtureRoot();
     const source = (await createBriefingApi(root).listSources())[0]!.record;

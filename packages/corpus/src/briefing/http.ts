@@ -99,6 +99,10 @@ const rankingPreferenceRequest = Type.Object(
   { requestId: uuid, velocityWeight: Type.Number({ minimum: 0, maximum: 0.25 }) },
   closed,
 );
+const rankingPreviewRequest = Type.Object(
+  { velocityWeight: Type.Number({ minimum: 0, maximum: 0.25 }) },
+  closed,
+);
 const termsRequest = Type.Object(
   {
     requestId: uuid,
@@ -208,6 +212,79 @@ export async function briefingRoute(
     }
   }
   switch (route) {
+    case 'briefing/preferences/ranking-preview': {
+      if (!Value.Check(rankingPreviewRequest, body))
+        throw new Error('invalid_briefing_ranking_preview');
+      const [inputs, feedback, preferences] = await Promise.all([
+        api.listRankInputs(),
+        api.listFeedback(),
+        listBriefingPreferences(root),
+      ]);
+      const now = Date.now();
+      const rank = async (velocityWeight: number) =>
+        (
+          await Promise.all(
+            inputs.map(async (input) => {
+              const representative = input.items.find(
+                ({ item }) => item.id === input.story.representativeItemId,
+              );
+              if (!representative || isStoryHidden(feedback, input.story, representative.item, now))
+                return null;
+              return {
+                input,
+                explanation: await rankBriefingStory(input, { now, velocityWeight }),
+              };
+            }),
+          )
+        )
+          .filter((entry) => entry !== null)
+          .sort((left, right) => {
+            const leftObserved = left.input.items.find(
+              ({ item }) => item.id === left.input.story.representativeItemId,
+            )?.item.observedAt;
+            const rightObserved = right.input.items.find(
+              ({ item }) => item.id === right.input.story.representativeItemId,
+            )?.item.observedAt;
+            return (
+              right.explanation.total - left.explanation.total ||
+              (rightObserved ?? '').localeCompare(leftObserved ?? '')
+            );
+          });
+      const currentWeight = preferences.ranking.velocityWeight;
+      const draftWeight = body.velocityWeight;
+      const [current, draft] = await Promise.all([rank(currentWeight), rank(draftWeight)]);
+      const currentById = new Map(
+        current.map((entry, index) => [entry.input.story.id, { entry, position: index + 1 }]),
+      );
+      const stories = draft.map(({ input, explanation }, index) => {
+        const currentEntry = currentById.get(input.story.id);
+        const representative = input.items.find(
+          ({ item }) => item.id === input.story.representativeItemId,
+        );
+        if (!currentEntry || !representative)
+          throw new Error('briefing_ranking_preview_input_changed');
+        return {
+          storyId: input.story.id,
+          story: input.story,
+          storyTitle: representative.item.title,
+          storyReference: input.storyReference,
+          currentPosition: currentEntry.position,
+          draftPosition: index + 1,
+          currentScore: currentEntry.entry.explanation.total,
+          draftScore: explanation.total,
+        };
+      });
+      return {
+        status: 200,
+        body: {
+          schema: 'signals.briefing-ranking-preview.v1',
+          readAt: new Date(now).toISOString(),
+          currentVelocityWeight: currentWeight,
+          draftVelocityWeight: draftWeight,
+          stories,
+        },
+      };
+    }
     case 'briefing/refresh':
       if (!Value.Check(refreshRequest, body)) throw new Error('invalid_briefing_refresh');
       return { status: 200, body: await refreshBriefing(root, { interest: body.interest }) };
