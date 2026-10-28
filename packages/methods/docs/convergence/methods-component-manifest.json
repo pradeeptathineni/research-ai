@@ -79,10 +79,10 @@
   "frozenSource": {
     "acceptedResearchBase": "1722016738e1367f3e5a4900b6777297f83a69fd",
     "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave6/research-rx01/publication",
-    "integrationCommit": "17eb2bdd240a1318a8ae2b211947e7311ae1d31b",
-    "integrationTree": "0d3d8d05d3b18b27242ae37d553dcb99d3c37a50",
+    "integrationCommit": "f59707b9286d55f8b642bf3b2c372b8190642840",
+    "integrationTree": "01e91d1bbca2b5da3d1fe1e62aaae0d9a41e3a4d",
     "binTree": "844ee77c0b21a32bd59033520edaaca8ad4998ca",
-    "srcTree": "95d9fc26df2ccb935dd9b6b4da1d7c17f1db0463",
+    "srcTree": "27fab30b05a5802a5898555334acba957a783586",
     "includedNativeCommits": [
       "2eeeb06ee063fa4c3fcfdc5e6272cd9d40db5858",
       "911b48d5b13aef1ffa921dfb66d24d87d943ba91",
@@ -90,12 +90,12 @@
       "4bd458e806d154a18f45a03fdcf185e5d83fde18",
       "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6"
     ],
-    "qualification": "History-preserving subtree import of the local verified release-check descendant of 0e0; only package-consumer expected-file fixture, convergence note and one executable mode changed, with package identity and payload bytes unchanged."
+    "qualification": "History-preserving subtree refresh from the exact accepted f597 source descendant. Package identity projection and all 17 established CLI names/paths remain unchanged; the declared payload digest now binds current notebook Briefing-origin, report claim-register, investigation and document-recovery coverage APIs."
   },
   "payloadManifest": {
     "algorithm": "Read package.json files entries; expand directories, deduplicate POSIX paths and sort. Hash compact UTF-8 JSON rows [{path,sha256}] for exact source bytes.",
     "fileCount": 85,
-    "sha256": "02e29f778b46aa378c09393c6e0db17d277254a65e3b0f48292501e3acd28ea6",
+    "sha256": "7de82860025619a0e35b5f11e605134c69f0eab57453a7e5343b08853a2f907b",
     "packageIdentityProjection": "SHA-256 of compact UTF-8 JSON in key order name,version,license,type,engines,bin,types,exports,files."
   },
   "standaloneCompatibility": {

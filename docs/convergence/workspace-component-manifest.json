@@ -11,14 +11,14 @@
       "component": "Methods",
       "owner": "research-ai",
       "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave6/research-rx01/publication",
-      "sourceCommit": "17eb2bdd240a1318a8ae2b211947e7311ae1d31b",
-      "sourceTree": "0d3d8d05d3b18b27242ae37d553dcb99d3c37a50",
+      "sourceCommit": "f59707b9286d55f8b642bf3b2c372b8190642840",
+      "sourceTree": "01e91d1bbca2b5da3d1fe1e62aaae0d9a41e3a4d",
       "targetPath": "packages/methods",
       "packageIdentityManifest": "packages/methods/docs/convergence/methods-component-manifest.json",
-      "packageIdentityManifestSha256": "4b2d8bddae7170b8f3ad92cc4338b0209f5a9c2138a9580c9472ada897889b69",
+      "packageIdentityManifestSha256": "d05588540a7a2e12ca70ac89169ab6ac279e4e2acd6863c1946b9e75359b5231",
       "packageIdentityProjectionSha256": "0950ddc47a678ef501e66413f66d47207152355f16d505981d83dfbf33aa9da8",
       "payloadFileCount": 85,
-      "payloadManifestSha256": "02e29f778b46aa378c09393c6e0db17d277254a65e3b0f48292501e3acd28ea6",
+      "payloadManifestSha256": "7de82860025619a0e35b5f11e605134c69f0eab57453a7e5343b08853a2f907b",
       "packageName": "@pradeeptathineni/research-ai",
       "packageVersion": "0.4.0-rc.1",
       "bins": {
@@ -45,9 +45,9 @@
       "component": "Library",
       "owner": "signals-ai",
       "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave9/hn-observations/signals",
-      "sourceCommit": "92c5cab967f975d4842d3ee7ddc7cad6594c7b03",
-      "sourceTree": "b6deae7c9492a16ab5b445d4e932af631184b5a3",
-      "sourceParent": "433f43cb17680d655477172599d925b328acc5b9",
+      "sourceCommit": "4e2d47096251ea4646efdfdf4209e04c079d59ad",
+      "sourceTree": "3ead804d7c766e05618504ff53bf84ffd43a5881",
+      "sourceParent": "9cba6b90f3c5336c4f43770c07386466747b9e3e",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -70,7 +70,11 @@
       "sourceChangesFromBase14fe": [
         "packages/corpus/src/briefing/hacker-news-adapter.test.ts",
         "packages/corpus/src/briefing/ingest.ts",
-        "packages/corpus/src/briefing/store.ts"
+        "packages/corpus/src/briefing/store.ts",
+        "packages/corpus/src/source-captures.ts",
+        "packages/corpus/src/source-change-reviews.ts",
+        "packages/corpus/src/source-change-reviews.test.ts",
+        "docs/source-change-review.md"
       ]
     },
     {
@@ -79,9 +83,10 @@
       "sourceRoot": null,
       "targetPath": "apps/workbench",
       "packageName": "research-workbench",
-      "manifestSha256": "7f7923cb95520cd55be77978f4b1bfbe6d294d59447ea3001e97e93eb4ca28bc",
+      "manifestSha256": "0df815a7ad3dc4f6dca0ec637f0c3fb754eeb489de8fa6912e6733adfa4e38d1",
       "purpose": "Thin npm workspace entrypoint forwarding start/dev/test/build to existing signals-ai package scripts; contains no copied UI or server implementation.",
-      "verificationScriptSha256": "00eab15eeed4b6ed85d5f6bb48a483abea1db851dba8db33e24f60d08116f132"
+      "verificationScriptSha256": "5ab52863c2cd691f5114bfe822bb2687d553609c5b3801c9c619b14f8b5ad01d",
+      "consumerFlowScriptSha256": "abaa26192debff9f89dd1cf007656f9da7af6bcd83966c7fc72e2abd40dd7ae2"
     }
   ],
   "workspacePolicy": {

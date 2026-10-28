@@ -2,11 +2,11 @@
   "schema": "research-rx02-workspace-compatibility.v1",
   "componentSources": {
     "methods": {
-      "revision": "17eb2bdd240a1318a8ae2b211947e7311ae1d31b",
+      "revision": "f59707b9286d55f8b642bf3b2c372b8190642840",
       "target": "packages/methods"
     },
     "library": {
-      "revision": "92c5cab967f975d4842d3ee7ddc7cad6594c7b03",
+      "revision": "4e2d47096251ea4646efdfdf4209e04c079d59ad",
       "target": "packages/library"
     }
   },
@@ -32,11 +32,25 @@
       "research-table-notebook": "bin/research-table-notebook.mjs",
       "research-investigation": "bin/research-investigation.mjs"
     },
-    "capabilityApi": "preserved frozen source package; no workspace API rewrite"
+    "capabilityApi": "preserved frozen source package; no workspace API rewrite",
+    "currentBriefingOrigin": {
+      "edit": "ResearchNotebookEdit type add-briefing-source",
+      "retainedFields": [
+        "storyReference",
+        "itemReference",
+        "sourceReference",
+        "contentDigest",
+        "excerptSha256",
+        "observedAt",
+        "sourceHealth"
+      ],
+      "report": "createReport accepts caller-authored ResearchOutline with exact excerpt SHA and span; this does not assert a model Research answer."
+    }
   },
   "library": {
     "package": "signals-ai@0.3.0",
     "capabilityIds": [
+      "briefing-sources-and-workbench",
       "source-change-review",
       "project-topic-relevance",
       "project-opportunity-brief"
@@ -46,7 +60,8 @@
       "src/owner-tools/source-change-review-panel.tsx",
       "src/owner-tools/project-topic-relevance-panel.tsx",
       "src/owner-tools/project-opportunity-brief-panel.tsx"
-    ]
+    ],
+    "sourceChangeCoverage": "source-change-preview-v1 version_coverage.prior/next carries exact capture scope, extraction omissions and text/raw digests; retained source-change-review-v1 rows carry an optional persisted snapshot for backward readability."
   },
   "workspaceGuard": {
     "mode": "workspace",
@@ -68,6 +83,14 @@
     "No publish, install, listener, live provider/model, or real store"
   ],
   "integrationNotes": [
-    "Methods workspace source is the local 17eb release-check descendant of 0e0; package.json identity and all declared payload content hashes remain unchanged. Public push of this local candidate remains stopped; no publication is claimed."
-  ]
+    "Methods workspace source is exact accepted f597; package name/version, bins, ESM/type entrypoints and zero runtime dependencies are unchanged. The refreshed workspace manifest binds every file in its declared package payload.",
+    "Library workspace source is exact accepted 4e2; package.json retains only the documented workspace Methods link. Library standalone package-lock and fixed archive bytes stay at their original digests.",
+    "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
+  ],
+  "workbenchConsumerFlow": {
+    "command": "npm run verify:briefing-research --workspace research-workbench",
+    "path": "synthetic JSON Feed → existing Library refresh/workbench ranking and exact story/item/source refs → Methods Briefing-origin notebook cold reopen → caller-authored cited report + claim register",
+    "networkOrModel": false,
+    "qualification": "Exact owner refs stay typed in the Research Notebook. The generic report retains canonical URI and exact excerpt digest/citation, with exact Signals refs included as caller qualifications; it is not a typed Briefing-origin report basis."
+  }
 }
