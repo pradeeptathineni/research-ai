@@ -249,6 +249,25 @@ export function mastodonTagTimeline(uri: string): { origin: string; tag: string 
   }
 }
 
+/** Documented public Lobsters RSS collections; no search or private endpoint variants. */
+export function lobstersPublicFeed(uri: string): boolean {
+  try {
+    const url = new URL(uri);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname === 'lobste.rs' &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      (url.pathname === '/rss' || url.pathname === '/newest.rss')
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function projectedInterests(root: string, state: State): Promise<Interest[]> {
   const settings = await loadSettings(root);
   const overrides = new Map(state.interestPreferences.map((item) => [item.id, item]));
@@ -698,7 +717,9 @@ export async function listBriefingPreferences(root: string) {
 }
 
 function briefingRefreshInputDigest(interest?: string) {
-  return hash(canonical({ operation: 'briefing.refreshDue', once: true, interest: interest ?? null }));
+  return hash(
+    canonical({ operation: 'briefing.refreshDue', once: true, interest: interest ?? null }),
+  );
 }
 
 /** Claims one explicit refresh in the existing Briefing request ledger before any acquisition. */
@@ -742,7 +763,8 @@ export async function completeBriefingRefresh(
   inputDigest: string,
   result: BriefingRefreshSummary,
 ): Promise<BriefingRefreshReceipt> {
-  if (!Value.Check(refreshSummarySchema, result)) throw new Error('invalid_briefing_refresh_result');
+  if (!Value.Check(refreshSummarySchema, result))
+    throw new Error('invalid_briefing_refresh_result');
   return withWriter(root, async () => {
     const state = await readState(root);
     const prior = state.requests[requestId];

@@ -11,6 +11,7 @@ import {
   createBriefingApi,
   githubPublicRepositoryList,
   isHackerNewsIndexUri,
+  lobstersPublicFeed,
   listSourceTerms,
   mastodonTagTimeline,
   retainBriefingRecords,
@@ -338,7 +339,9 @@ function parseHackerNewsIndex(value: unknown): number[] {
   if (
     !Array.isArray(value) ||
     value.length > 500 ||
-    value.some((itemId) => !Number.isSafeInteger(itemId) || typeof itemId !== 'number' || itemId < 1)
+    value.some(
+      (itemId) => !Number.isSafeInteger(itemId) || typeof itemId !== 'number' || itemId < 1,
+    )
   )
     throw new Error('invalid_hacker_news_index');
   return [...new Set(value as number[])];
@@ -362,7 +365,9 @@ function parseHackerNewsItem(
   if (!title) return null;
   const discussionUrl = hackerNewsDiscussionUrl(expectedId);
   const canonicalUrl =
-    typeof record.url === 'string' ? publicLink(record.url, discussionUrl) ?? discussionUrl : discussionUrl;
+    typeof record.url === 'string'
+      ? (publicLink(record.url, discussionUrl) ?? discussionUrl)
+      : discussionUrl;
   const author = typeof record.by === 'string' ? normalizeText(record.by).slice(0, 300) : null;
   const seconds = record.time;
   const publishedAt =
@@ -844,7 +849,7 @@ export async function refreshBriefing(
           source?.kind === 'jsonfeed')
       ) {
         if (source) {
-          const now = new Date().toISOString();
+          const now = (options.clock ?? (() => new Date()))().toISOString();
           if (source.kind === 'ics') {
             const parsed = parseIcs(document.text, source, now);
             const stories: Story[] = parsed.map(({ item }) => ({
@@ -882,16 +887,39 @@ export async function refreshBriefing(
             });
             await retainBriefingRecords(root, { items, stories });
           } else {
+            const lobsters = lobstersPublicFeed(uri);
+            if (lobsters && document.uri !== uri) throw new Error('lobsters_feed_identity_changed');
+            const feedEntries = document.material!.feedEntries;
+            if (
+              lobsters &&
+              (!feedEntries || feedEntries.length !== document.material!.links.length)
+            )
+              throw new Error('public_feed_entry_identity_missing');
             const items: Item[] = document.material!.links.map((link, index) => {
               const excerpt = document.material!.sections[index]?.text.slice(0, 5000) ?? '';
-              const contentDigest = hash(`${link.uri}\n${link.title}\n${excerpt}`);
+              const entry = feedEntries?.[index];
+              const contentDigest = lobsters
+                ? hash(
+                    JSON.stringify({
+                      canonicalUrl: link.uri,
+                      title: link.title,
+                      excerpt,
+                      feedIdentity: entry?.identity ?? link.uri,
+                      author: entry?.author ?? null,
+                      publishedAt: entry?.publishedAt ?? null,
+                    }),
+                  )
+                : hash(`${link.uri}\n${link.title}\n${excerpt}`);
               return {
-                id: id('item', `${source.id}\n${link.uri}\n${contentDigest}`),
+                id: id(
+                  'item',
+                  `${source.id}\n${lobsters ? (entry?.identity ?? link.uri) : link.uri}\n${contentDigest}`,
+                ),
                 sourceId: source.id,
                 canonicalUrl: link.uri,
                 title: link.title || document.material!.title || link.uri,
-                author: null,
-                publishedAt: null,
+                author: lobsters ? (entry?.author ?? null) : null,
+                publishedAt: lobsters ? (entry?.publishedAt ?? null) : null,
                 observedAt: now,
                 contentDigest,
                 excerpt,
@@ -966,12 +994,13 @@ export async function refreshDue(
       if (!sourceId) throw new Error('briefing_refresh_source_identity_changed');
       return {
         sourceId,
-        state: source.state === 'failed' ? 'failed' as const : 'fetched' as const,
-        delta: (source.state === 'failed' ? null : source.delta ?? null) as
-          BriefingRefreshSummary['sources'][number]['delta'],
+        state: source.state === 'failed' ? ('failed' as const) : ('fetched' as const),
+        delta: (source.state === 'failed'
+          ? null
+          : (source.delta ?? null)) as BriefingRefreshSummary['sources'][number]['delta'],
         newLinkCount: source.newLinks.length,
         checkedAt: source.health?.lastAttempt?.checkedAt ?? null,
-        failureReason: source.state === 'failed' ? source.reason ?? null : null,
+        failureReason: source.state === 'failed' ? (source.reason ?? null) : null,
       };
     }),
   };
