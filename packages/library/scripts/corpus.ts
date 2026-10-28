@@ -4,8 +4,8 @@ import { filterPublicOptions, type PublicFilters } from '../packages/domain/src/
 import { readFile, writeFile } from 'node:fs/promises';
 import { encodePublicEvidence } from '../packages/corpus/src/public-record.js';
 import { loadEntities } from '../packages/corpus/src/search-store.js';
-import { exportOpml, parseOpml, refreshBriefing } from '../packages/corpus/src/briefing/ingest.js';
-import { createBriefingApi } from '../packages/corpus/src/briefing/store.js';
+import { exportOpml, parseOpml, refreshBriefing, refreshDue } from '../packages/corpus/src/briefing/ingest.js';
+import { createBriefingApi, readBriefingRefresh } from '../packages/corpus/src/briefing/store.js';
 import { loadSettings, saveSettings } from '../packages/corpus/src/search-settings.js';
 import {
   evidenceDigest,
@@ -29,6 +29,27 @@ if (operation === 'briefing') {
   const [action, ...briefingArgs] = args;
   if (action === 'refresh' && briefingArgs.length === 1 && briefingArgs[0] === '--once') {
     process.stdout.write(`${JSON.stringify(await refreshBriefing(process.cwd()), null, 2)}\n`);
+    process.exit(0);
+  }
+  if (
+    action === 'refresh' &&
+    briefingArgs.length === 2 &&
+    briefingArgs[0] === '--once' &&
+    briefingArgs[1]!.startsWith('--request-id=')
+  ) {
+    const requestId = briefingArgs[1]!.slice('--request-id='.length);
+    process.stdout.write(
+      `${JSON.stringify(await refreshDue(process.cwd(), { once: true, requestId }), null, 2)}\n`,
+    );
+    process.exit(0);
+  }
+  if (
+    action === 'refresh-status' &&
+    briefingArgs.length === 1 &&
+    briefingArgs[0]!.startsWith('--request-id=')
+  ) {
+    const requestId = briefingArgs[0]!.slice('--request-id='.length);
+    process.stdout.write(`${JSON.stringify(await readBriefingRefresh(process.cwd(), requestId), null, 2)}\n`);
     process.exit(0);
   }
   if (action === 'opml-export' && briefingArgs.length === 1) {
@@ -61,7 +82,7 @@ if (operation === 'briefing') {
     process.exit(0);
   }
   throw new Error(
-    'Usage: corpus briefing refresh --once | opml-import FILE.opml | opml-export NEW_FILE.opml',
+    'Usage: corpus briefing refresh --once [--request-id=UUID] | refresh-status --request-id=UUID | opml-import FILE.opml | opml-export NEW_FILE.opml',
   );
 }
 const corpus = await loadPublicCorpus();

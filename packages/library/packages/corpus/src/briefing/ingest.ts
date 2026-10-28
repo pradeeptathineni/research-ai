@@ -1,15 +1,89 @@
 import { createHash } from 'node:crypto';
-import { fetchEvidence } from '../search-fetch.js';
+import { fetchEvidence, normalizeText } from '../search-fetch.js';
+import { publicLink } from '../search-document.js';
 import { scanSources } from '../search-sources.js';
-import { loadSettings } from '../search-settings.js';
+import { loadSettings, updateSettingsForBriefingOpml } from '../search-settings.js';
+import type { SearchSettings } from '../search-settings.js';
 import type { AllDayEvent, Item, Source, Story, TimedEvent } from './schema.js';
-import { createBriefingApi, listSourceTerms, retainBriefingRecords } from './store.js';
+import {
+  beginBriefingRefresh,
+  completeBriefingRefresh,
+  createBriefingApi,
+  isHackerNewsIndexUri,
+  listSourceTerms,
+  retainBriefingRecords,
+  type BriefingRefreshSummary,
+} from './store.js';
 
 function id(prefix: string, value: string) {
   return `${prefix}-${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
 }
 function hash(value: string) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+const hackerNewsItemLimit = 20;
+const hackerNewsItemUrl = (itemId: number) =>
+  `https://hacker-news.firebaseio.com/v0/item/${itemId}.json`;
+const hackerNewsDiscussionUrl = (itemId: number) =>
+  `https://news.ycombinator.com/item?id=${itemId}`;
+
+function parseHackerNewsIndex(value: unknown): number[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > 500 ||
+    value.some((itemId) => !Number.isSafeInteger(itemId) || typeof itemId !== 'number' || itemId < 1)
+  )
+    throw new Error('invalid_hacker_news_index');
+  return [...new Set(value as number[])];
+}
+
+function parseHackerNewsItem(
+  value: unknown,
+  expectedId: number,
+  source: Source,
+  observedAt: string,
+): Item | null {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('invalid_hacker_news_item');
+  const record = value as Record<string, unknown>;
+  if (record.id !== expectedId) throw new Error('hacker_news_item_identity_mismatch');
+  if (record.deleted === true || record.dead === true) return null;
+  if (record.type !== 'story' && record.type !== 'job') return null;
+  if (typeof record.title !== 'string') throw new Error('invalid_hacker_news_item');
+  const title = normalizeText(record.title).slice(0, 500);
+  if (!title) return null;
+  const discussionUrl = hackerNewsDiscussionUrl(expectedId);
+  const canonicalUrl =
+    typeof record.url === 'string' ? publicLink(record.url, discussionUrl) ?? discussionUrl : discussionUrl;
+  const author = typeof record.by === 'string' ? normalizeText(record.by).slice(0, 300) : null;
+  const seconds = record.time;
+  const publishedAt =
+    typeof seconds === 'number' && Number.isSafeInteger(seconds) && seconds > 0
+      ? Number.isFinite(new Date(seconds * 1000).getTime())
+        ? new Date(seconds * 1000).toISOString()
+        : null
+      : null;
+  const excerpt = typeof record.text === 'string' ? normalizeText(record.text).slice(0, 5000) : '';
+  const contentDigest = hash(
+    JSON.stringify({ id: expectedId, canonicalUrl, title, author, publishedAt, excerpt }),
+  );
+  const itemId = id('item', `${source.id}\n${canonicalUrl}\n${contentDigest}`);
+  return {
+    id: itemId,
+    sourceId: source.id,
+    canonicalUrl,
+    title,
+    author,
+    publishedAt,
+    observedAt,
+    contentDigest,
+    excerpt,
+    metrics: [],
+    interestIds: source.interestIds,
+    storyId: id('story', itemId),
+  };
 }
 
 function localTimeToUtc(value: string, zone: string) {
@@ -266,17 +340,75 @@ export async function refreshBriefing(
     persist: true,
     signal: options.signal,
     fetch: async (uri, signal, redirects, allowPdf, fetchOptions) => {
-      const document = await (options.fetch ?? fetchEvidence)(uri, signal, redirects, allowPdf, {
-        ...fetchOptions,
-        includeBytes: true,
-      });
+      const source = sourceByUri.get(uri);
+      // HN's index contains only IDs, so a conditional 304 could hide changed item details.
+      // One explicit pass therefore rechecks the bounded item set instead of trusting only
+      // the index validator; every other source keeps the established conditional behavior.
+      const documentOptions =
+        source?.kind === 'api:hacker-news'
+          ? { includeBytes: true }
+          : { ...fetchOptions, includeBytes: true };
+      let document = await (options.fetch ?? fetchEvidence)(
+        uri,
+        signal,
+        redirects,
+        allowPdf,
+        documentOptions,
+      );
+      if (document.response?.status !== 304 && source?.kind === 'api:hacker-news') {
+        if (!isHackerNewsIndexUri(uri)) throw new Error('invalid_hacker_news_source');
+        const itemIds = parseHackerNewsIndex(document.json);
+        const observedAt = new Date().toISOString();
+        const items: Item[] = [];
+        for (const itemId of itemIds.slice(0, hackerNewsItemLimit)) {
+          const detail = await (options.fetch ?? fetchEvidence)(
+            hackerNewsItemUrl(itemId),
+            signal,
+            0,
+            false,
+            { includeBytes: true },
+          );
+          if (detail.response?.status === 304) throw new Error('unexpected_hacker_news_item_304');
+          const item = parseHackerNewsItem(detail.json, itemId, source, observedAt);
+          if (item) items.push(item);
+        }
+        const stories: Story[] = items.map((item) => ({
+          id: item.storyId!,
+          itemIds: [item.id],
+          representativeItemId: item.id,
+          firstSeen: observedAt,
+          lastSeen: observedAt,
+          relation: 'single',
+          groupingEvidence: [],
+          interestMatches: [],
+        }));
+        await retainBriefingRecords(root, { items, stories });
+        document = {
+          ...document,
+          text: JSON.stringify({
+            ids: itemIds,
+            details: items.map(({ id: itemId, contentDigest }) => ({ itemId, contentDigest })),
+          }),
+          material: {
+            text: itemIds.map(String).join('\n'),
+            title: 'Hacker News public story index',
+            author: null,
+            publishedAt: null,
+            links: itemIds.map((itemId) => ({
+              uri: hackerNewsDiscussionUrl(itemId),
+              title: `Hacker News item ${itemId}`,
+            })),
+            sections: [],
+            extractor: 'hacker-news-public-api-v0',
+          },
+        };
+      }
       if (
         document.response?.status !== 304 &&
         ((document.material && /xml/i.test(document.contentType ?? '')) ||
-          sourceByUri.get(uri)?.kind === 'ics' ||
-          sourceByUri.get(uri)?.kind === 'jsonfeed')
+          source?.kind === 'ics' ||
+          source?.kind === 'jsonfeed')
       ) {
-        const source = sourceByUri.get(uri);
         if (source) {
           const now = new Date().toISOString();
           if (source.kind === 'ics') {
@@ -366,32 +498,289 @@ export async function refreshBriefing(
   };
 }
 
+/** One explicit, request-identified Following refresh. Pending claims are never replayed. */
+export async function refreshDue(
+  root: string,
+  request: { once: true; requestId: string; interest?: string },
+  options: { fetch?: typeof fetchEvidence } = {},
+) {
+  if (request.once !== true) throw new Error('briefing_refresh_once_required');
+  const claim = await beginBriefingRefresh(root, request.requestId, request.interest);
+  if (!claim.claimed) return { ...claim.receipt, replayed: true };
+
+  // This uses the existing Following scan, including its conditional ETag/Last-Modified path.
+  // If the process stops before its receipt is completed, the durable request remains pending;
+  // a duplicate caller can read status, but it will not reacquire any source automatically.
+  const pass = await refreshBriefing(root, { interest: request.interest, fetch: options.fetch });
+  const sources = await createBriefingApi(root).listSources();
+  const sourceIds = new Map(sources.map(({ record }) => [record.url, record.id]));
+  const summary: BriefingRefreshSummary = {
+    capturedDocuments: pass.briefing.capturedDocuments,
+    retainedItems: pass.briefing.retainedItems,
+    eventRecords: pass.briefing.eventRecords,
+    blockedSourceIds: pass.briefing.blockedSources.flatMap((url) => {
+      const sourceId = sourceIds.get(url);
+      return sourceId ? [sourceId] : [];
+    }),
+    sources: pass.sources.map((source) => {
+      const sourceId = sourceIds.get(source.uri);
+      if (!sourceId) throw new Error('briefing_refresh_source_identity_changed');
+      return {
+        sourceId,
+        state: source.state === 'failed' ? 'failed' as const : 'fetched' as const,
+        delta: (source.state === 'failed' ? null : source.delta ?? null) as
+          BriefingRefreshSummary['sources'][number]['delta'],
+        newLinkCount: source.newLinks.length,
+        checkedAt: source.health?.lastAttempt?.checkedAt ?? null,
+        failureReason: source.state === 'failed' ? source.reason ?? null : null,
+      };
+    }),
+  };
+  const receipt = await completeBriefingRefresh(
+    root,
+    request.requestId,
+    claim.receipt.inputDigest,
+    summary,
+  );
+  return { ...receipt, replayed: false };
+}
+
 /** Pure parsers retain only explicit feed data and avoid executing embedded content. */
 export function parseOpml(input: string) {
   if (input.length > 1000000 || /<!DOCTYPE|<!ENTITY/i.test(input)) throw new Error('invalid_opml');
-  const rows: Array<{ url: string; label: string; type: 'rss' | 'ics' | 'jsonfeed' }> = [];
+  if (!/<opml\b[^>]*>/i.test(input) || !/<\/opml\s*>/i.test(input)) throw new Error('invalid_opml');
+  const decode = (value: string) =>
+    value.replace(/&(#x[0-9a-f]+|#\d+|amp|quot|apos|lt|gt);/gi, (_entity, name: string) => {
+      if (name[0] !== '#')
+        return ({ amp: '&', quot: '"', apos: "'", lt: '<', gt: '>' } as Record<string, string>)[
+          name.toLowerCase()
+        ]!;
+      const point =
+        name[1]?.toLowerCase() === 'x'
+          ? Number.parseInt(name.slice(2), 16)
+          : Number.parseInt(name.slice(1), 10);
+      if (
+        !Number.isSafeInteger(point) ||
+        point < 1 ||
+        point > 0x10ffff ||
+        (point >= 0xd800 && point <= 0xdfff)
+      )
+        throw new Error('invalid_opml_entity');
+      return String.fromCodePoint(point);
+    });
+  const rows: Array<{
+    url: string;
+    label: string;
+    type: 'rss' | 'atom' | 'ics' | 'jsonfeed';
+  }> = [];
   for (const match of input.matchAll(/<outline\b([^>]*)\/?\s*>/gi)) {
     const attrs = new Map<string, string>();
     for (const attribute of match[1]!.matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g))
       attrs.set(attribute[1]!.toLowerCase(), attribute[3]!);
-    const url = attrs.get('xmlurl') ?? attrs.get('url');
+    const rawUrl = attrs.get('xmlurl') ?? attrs.get('url');
+    const url = rawUrl === undefined ? undefined : decode(rawUrl);
     if (!url) continue;
     const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password)
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.toString().length > 2048 ||
+      [...parsed.searchParams.keys()].some((key) =>
+        /^(?:api[-_]?key|access[-_]?token|token|auth|authorization|password|secret|signature)$/i.test(
+          key,
+        ),
+      )
+    )
       throw new Error('invalid_opml_source');
+    const label = decode(attrs.get('text') ?? attrs.get('title') ?? parsed.hostname).trim();
+    if (!label || label.length > 200) throw new Error('invalid_opml_source_label');
     rows.push({
       url: parsed.toString(),
-      label: attrs.get('text') ?? attrs.get('title') ?? parsed.hostname,
+      label,
       type:
         /^(?:ical|ics)$/i.test(attrs.get('type') ?? '') || /\.ics$/i.test(parsed.pathname)
           ? 'ics'
           : /^(?:json|jsonfeed)$/i.test(attrs.get('type') ?? '') || /\.json$/i.test(parsed.pathname)
             ? 'jsonfeed'
-            : 'rss',
+            : /^(?:atom)$/i.test(attrs.get('type') ?? '') || /\.atom$/i.test(parsed.pathname)
+              ? 'atom'
+              : 'rss',
     });
   }
   if (rows.length > 200) throw new Error('opml_source_limit');
   return rows;
+}
+
+function canonicalSources(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalSources).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalSources(entry)}`)
+      .join(',')}}`;
+  return JSON.stringify(value) ?? 'null';
+}
+
+function buildOpmlPreview(
+  input: string,
+  current: NonNullable<Awaited<ReturnType<typeof loadSettings>>['followedSources']>,
+) {
+  const parsed = parseOpml(input);
+  if (
+    parsed.some(
+      (source) =>
+        (source.type === 'ics' && !/\.ics(?:$|\?)/i.test(source.url)) ||
+        (source.type === 'jsonfeed' && !/\.json(?:$|\?)/i.test(source.url)) ||
+        (source.type === 'atom' && !/\.atom(?:$|\?)/i.test(source.url)),
+    )
+  )
+    throw new Error('opml_source_type_must_match_url');
+  const byUrl = new Map(current.map((source) => [source.uri, source]));
+  const changes = parsed.map((source) => {
+    const prior = byUrl.get(source.url);
+    const next = prior
+      ? { ...prior, label: source.label }
+      : { uri: source.url, label: source.label, enabled: true, interests: [] };
+    const status = !prior
+      ? 'add'
+      : canonicalSources(prior) === canonicalSources(next)
+        ? 'unchanged'
+        : 'update';
+    byUrl.set(source.url, next);
+    return { ...source, status };
+  });
+  if (byUrl.size > 50) throw new Error('following_source_limit');
+  const inputDigest = hash(input);
+  const settingsDigest = hash(canonicalSources(current));
+  const resultingSettingsDigest = hash(canonicalSources([...byUrl.values()]));
+  const content = {
+    schema: 'signals.briefing-opml-preview.v1',
+    inputDigest,
+    settingsDigest,
+    sources: changes,
+    currentCount: current.length,
+    resultingCount: byUrl.size,
+    resultingSettingsDigest,
+  };
+  return {
+    ...content,
+    previewDigest: hash(canonicalSources(content)),
+    acquisition: 'not_started' as const,
+  };
+}
+
+/** Preview and apply OPML to the existing Following settings; no acquisition occurs here. */
+export async function previewBriefingOpml(root: string, input: string) {
+  const settings = await loadSettings(root);
+  return buildOpmlPreview(input, settings.followedSources ?? []);
+}
+
+/** Deterministic URL-keyed merge over the existing settings file; exact repeats are write-free. */
+export async function importBriefingOpml(
+  root: string,
+  input: string,
+  requestId: string,
+  expected: { inputDigest: string; settingsDigest: string; previewDigest: string },
+) {
+  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(requestId))
+    throw new Error('invalid_briefing_opml_request');
+  if (
+    !/^[a-f0-9]{64}$/.test(expected.inputDigest) ||
+    !/^[a-f0-9]{64}$/.test(expected.settingsDigest) ||
+    !/^[a-f0-9]{64}$/.test(expected.previewDigest)
+  )
+    throw new Error('invalid_briefing_opml_preview_binding');
+  const requestDigest = hash(
+    canonicalSources({
+      actualInputDigest: hash(input),
+      settingsDigest: expected.settingsDigest,
+      previewDigest: expected.previewDigest,
+    }),
+  );
+  let expectedSources: NonNullable<SearchSettings['followedSources']> = [];
+  const { settings: retained, result } = await updateSettingsForBriefingOpml(root, (settings) => {
+    const prior = (settings.briefingOpmlImports ?? []).find(
+      (entry) => entry.requestId === requestId,
+    );
+    if (prior) {
+      if (prior.requestDigest !== requestDigest) throw new Error('request_id_conflict');
+      return {
+        settings,
+        result: { ...prior, replayed: true, acquisition: 'not_started' as const },
+      };
+    }
+    if (hash(input) !== expected.inputDigest) throw new Error('opml_preview_stale');
+    const before = settings.followedSources ?? [];
+    const preview = buildOpmlPreview(input, before);
+    if (
+      preview.inputDigest !== expected.inputDigest ||
+      preview.settingsDigest !== expected.settingsDigest ||
+      preview.previewDigest !== expected.previewDigest
+    )
+      throw new Error('opml_preview_stale');
+    const byUrl = new Map(before.map((source) => [source.uri, source]));
+    for (const source of preview.sources) {
+      const prior = byUrl.get(source.url);
+      byUrl.set(
+        source.url,
+        prior
+          ? { ...prior, label: source.label }
+          : { uri: source.url, label: source.label, enabled: true, interests: [] },
+      );
+    }
+    const followedSources = [...byUrl.values()];
+    expectedSources = followedSources;
+    if (followedSources.length > 50) throw new Error('following_source_limit');
+    const changed = canonicalSources(before) !== canonicalSources(followedSources);
+    const imports = settings.briefingOpmlImports ?? [];
+    if (imports.length >= 10000) throw new Error('briefing_import_receipts_full');
+    const receipt = {
+      requestId,
+      requestDigest,
+      previewDigest: preview.previewDigest,
+      inputDigest: preview.inputDigest,
+      resultingSettingsDigest: preview.resultingSettingsDigest,
+      imported: preview.sources.length,
+      configured: followedSources.length,
+      changed,
+      completedAt: new Date().toISOString(),
+    };
+    return {
+      settings: { ...settings, followedSources, briefingOpmlImports: [...imports, receipt] },
+      result: {
+        ...receipt,
+        replayed: false,
+        acquisition: 'not_started' as const,
+        sources: preview.sources,
+      },
+    };
+  });
+  if (result.replayed) return result;
+  if (canonicalSources(retained.followedSources ?? []) !== canonicalSources(expectedSources))
+    throw new Error('opml_import_readback_mismatch');
+  const savedReceipt = (retained.briefingOpmlImports ?? []).find(
+    (entry) => entry.requestId === requestId,
+  );
+  if (!savedReceipt || savedReceipt.requestDigest !== requestDigest)
+    throw new Error('opml_import_receipt_readback_mismatch');
+  return result;
+}
+
+export async function readBriefingOpmlImport(root: string, requestId: string) {
+  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(requestId))
+    throw new Error('invalid_briefing_opml_request');
+  const settings = await loadSettings(root);
+  const receipt = (settings.briefingOpmlImports ?? []).find(
+    (entry) => entry.requestId === requestId,
+  );
+  return {
+    requestId,
+    found: Boolean(receipt),
+    ...(receipt ? { receipt } : {}),
+    followedSources: settings.followedSources ?? [],
+    settingsDigest: hash(canonicalSources(settings.followedSources ?? [])),
+  };
 }
 
 export function exportOpml(sources: Source[]) {
@@ -404,7 +793,7 @@ export function exportOpml(sources: Source[]) {
   const outlines = sources
     .map(
       (source) =>
-        `<outline text="${escape(source.attribution)}" title="${escape(source.attribution)}" type="${source.kind === 'ics' ? 'ical' : 'rss'}" xmlUrl="${escape(source.url)}"/>`,
+        `<outline text="${escape(source.attribution)}" title="${escape(source.attribution)}" type="${source.kind === 'ics' ? 'ical' : source.kind === 'jsonfeed' ? 'json' : source.kind === 'atom' ? 'atom' : 'rss'}" xmlUrl="${escape(source.url)}"/>`,
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0"><head><title>Signals Following</title></head><body>\n${outlines}\n</body></opml>\n`;

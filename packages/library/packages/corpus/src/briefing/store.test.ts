@@ -1,17 +1,27 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
-import { defaultSettings, saveSettings } from '../search-settings.js';
+import { defaultSettings, loadSettings, saveSettings } from '../search-settings.js';
 import {
   allDayEventFixture,
   itemFixture,
   metricObservationFixture,
   storyFixture,
 } from './fixtures.js';
-import { exportOpml, parseIcs, parseJsonFeed, parseOpml, refreshBriefing } from './ingest.js';
+import {
+  exportOpml,
+  importBriefingOpml,
+  parseIcs,
+  parseJsonFeed,
+  parseOpml,
+  previewBriefingOpml,
+  refreshBriefing,
+} from './ingest.js';
 import { briefingRoute } from './http.js';
 import { createBriefingApi, retainBriefingRecords } from './store.js';
+import { searchApi } from '../search-api.js';
 
 const roots: string[] = [];
 afterEach(async () =>
@@ -48,6 +58,130 @@ async function fixtureRoot() {
 }
 
 describe('Briefing same-store API', () => {
+  it('keeps OPML receipts read-only to generic settings saves', async () => {
+    const root = await fixtureRoot();
+    const opml =
+      '<opml><body><outline text="Added" xmlUrl="https://example.test/added.xml"/></body></opml>';
+    const preview = await previewBriefingOpml(root, opml);
+    const requestId = '2e4ef39f-14cb-4327-b345-861c3b94920a';
+    await importBriefingOpml(root, opml, requestId, preview);
+    const committed = await loadSettings(root);
+    const receipt = committed.briefingOpmlImports;
+    await expect(saveSettings({ ...committed, briefingOpmlImports: [] }, root)).rejects.toThrow(
+      'briefing_import_receipts_read_only',
+    );
+    await expect(
+      saveSettings(
+        {
+          ...committed,
+          briefingOpmlImports: [
+            ...(receipt ?? []),
+            { ...receipt![0]!, requestId: '2e4ef39f-14cb-4327-b345-861c3b94920b' },
+          ],
+        },
+        root,
+      ),
+    ).rejects.toThrow('briefing_import_receipts_read_only');
+    const { briefingOpmlImports: _omitted, ...legacyShape } = committed;
+    await saveSettings(legacyShape, root);
+    await saveSettings(committed, root);
+    expect((await loadSettings(root)).briefingOpmlImports).toEqual(receipt);
+  });
+
+  it('preserves disabled Following identity when OPML updates a URL', async () => {
+    const root = await fixtureRoot();
+    const existing = {
+      uri: 'https://example.test/extra.xml',
+      label: 'Old label',
+      enabled: false,
+      interests: ['climate-data'],
+    };
+    const current = await loadSettings(root);
+    await saveSettings(
+      { ...current, followedSources: [...(current.followedSources ?? []), existing] },
+      root,
+    );
+    const opml =
+      '<opml><body><outline text="New label" xmlUrl="https://example.test/extra.xml"/></body></opml>';
+    const preview = await previewBriefingOpml(root, opml);
+    expect(preview.sources[0]?.status).toBe('update');
+    await importBriefingOpml(root, opml, '7a21f9cb-a8e5-4bdd-a2f5-dd41be26d361', preview);
+    expect(
+      (await loadSettings(root)).followedSources?.find(({ uri }) => uri === existing.uri),
+    ).toEqual({
+      ...existing,
+      label: 'New label',
+    });
+  });
+
+  it('does not rewrite settings when an OPML request is replayed', async () => {
+    const root = await fixtureRoot();
+    const opml =
+      '<opml><body><outline text="Added" xmlUrl="https://example.test/added.xml"/></body></opml>';
+    const preview = await previewBriefingOpml(root, opml);
+    const requestId = '351f3ca7-3c50-4b02-9bd1-96b27b4aec08';
+    await importBriefingOpml(root, opml, requestId, preview);
+    const file = join(root, '.signals/settings.json');
+    const beforeBytes = await readFile(file);
+    const beforeInode = (await stat(file, { bigint: true })).ino;
+    expect((await importBriefingOpml(root, opml, requestId, preview)).replayed).toBe(true);
+    expect(await readFile(file)).toEqual(beforeBytes);
+    expect((await stat(file, { bigint: true })).ino).toBe(beforeInode);
+  });
+
+  it('keeps OPML mutations behind the existing session authority and rejects open payloads', async () => {
+    const root = await fixtureRoot();
+    const handler = searchApi(root);
+    const call = async (path: string, method: 'GET' | 'POST', value?: unknown, token?: string) => {
+      const request = Object.assign(
+        Readable.from(value === undefined ? [] : [Buffer.from(JSON.stringify(value))]),
+        {
+          url: `/signals-ai/__signals/api/${path}`,
+          method,
+          headers: {
+            host: '127.0.0.1:5178',
+            origin: 'http://127.0.0.1:5178',
+            ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+            ...(token ? { 'x-signals-token': token } : {}),
+          },
+        },
+      );
+      let status = 0;
+      let payload = '';
+      await handler(
+        request as never,
+        {
+          writeHead(code: number) {
+            status = code;
+          },
+          end(chunk?: string) {
+            payload = chunk ?? '';
+          },
+        } as never,
+      );
+      return { status, body: payload ? (JSON.parse(payload) as Record<string, unknown>) : null };
+    };
+    const denied = await call('briefing/opml/import', 'POST', {
+      opml: '<opml/>',
+      requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c059',
+      inputDigest: 'a'.repeat(64),
+      settingsDigest: 'b'.repeat(64),
+      previewDigest: 'c'.repeat(64),
+    });
+    expect(denied.status).toBe(403);
+    expect(denied.body?.code).toBe('csrf_token_required');
+    const session = await call('session', 'GET');
+    const token = String(session.body?.token);
+    const malformed = await call(
+      'briefing/opml/preview',
+      'POST',
+      { opml: '<opml/>', extra: true },
+      token,
+    );
+    expect(malformed.status).toBe(400);
+    expect((await createBriefingApi(root).listSources()).length).toBe(1);
+  });
+
   it('projects current Following settings, retains exact records, and cold-reads rank inputs', async () => {
     const root = await fixtureRoot();
     const api = createBriefingApi(root);
@@ -128,10 +262,165 @@ describe('Briefing same-store API', () => {
     expect(parseOpml(xml)).toEqual([
       { url: 'https://example.test/feed.xml', label: 'Example feed', type: 'rss' },
     ]);
+    expect(
+      parseOpml(exportOpml([{ ...source!.record, attribution: 'R&D <updates>' }]))[0]?.label,
+    ).toBe('R&D <updates>');
+    expect(
+      parseOpml(
+        exportOpml([{ ...source!.record, kind: 'atom', url: 'https://example.test/feed.atom' }]),
+      )[0]?.type,
+    ).toBe('atom');
     expect(() => parseOpml('<!DOCTYPE opml [<!ENTITY x "x">]><opml/>')).toThrow('invalid_opml');
     expect(() =>
       parseOpml('<opml><outline xmlUrl="https://user:pass@example.test/feed"/></opml>'),
     ).toThrow('invalid_opml_source');
+  });
+
+  it('previews, imports, reopens and refuses changed OPML replays; refresh preserves empty versus failure', async () => {
+    const root = await fixtureRoot();
+    const opml =
+      '<opml><body><outline text="Research &amp; updates" type="rss" xmlUrl="https://example.test/extra.xml"/></body></opml>';
+    const preview = (await briefingRoute(root, 'briefing/opml/preview', true, { opml }, 0))!
+      .body as {
+      inputDigest: string;
+      settingsDigest: string;
+      previewDigest: string;
+      resultingSettingsDigest: string;
+      sources: Array<{ status: string; label: string }>;
+    };
+    expect(preview.sources).toEqual([
+      {
+        url: 'https://example.test/extra.xml',
+        label: 'Research & updates',
+        type: 'rss',
+        status: 'add',
+      },
+    ]);
+    const requestId = '0b3a8401-3c65-4fab-9a6b-1b55a886c051';
+    const request = {
+      opml,
+      requestId,
+      inputDigest: preview.inputDigest,
+      settingsDigest: preview.settingsDigest,
+      previewDigest: preview.previewDigest,
+    };
+    const imported = (await briefingRoute(root, 'briefing/opml/import', true, request, 0))!
+      .body as {
+      replayed: boolean;
+      resultingSettingsDigest: string;
+      acquisition: string;
+    };
+    expect(imported).toMatchObject({
+      replayed: false,
+      acquisition: 'not_started',
+      resultingSettingsDigest: preview.resultingSettingsDigest,
+    });
+    expect(
+      (await briefingRoute(root, 'briefing/opml/import', true, request, 0))!.body,
+    ).toMatchObject({ replayed: true });
+    const changedPreview = (await briefingRoute(
+      root,
+      'briefing/opml/preview',
+      true,
+      { opml: opml.replace('Research &amp; updates', 'Different label') },
+      0,
+    ))!.body as typeof preview;
+    await expect(
+      briefingRoute(
+        root,
+        'briefing/opml/import',
+        true,
+        {
+          opml: opml.replace('Research &amp; updates', 'Different label'),
+          requestId,
+          inputDigest: changedPreview.inputDigest,
+          settingsDigest: changedPreview.settingsDigest,
+          previewDigest: changedPreview.previewDigest,
+        },
+        0,
+      ),
+    ).rejects.toThrow('request_id_conflict');
+    const cold = (await briefingRoute(
+      root,
+      'briefing/opml/import-status',
+      false,
+      undefined,
+      1,
+      new URLSearchParams({ requestId }),
+    ))!.body as { found: boolean; receipt?: { previewDigest: string }; settingsDigest: string };
+    expect(cold).toMatchObject({
+      found: true,
+      receipt: { previewDigest: preview.previewDigest },
+      settingsDigest: preview.resultingSettingsDigest,
+    });
+    await expect(
+      briefingRoute(
+        root,
+        'briefing/opml/import-status',
+        false,
+        undefined,
+        2,
+        new URLSearchParams({ requestId, extra: 'no' }),
+      ),
+    ).rejects.toThrow('invalid_briefing_opml_import_status_query');
+    expect(await briefingRoute(root, 'briefing/opml/import', false, undefined, 0)).toBeNull();
+
+    const api = createBriefingApi(root);
+    const sources = await api.listSources();
+    const importedSource = sources.find(({ record }) => record.url.endsWith('/extra.xml'))!.record;
+    await api.setSourceTermsPolicy({
+      requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c052',
+      sourceId: importedSource.id,
+      termsUrl: null,
+      status: 'blocked',
+    });
+    let calls = 0;
+    const emptyFetch = async (uri: string) => {
+      calls++;
+      return {
+        uri,
+        text: '',
+        digest: 'b'.repeat(64),
+        contentType: 'application/rss+xml',
+        response: { status: 200, etag: 'empty', lastModified: undefined, headers: {} },
+        material: {
+          text: '',
+          title: 'Empty fixture',
+          author: null,
+          publishedAt: null,
+          links: [],
+          sections: [],
+          extractor: 'fixture',
+        },
+      } as never;
+    };
+    const emptyResult = await refreshBriefing(root, { fetch: emptyFetch });
+    expect(calls).toBe(1);
+    expect(emptyResult.sources[0]).toMatchObject({ state: 'fetched', health: { links: [] } });
+    const afterEmpty = await createBriefingApi(root).listSources();
+    expect(
+      afterEmpty.find(({ record }) => record.url.endsWith('/feed.xml'))?.record.health,
+    ).toMatchObject({
+      lastAttemptStatus: 'fetched',
+      lastSuccessfulLinkCount: 0,
+    });
+    expect(
+      afterEmpty.find(({ record }) => record.url.endsWith('/extra.xml'))?.record.health.status,
+    ).toBe('unknown');
+    await refreshBriefing(root, {
+      fetch: async () => {
+        throw new Error('fixture_fetch_failed');
+      },
+    });
+    const coldSources = await createBriefingApi(root).listSources();
+    expect(
+      coldSources.find(({ record }) => record.url.endsWith('/feed.xml'))?.record.health,
+    ).toMatchObject({
+      status: 'failed',
+      lastAttemptStatus: 'failed',
+      lastSuccessfulLinkCount: 0,
+    });
+    expect((await createBriefingApi(root).listSources()).length).toBe(2);
   });
 
   it('ingests one mocked Following feed with exact item digests and honors explicit blocked terms', async () => {
@@ -312,6 +601,58 @@ describe('Briefing same-store API', () => {
     });
     const muted = await briefingRoute(root, 'briefing/workbench', false, undefined, 0);
     expect((muted?.body as { ranked: unknown[] }).ranked).toEqual([]);
+  });
+
+  it('previews a draft velocity weight against the same retained stories without saving it', async () => {
+    const root = await fixtureRoot();
+    const sourceId = (await createBriefingApi(root).listSources())[0]!.record.id;
+    await retainBriefingRecords(root, {
+      items: [{ ...itemFixture, sourceId }],
+      stories: [storyFixture],
+    });
+
+    const before = await briefingRoute(root, 'briefing/preferences', false, undefined, 0);
+    const preview = await briefingRoute(
+      root,
+      'briefing/preferences/ranking-preview',
+      true,
+      { velocityWeight: 0.2 },
+      0,
+    );
+    expect(preview).toMatchObject({
+      status: 200,
+      body: {
+        schema: 'signals.briefing-ranking-preview.v1',
+        currentVelocityWeight: 0.05,
+        draftVelocityWeight: 0.2,
+        stories: [
+          {
+            storyId: storyFixture.id,
+            storyTitle: itemFixture.title,
+            storyReference: {
+              owner: 'signals-ai',
+              kind: 'briefing-story',
+              id: storyFixture.id,
+            },
+            currentPosition: 1,
+            draftPosition: 1,
+          },
+        ],
+      },
+    });
+    const row = (preview?.body as { stories: Array<{ currentScore: number; draftScore: number }> })
+      .stories[0]!;
+    expect(row.currentScore).toBeGreaterThanOrEqual(0);
+    expect(row.currentScore).toBeLessThanOrEqual(100);
+    expect(row.draftScore).toBeGreaterThanOrEqual(0);
+    expect(row.draftScore).toBeLessThanOrEqual(100);
+    expect(await briefingRoute(root, 'briefing/preferences', false, undefined, 0)).toEqual(before);
+    await expect(
+      briefingRoute(root, 'briefing/preferences/ranking-preview', true, { velocityWeight: 0.3 }, 0),
+    ).rejects.toThrow('invalid_briefing_ranking_preview');
+    await expect(
+      briefingRoute(root, 'briefing/preferences/ranking-preview', true, { velocityWeight: 0.1 }, 1),
+    ).rejects.toThrow('briefing_query_not_supported');
   });
 
   it('parses only bounded JSON Feed text fields and validates public entry URLs', async () => {

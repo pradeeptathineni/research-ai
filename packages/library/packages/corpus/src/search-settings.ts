@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
 import { channels, parseRequest } from '../../domain/src/search-contract.js';
-import { atomicJson, readPrivateJson } from './search-store.js';
+import { atomicJson, readPrivateJson, withWriter } from './search-store.js';
 
 const closed = { additionalProperties: false };
 const settingsSchema = Type.Object(
@@ -36,6 +36,25 @@ const settingsSchema = Type.Object(
           closed,
         ),
         { maxItems: 50 },
+      ),
+    ),
+    briefingOpmlImports: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            requestId: Type.String({ format: 'uuid' }),
+            requestDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            previewDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            inputDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            resultingSettingsDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            imported: Type.Integer({ minimum: 0, maximum: 200 }),
+            configured: Type.Integer({ minimum: 0, maximum: 50 }),
+            changed: Type.Boolean(),
+            completedAt: Type.String({ maxLength: 40 }),
+          },
+          closed,
+        ),
+        { maxItems: 10000 },
       ),
     ),
     supplementalSites: Type.Optional(
@@ -182,8 +201,66 @@ export async function loadSettings(root = process.cwd()) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('invalid_settings');
   return validateSettings({ ...structuredClone(defaultSettings), ...raw });
 }
+function canonicalSettings(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalSettings).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalSettings(entry)}`)
+      .join(',')}}`;
+  return JSON.stringify(value) ?? 'null';
+}
 export async function saveSettings(settings: unknown, root = process.cwd()) {
-  const validated = validateSettings(settings);
-  await atomicJson(resolve(root, '.signals/settings.json'), validated);
-  return validated;
+  return updateSettings(root, (current) => {
+    const validated = validateSettings(settings);
+    return { settings: validated, result: validated };
+  }).then(({ result }) => result);
+}
+
+/** Serializes changes to the existing settings file and reads the committed value back. */
+export async function updateSettings<T>(
+  root: string,
+  change: (current: SearchSettings) => { settings: unknown; result: T },
+) {
+  return updateSettingsTransaction(root, change, false);
+}
+
+/** The only transaction allowed to append one owner-created OPML import receipt. */
+export async function updateSettingsForBriefingOpml<T>(
+  root: string,
+  change: (current: SearchSettings) => { settings: unknown; result: T },
+) {
+  return updateSettingsTransaction(root, change, true);
+}
+
+async function updateSettingsTransaction<T>(
+  root: string,
+  change: (current: SearchSettings) => { settings: unknown; result: T },
+  allowOpmlReceiptAppend: boolean,
+) {
+  return withWriter(root, async () => {
+    const current = await loadSettings(root);
+    const { settings, result } = change(current);
+    const validated = validateSettings(settings);
+    const previousReceipts = current.briefingOpmlImports ?? [];
+    if (validated.briefingOpmlImports === undefined && previousReceipts.length > 0)
+      validated.briefingOpmlImports = previousReceipts;
+    const requestedReceipts = validated.briefingOpmlImports ?? [];
+    const receiptsUnchanged =
+      canonicalSettings(previousReceipts) === canonicalSettings(requestedReceipts);
+    const oneOwnerReceiptAppended =
+      allowOpmlReceiptAppend &&
+      requestedReceipts.length === previousReceipts.length + 1 &&
+      canonicalSettings(requestedReceipts.slice(0, -1)) === canonicalSettings(previousReceipts);
+    if (!receiptsUnchanged && !oneOwnerReceiptAppended)
+      throw new Error('briefing_import_receipts_read_only');
+    if (!oneOwnerReceiptAppended) {
+      if (previousReceipts.length > 0) validated.briefingOpmlImports = previousReceipts;
+      else delete validated.briefingOpmlImports;
+    }
+    if (canonicalSettings(current) !== canonicalSettings(validated))
+      await atomicJson(resolve(root, '.signals/settings.json'), validated);
+    const committed = await loadSettings(root);
+    return { settings: committed, result };
+  });
 }

@@ -28,6 +28,8 @@ export const sourceFixture = {
     status: 'unknown',
     lastGoodAt: null,
     lastAttemptAt: null,
+    lastAttemptStatus: null,
+    lastSuccessfulLinkCount: null,
     failureClass: null,
     expectedIntervalSec: null,
   },

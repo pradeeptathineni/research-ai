@@ -2,8 +2,20 @@ import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { isStoryHidden } from '../briefing-feedback.js';
 import { rankBriefingStory } from '../briefing-rank.js';
-import { refreshBriefing } from './ingest.js';
-import { createBriefingApi, listBriefingPreferences, listSourceTerms } from './store.js';
+import { eventCalendar } from '../briefing-calendar.js';
+import {
+  importBriefingOpml,
+  previewBriefingOpml,
+  readBriefingOpmlImport,
+  refreshDue,
+  refreshBriefing,
+} from './ingest.js';
+import {
+  createBriefingApi,
+  listBriefingPreferences,
+  listSourceTerms,
+  readBriefingRefresh,
+} from './store.js';
 
 const uuid = Type.String({ format: 'uuid' });
 const closed = { additionalProperties: false } as const;
@@ -29,7 +41,19 @@ const feedbackRequest = Type.Object(
 const refreshRequest = Type.Object(
   {
     once: Type.Literal(true),
+    requestId: Type.Optional(uuid),
     interest: Type.Optional(Type.String({ pattern: '^[a-z0-9-]{1,80}$' })),
+  },
+  closed,
+);
+const opmlPreviewRequest = Type.Object({ opml: Type.String({ maxLength: 1000000 }) }, closed);
+const opmlImportRequest = Type.Object(
+  {
+    opml: Type.String({ maxLength: 1000000 }),
+    requestId: uuid,
+    inputDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    settingsDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    previewDigest: Type.String({ pattern: '^[a-f0-9]{64}$' }),
   },
   closed,
 );
@@ -83,6 +107,10 @@ const rankingPreferenceRequest = Type.Object(
   { requestId: uuid, velocityWeight: Type.Number({ minimum: 0, maximum: 0.25 }) },
   closed,
 );
+const rankingPreviewRequest = Type.Object(
+  { velocityWeight: Type.Number({ minimum: 0, maximum: 0.25 }) },
+  closed,
+);
 const termsRequest = Type.Object(
   {
     requestId: uuid,
@@ -100,8 +128,59 @@ export async function briefingRoute(
   mutation: boolean,
   body: unknown,
   queryCount: number,
+  query?: URLSearchParams,
 ) {
   const api = createBriefingApi(root);
+  if (!mutation && route === 'briefing/events/calendar') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    if (
+      queryCount !== 1 ||
+      entries.length !== 1 ||
+      entries[0]![0] !== 'eventId' ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(entries[0]![1])
+    )
+      throw new Error('invalid_briefing_event_calendar_query');
+    const [events, items] = await Promise.all([
+      api.listEvents(),
+      api.listItems(),
+    ]);
+    const retained = events.find((entry) => entry.record.id === entries[0]![1]);
+    if (!retained) throw new Error('unknown_briefing_event');
+    const item = retained.record.itemId
+      ? items.find((entry) => entry.record.id === retained.record.itemId)
+      : undefined;
+    const title = item?.record.title ?? 'Briefing event';
+    const ics = eventCalendar(retained.record, title);
+    if (ics.length > 16_384) throw new Error('briefing_event_calendar_too_large');
+    return {
+      status: 200,
+      body: {
+        schema: 'signals.briefing-event-calendar.v1',
+        reference: retained.reference,
+        title,
+        filename: `briefing-event-${retained.record.id}.ics`,
+        ics,
+      },
+    };
+  }
+  if (!mutation && route === 'briefing/opml/import-status') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')
+      throw new Error('invalid_briefing_opml_import_status_query');
+    return { status: 200, body: await readBriefingOpmlImport(root, entries[0]![1]) };
+  }
+  if (!mutation && route === 'briefing/refresh-status') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    const requestId = entries[0]?.[1] ?? '';
+    if (
+      queryCount !== 1 ||
+      entries.length !== 1 ||
+      entries[0]![0] !== 'requestId' ||
+      !Value.Check(uuid, requestId)
+    )
+      throw new Error('invalid_briefing_refresh_status_query');
+    return { status: 200, body: await readBriefingRefresh(root, requestId) };
+  }
   if (queryCount !== 0) throw new Error('briefing_query_not_supported');
   if (!mutation) {
     switch (route) {
@@ -185,9 +264,104 @@ export async function briefingRoute(
     }
   }
   switch (route) {
+    case 'briefing/preferences/ranking-preview': {
+      if (!Value.Check(rankingPreviewRequest, body))
+        throw new Error('invalid_briefing_ranking_preview');
+      const [inputs, feedback, preferences] = await Promise.all([
+        api.listRankInputs(),
+        api.listFeedback(),
+        listBriefingPreferences(root),
+      ]);
+      const now = Date.now();
+      const rank = async (velocityWeight: number) =>
+        (
+          await Promise.all(
+            inputs.map(async (input) => {
+              const representative = input.items.find(
+                ({ item }) => item.id === input.story.representativeItemId,
+              );
+              if (!representative || isStoryHidden(feedback, input.story, representative.item, now))
+                return null;
+              return {
+                input,
+                explanation: await rankBriefingStory(input, { now, velocityWeight }),
+              };
+            }),
+          )
+        )
+          .filter((entry) => entry !== null)
+          .sort((left, right) => {
+            const leftObserved = left.input.items.find(
+              ({ item }) => item.id === left.input.story.representativeItemId,
+            )?.item.observedAt;
+            const rightObserved = right.input.items.find(
+              ({ item }) => item.id === right.input.story.representativeItemId,
+            )?.item.observedAt;
+            return (
+              right.explanation.total - left.explanation.total ||
+              (rightObserved ?? '').localeCompare(leftObserved ?? '')
+            );
+          });
+      const currentWeight = preferences.ranking.velocityWeight;
+      const draftWeight = body.velocityWeight;
+      const [current, draft] = await Promise.all([rank(currentWeight), rank(draftWeight)]);
+      const currentById = new Map(
+        current.map((entry, index) => [entry.input.story.id, { entry, position: index + 1 }]),
+      );
+      const stories = draft.map(({ input, explanation }, index) => {
+        const currentEntry = currentById.get(input.story.id);
+        const representative = input.items.find(
+          ({ item }) => item.id === input.story.representativeItemId,
+        );
+        if (!currentEntry || !representative)
+          throw new Error('briefing_ranking_preview_input_changed');
+        return {
+          storyId: input.story.id,
+          story: input.story,
+          storyTitle: representative.item.title,
+          storyReference: input.storyReference,
+          currentPosition: currentEntry.position,
+          draftPosition: index + 1,
+          currentScore: currentEntry.entry.explanation.total,
+          draftScore: explanation.total,
+        };
+      });
+      return {
+        status: 200,
+        body: {
+          schema: 'signals.briefing-ranking-preview.v1',
+          readAt: new Date(now).toISOString(),
+          currentVelocityWeight: currentWeight,
+          draftVelocityWeight: draftWeight,
+          stories,
+        },
+      };
+    }
     case 'briefing/refresh':
       if (!Value.Check(refreshRequest, body)) throw new Error('invalid_briefing_refresh');
+      if (body.requestId)
+        return {
+          status: 200,
+          body: await refreshDue(root, {
+            once: true,
+            requestId: body.requestId,
+            interest: body.interest,
+          }),
+        };
       return { status: 200, body: await refreshBriefing(root, { interest: body.interest }) };
+    case 'briefing/opml/preview':
+      if (!Value.Check(opmlPreviewRequest, body)) throw new Error('invalid_briefing_opml_preview');
+      return { status: 200, body: await previewBriefingOpml(root, body.opml) };
+    case 'briefing/opml/import':
+      if (!Value.Check(opmlImportRequest, body)) throw new Error('invalid_briefing_opml_import');
+      return {
+        status: 200,
+        body: await importBriefingOpml(root, body.opml, body.requestId, {
+          inputDigest: body.inputDigest,
+          settingsDigest: body.settingsDigest,
+          previewDigest: body.previewDigest,
+        }),
+      };
     case 'briefing/feedback':
       if (!Value.Check(feedbackRequest, body)) throw new Error('invalid_briefing_feedback');
       return { status: 201, body: await api.recordFeedback(body) };

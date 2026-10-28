@@ -36,10 +36,12 @@ import {
 } from './source-render.js';
 import {
   importPrivateDocument,
+  correctPrivateDocument,
   listPrivateDocuments,
   openPrivateDocument,
   selectPrivateDocument,
   privateDocumentSections,
+  previewPrivateDocumentCorrection,
   PrivateDocumentError,
   readPrivatePdfBytes,
 } from './private-documents.js';
@@ -398,7 +400,7 @@ export function searchApi(
       }
       if (route === 'briefing' || route.startsWith('briefing/')) {
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        const result = await briefingRoute(root, route, mutation, body, params.size);
+        const result = await briefingRoute(root, route, mutation, body, params.size, params);
         if (result) json(result.status, result.body);
         else json(404, { code: 'unknown_operation' });
       } else if (route === 'private-documents' || route.startsWith('private-documents/')) {
@@ -416,7 +418,22 @@ export function searchApi(
               'invalid_private_document',
               'Import does not accept query fields.',
             );
-          json(201, await importPrivateDocument(root, body));
+          const requestBody = body as Record<string, unknown>;
+          const action = requestBody?.action;
+          const payload = Object.fromEntries(
+            Object.entries(requestBody ?? {}).filter(([key]) => key !== 'action'),
+          );
+          if (action === 'preview-correction')
+            json(200, await previewPrivateDocumentCorrection(root, payload));
+          else if (action === 'correct') json(201, await correctPrivateDocument(root, payload));
+          else if (action === undefined || action === 'import')
+            json(201, await importPrivateDocument(root, payload));
+          else
+            throw new PrivateDocumentError(
+              400,
+              'invalid_private_document',
+              'Choose import, preview-correction or correct.',
+            );
         } else if (route === 'private-documents' && !mutation) {
           if (params.size)
             throw new PrivateDocumentError(
@@ -446,12 +463,33 @@ export function searchApi(
             route,
           );
           const documentMatch = /^private-documents\/([a-f0-9-]{36})$/.exec(route);
+          let exactDocumentRef: RecordRef | undefined;
+          if (documentMatch && params.has('ref')) {
+            if (
+              [...params.keys()].some((key) => key !== 'ref') ||
+              params.getAll('ref').length !== 1
+            )
+              throw new PrivateDocumentError(
+                400,
+                'invalid_private_document',
+                'Exact document reopen accepts one encoded ref.',
+              );
+            try {
+              exactDocumentRef = JSON.parse(params.get('ref')!) as RecordRef;
+            } catch {
+              throw new PrivateDocumentError(
+                400,
+                'invalid_private_document',
+                'Exact document ref must be encoded JSON.',
+              );
+            }
+          }
           if (mutation) json(404, { code: 'unknown_operation' });
-          else if (params.size)
+          else if (params.size && (!documentMatch || !exactDocumentRef))
             throw new PrivateDocumentError(
               400,
               'invalid_private_document',
-              'Document reads do not accept query fields.',
+              'Document reads accept no query fields except one exact ref for a document reopen.',
             );
           else if (pageMatch) {
             const reopened = await openPrivateDocument(root, pageMatch[1]!);
@@ -464,7 +502,8 @@ export function searchApi(
                 'No extracted page has that number.',
               );
             json(200, { document_ref: reopened.ref, page });
-          } else if (documentMatch) json(200, await openPrivateDocument(root, documentMatch[1]!));
+          } else if (documentMatch)
+            json(200, await openPrivateDocument(root, documentMatch[1]!, exactDocumentRef));
           else json(404, { code: 'unknown_operation' });
         }
       } else if (route === 'private-collection' || route.startsWith('private-collection/')) {
@@ -534,7 +573,20 @@ export function searchApi(
               'invalid_source_capture_request',
               'Capture creation does not accept query fields.',
             );
-          json(201, await createSourceCapture(root, body, resolveSource));
+          const captureBody = body as Record<string, unknown>;
+          const captureId = captureBody?.capture_id;
+          const payload = Object.fromEntries(
+            Object.entries(captureBody ?? {}).filter(([key]) => key !== 'capture_id'),
+          );
+          json(
+            201,
+            await createSourceCapture(
+              root,
+              payload,
+              resolveSource,
+              captureId === undefined ? {} : { captureId: captureId as string },
+            ),
+          );
         } else if (route === 'source-captures' && !mutation) {
           const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
           if (

@@ -153,11 +153,7 @@ function validateAnnotations(
 }
 async function reopen(root: string, reader: Reader) {
   const { ref, document } = await openPrivateDocument(root, reader.document_ref.id);
-  if (
-    !sameRef(ref, reader.document_ref) ||
-    document.raw_sha256 !== reader.raw_sha256 ||
-    document.media_type !== 'application/pdf'
-  )
+  if (!sameRef(ref, reader.document_ref) || document.raw_sha256 !== reader.raw_sha256)
     return changed();
   if (!document.pages[reader.page - 1])
     fail(503, 'private_reader_unavailable', 'Saved page is outside the retained source.');
@@ -222,7 +218,7 @@ export async function listPrivateReaders(root: string) {
 
 /** Create idempotently or reopen the same reader ID and source. */
 export async function createPrivateReader(root: string, input: unknown) {
-  requestShape(createSchema, input, 'Create requires a UUID, exact PDF ref/hash and page.');
+  requestShape(createSchema, input, 'Create requires a UUID, exact document ref/hash and page.');
   const data = input as Static<typeof createSchema>;
   if (
     data.document_ref.owner !== 'signals-ai' ||
@@ -245,9 +241,7 @@ export async function createPrivateReader(root: string, input: unknown) {
     const source = await openPrivateDocument(root, data.document_ref.id);
     if (!sameRef(source.ref, data.document_ref) || source.document.raw_sha256 !== data.raw_sha256)
       return changed();
-    if (source.document.media_type !== 'application/pdf')
-      invalid('Reader records require a PDF source.');
-    if (!source.document.pages[data.page - 1]) invalid('Requested page is outside this PDF.');
+    if (!source.document.pages[data.page - 1]) invalid('Requested page is outside this document.');
     if (store.readers.length >= MAX_RECORDS)
       fail(
         409,
@@ -305,7 +299,7 @@ export async function revisePrivateReader(root: string, input: unknown) {
       return changed();
     const { document } = await reopen(root, current);
     const page = data.page ?? current.page;
-    if (!document.pages[page - 1]) invalid('Requested page is outside this PDF.');
+    if (!document.pages[page - 1]) invalid('Requested page is outside this document.');
     const removed = new Set(data.remove_annotation_ids ?? []);
     if ([...removed].some((id) => !current.annotations.some((item) => item.id === id)))
       invalid('Removal must name retained annotation IDs.');
