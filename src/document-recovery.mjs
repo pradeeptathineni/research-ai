@@ -90,12 +90,51 @@ const leafIndexMap = (section, sources) => {
 };
 const unresolved = entry => entry.attempts.length > 0 && entry.attempts.at(-1).status !== "unknown" && (entry.attempts.at(-1).status !== "complete"
   || !entry.attempts.at(-1).result?.inputCoverage.complete || entry.attempts.at(-1).result?.draft?.coverage !== "answered");
-const qualified = (state, sections, plannedMaximumCalls) => {
-  const rows = [], gaps = [];
+const qualified = (state, sections, plannedMaximumCalls, includePageCoverage = true) => {
+  const rows = [], gaps = [], pageCoverage = [];
   for (const section of state.manifest) {
     const data = sections.find(entry => entry.sectionId === section.id);
     if (!data || section.pageRefs.length === 0) continue;
     const last = data.attempts.at(-1), result = last?.result;
+    const docs = leafDocuments(section, state.sources);
+    const plan = result?.plan ?? prepareDocumentCoverage(state.question, docs, {
+      maxCalls: state.policy.maxCallsPerSection, passUtf16Units: state.policy.passUtf16Units,
+      maxSeconds: state.policy.maxSecondsPerSection,
+    });
+    const reviewed = new Set(result?.inputCoverage.reviewedWindows ?? []);
+    const evidenceByPage = new Map();
+    for (const evidence of result?.draft?.evidence ?? []) {
+      const original = data.pageMap.find(item => item.documentId === evidence.documentId && item.localPage === evidence.page);
+      if (!original) continue;
+      const key = `${original.documentId}\0${original.originalPage}`;
+      const ids = evidenceByPage.get(key) ?? [];
+      ids.push(evidence.id);
+      evidenceByPage.set(key, ids);
+    }
+    for (const ref of section.pageRefs) {
+      const original = data.pageMap.find(item => item.documentId === ref.documentId && item.originalPage === ref.page);
+      const source = state.sources.find(item => item.id === ref.documentId);
+      const text = source.pages[ref.page - 1].text;
+      const windows = plan.windows.filter(item => item.documentId === ref.documentId
+        && data.pageMap.find(map => map.documentId === item.documentId && map.localPage === item.page)?.originalPage === ref.page);
+      const reviewedWindowIds = windows.filter(item => reviewed.has(item.id)).map(item => item.id);
+      const unreviewedWindowIds = windows.filter(item => !reviewed.has(item.id)).map(item => item.id);
+      const executionStatus = last?.status ?? "not_run";
+      const reviewStatus = !text.length ? "empty-extracted-text"
+        : executionStatus === "unknown" ? "unknown"
+          : !last || executionStatus === "not_run" ? "not_run"
+            : !result ? "no_validated_result"
+              : !unreviewedWindowIds.length ? "fully_reviewed"
+                : reviewedWindowIds.length ? "partially_reviewed" : "unreviewed";
+      const citationIds = evidenceByPage.get(`${ref.documentId}\0${ref.page}`) ?? [];
+      const extractionGapIds = section.extractionGaps.filter(gap => gap.documentId === ref.documentId && gap.page === ref.page).map(gap => gap.id);
+      pageCoverage.push({ documentId: ref.documentId, documentSha256: original.sourceSha256, page: ref.page,
+        pageSha256: original.pageSha256, sectionId: section.id, extractedUtf16Units: text.length,
+        executionStatus, reviewStatus, totalWindows: windows.length, reviewedWindowIds, unreviewedWindowIds,
+        citationStatus: result ? citationIds.length ? "cited" : "no_citation" : "unavailable",
+        citationEvidenceIds: citationIds, extractionGapIds });
+      if (includePageCoverage && !text.length) gaps.push(`${section.title}: page ${ref.documentId}:${ref.page} has empty extracted text; no page content was available for review.`);
+    }
     if (!result) {
       gaps.push(`${section.title}: no validated coverage result${last?.failure ? ` (${last.failure})` : ""}.`);
       continue;
@@ -124,9 +163,11 @@ const qualified = (state, sections, plannedMaximumCalls) => {
     const item = sections.find(entry => entry.sectionId === section.id)?.attempts.at(-1)?.result;
     return item?.status === "complete" && item.inputCoverage.complete && item.draft?.coverage === "answered";
   }) && !gaps.length && cleanupComplete;
-  return { status: hasUnknown ? "unknown" : complete ? "complete" : rows.length ? "partial" : "failed", answer: rows, gaps, cleanup: cleanupComplete ? "complete" : cleanup.includes("unconfirmed") ? "unconfirmed" : "incomplete",
+  const aggregate = { status: hasUnknown ? "unknown" : complete ? "complete" : rows.length ? "partial" : "failed", answer: rows, gaps, cleanup: cleanupComplete ? "complete" : cleanup.includes("unconfirmed") ? "unconfirmed" : "incomplete",
     plannedMaximumCalls, startedCalls: sections.flatMap(section => section.attempts.map(attempt => attempt.result?.receipt.startedCalls ?? 0)).reduce((a, b) => a + b, 0),
-    qualification: "This answer is a section-by-section assembly of existing validated document-coverage drafts, not a new cross-section synthesis. Partial extraction or review is shown as a gap. Caller-declared OCR/table/layout gaps are unverified extraction metadata. Exact citations refer to the original retained document and page versions; exact occurrence does not establish entailment or truth." };
+    qualification: "This answer is a section-by-section assembly of existing validated document-coverage drafts, not a new cross-section synthesis. Page review status counts only validated input windows; empty extracted pages are uncovered. No citation means only that no evidence from that page was retained, not that it contains no relevant material. Partial extraction or review is shown as a gap. Caller-declared OCR/table/layout gaps are unverified extraction metadata. Exact citations refer to the original retained document and page versions; exact occurrence does not establish entailment or truth." };
+  if (includePageCoverage) aggregate.pageCoverage = pageCoverage;
+  return aggregate;
 };
 
 function validate(value) {
@@ -170,8 +211,12 @@ function validate(value) {
     return { sectionId: leaf.id, attempts, pageMap, reservedMaximumCalls: plan.counts.maximumCalls * (value.policy.maxRetriesPerSection + 1) };
   });
   if (reserved > value.policy.totalMaxCalls || value.plannedMaximumCalls !== reserved) fail("closed retry call reservation exceeds totalMaxCalls");
-  const aggregate = qualified({ manifest: value.manifest }, normalized, reserved);
-  if (canonical(aggregate) !== canonical(value.aggregate)) fail("aggregate answer or gaps do not replay");
+  const aggregate = qualified(value, normalized, reserved);
+  if (canonical(aggregate) !== canonical(value.aggregate)) {
+    const legacyAggregate = qualified(value, normalized, reserved, false);
+    if (value.aggregate.pageCoverage !== undefined || canonical(legacyAggregate) !== canonical(value.aggregate))
+      fail("aggregate answer, page coverage or gaps do not replay");
+  }
   if (digest(value) !== value.sha256 || Buffer.byteLength(canonical(value), "utf8") > 64 * 1024 * 1024) fail("workflow digest or size mismatch");
   return value;
 }
@@ -308,7 +353,14 @@ export function renderDocumentRecovery(value, { format = "json" } = {}) {
     }) ?? [];
     return `### ${definition.title} (${latest?.status ?? "not run"})\n\nAttempts: ${section.attempts.length}/${state.policy.maxRetriesPerSection + 1}; unresolved: ${unresolved(section) ? "yes" : "no"}\n\n${result?.draft?.answer.map(row => `- ${row.text} [${row.evidenceIds.join(", ")}]`).join("\n") ?? latest?.failure ?? "Not run."}\n\n${citationRows.join("\n") || "No cited exact spans."}\n\n${(result?.draft?.gaps ?? []).map(gap => `- Gap: ${gap}`).join("\n")}`;
   }).join("\n\n");
-  return `# ${state.question}\n\nRecovery status: ${state.aggregate.status}\n\n${state.aggregate.qualification}\n\n## Section answers\n\n${leafRows}\n\n## Coverage and extraction gaps\n\n${state.aggregate.gaps.length ? state.aggregate.gaps.map(gap => `- ${gap}`).join("\n") : "No unresolved or caller-declared gaps."}\n\nSession budget: ${state.aggregate.startedCalls}/${state.aggregate.plannedMaximumCalls} reserved maximum calls; cleanup ${state.aggregate.cleanup}.\n\n## Retained source versions\n\n${state.sources.map(document => `- ${document.id} — source SHA-256 ${document.sha256}; ${document.pages.length} extracted pages`).join("\n")}\n\nWorkflow digest: ${state.sha256}\n`;
+  const pageCoverage = state.aggregate.pageCoverage ?? qualified(state, state.sections, state.plannedMaximumCalls).pageCoverage;
+  const pageRows = pageCoverage.map(page => {
+    const gaps = page.extractionGapIds.length ? `; caller-declared extraction gaps: ${page.extractionGapIds.join(", ")} (unverified)` : "";
+    const citations = page.citationStatus === "cited" ? `; cited evidence: ${page.citationEvidenceIds.join(", ")}`
+      : page.citationStatus === "no_citation" ? "; no citation retained (this does not show that the page had no relevant content)" : "; citations unavailable";
+    return `- ${page.documentId} page ${page.page} — ${page.reviewStatus}; windows reviewed ${page.reviewedWindowIds.length}/${page.totalWindows}; unreviewed windows ${page.unreviewedWindowIds.length ? page.unreviewedWindowIds.join(", ") : "none"}${citations}${gaps}. Source SHA-256 ${page.documentSha256}; page SHA-256 ${page.pageSha256}.`;
+  }).join("\n");
+  return `# ${state.question}\n\nRecovery status: ${state.aggregate.status}\n\n${state.aggregate.qualification}\n\n## Section answers\n\n${leafRows}\n\n## Page-level coverage\n\n${pageRows}\n\n## Coverage and extraction gaps\n\n${state.aggregate.gaps.length ? state.aggregate.gaps.map(gap => `- ${gap}`).join("\n") : "No unresolved or caller-declared gaps."}\n\nSession budget: ${state.aggregate.startedCalls}/${state.aggregate.plannedMaximumCalls} reserved maximum calls; cleanup ${state.aggregate.cleanup}.\n\n## Retained source versions\n\n${state.sources.map(document => `- ${document.id} — source SHA-256 ${document.sha256}; ${document.pages.length} extracted pages`).join("\n")}\n\nWorkflow digest: ${state.sha256}\n`;
 }
 
 // Kept exported for inspection clients that need section-local owner exports.

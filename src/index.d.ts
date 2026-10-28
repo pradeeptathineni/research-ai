@@ -195,11 +195,18 @@ export interface DocumentRecoveryDispatchRequest {
   executionId: string;
 }
 export type DocumentRecoveryDispatch = (request: DocumentRecoveryDispatchRequest) => Promise<DocumentCoverageResult | { status: "unknown"; reason: string }>;
+export interface DocumentRecoveryPageCoverage {
+  documentId: string; documentSha256: string; page: number; pageSha256: string; sectionId: string; extractedUtf16Units: number;
+  executionStatus: "complete" | "partial" | "failed" | "cancelled" | "not_run" | "unknown";
+  reviewStatus: "empty-extracted-text" | "unknown" | "not_run" | "no_validated_result" | "fully_reviewed" | "partially_reviewed" | "unreviewed";
+  totalWindows: number; reviewedWindowIds: string[]; unreviewedWindowIds: string[];
+  citationStatus: "cited" | "no_citation" | "unavailable"; citationEvidenceIds: string[]; extractionGapIds: string[];
+}
 export interface ResearchDocumentRecovery {
   version: "research-document-recovery-v1"; owner: "research-ai"; id: `recovery:${string}`; question: string; revision: number;
   sources: ResearchDocumentInput[]; manifest: DocumentRecoverySection[]; policy: DocumentRecoveryPolicy; plannedMaximumCalls: number;
   sections: Array<{ sectionId: string; attempts: Array<{ number: number; status: "complete" | "partial" | "failed" | "cancelled" | "not_run" | "unknown"; result: DocumentCoverageResult | null; failure: string | null }>; pageMap: Array<{ documentId: string; localPage: number; originalPage: number; sourceSha256: string; pageSha256: string }>; reservedMaximumCalls: number }>;
-  aggregate: { status: "complete" | "partial" | "failed" | "unknown"; answer: Array<{ sectionId: string; sectionTitle: string; text: string; citations: Array<{ evidenceId: string; documentId: string; documentSha256: string; page: number; pageSha256: string; start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context" }> }>; gaps: string[]; cleanup: "complete" | "unconfirmed" | "incomplete"; plannedMaximumCalls: number; startedCalls: number; qualification: string };
+  aggregate: { status: "complete" | "partial" | "failed" | "unknown"; answer: Array<{ sectionId: string; sectionTitle: string; text: string; citations: Array<{ evidenceId: string; documentId: string; documentSha256: string; page: number; pageSha256: string; start: number; end: number; quote: string; relation: "supporting" | "conflicting" | "context" }> }>; pageCoverage?: DocumentRecoveryPageCoverage[]; gaps: string[]; cleanup: "complete" | "unconfirmed" | "incomplete"; plannedMaximumCalls: number; startedCalls: number; qualification: string };
   sha256: string;
 }
 export function createDocumentRecovery(question: string, options: { id?: string; documents: ResearchDocumentInput[]; sections: DocumentRecoverySection[]; policy?: Partial<DocumentRecoveryPolicy> }): ResearchDocumentRecovery;

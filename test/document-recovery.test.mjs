@@ -8,6 +8,10 @@ import { prepareDocumentCoverage, researchDocumentCoverage } from "../src/index.
 import { fakeCodex, message } from "./fake-codex.mjs";
 
 const hash = text => createHash("sha256").update(text, "utf8").digest("hex");
+const canonical = value => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
+  : value && typeof value === "object" ? `{${Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
+    : JSON.stringify(value);
+const recoveryDigest = value => hash(canonical(Object.fromEntries(Object.entries(value).filter(([key]) => key !== "sha256"))));
 const documents = [{ id: "paper", title: "Synthetic 64-page paper", sha256: hash("synthetic raw document bytes"),
   pages: Array.from({ length: 64 }, (_, index) => {
     const number = index + 1, text = `Page ${number} finding: measured value ${number} units.`;
@@ -48,6 +52,9 @@ test("64-page hierarchical closure retries only failed leaf and never hides extr
     let recovery = createDocumentRecovery("What measurements are reported?", { documents, sections, policy });
     assert.equal(recovery.version, "research-document-recovery-v1");
     assert.equal(recovery.plannedMaximumCalls, 32);
+    assert.equal(recovery.aggregate.pageCoverage.length, 64);
+    assert.equal(recovery.aggregate.pageCoverage[24].reviewStatus, "not_run");
+    assert.equal(recovery.aggregate.pageCoverage[24].unreviewedWindowIds.length, 1);
     await assert.rejects(runDocumentRecovery(recovery, { confirmedSha256: "0".repeat(64), lease: fixture.lease }), /confirm the exact recovery plan/);
     assert.deepEqual(await fixture.probes(), [], "stale confirmation refuses before runner probes");
     const initialSha = recovery.sha256;
@@ -58,6 +65,11 @@ test("64-page hierarchical closure retries only failed leaf and never hides extr
     assert.ok(recovery.aggregate.gaps.some(gap => /caller-declared table extraction gap/.test(gap)));
     assert.ok(recovery.aggregate.gaps.some(gap => /caller-declared ocr extraction gap/.test(gap)));
     assert.ok(recovery.aggregate.gaps.some(gap => /Section 4: execution failed/.test(gap)));
+    const failedPage = recovery.aggregate.pageCoverage.find(page => page.page === 25);
+    assert.equal(failedPage.executionStatus, "failed");
+    assert.equal(failedPage.reviewStatus, "unreviewed");
+    assert.deepEqual(failedPage.reviewedWindowIds, []);
+    assert.equal(failedPage.unreviewedWindowIds.length, 1);
     const beforeRetry = recovery.sha256;
     await assert.rejects(retryDocumentRecovery(recovery, ["section-1"], { confirmedSha256: beforeRetry, lease: fixture.lease }), /not an execution or answer-coverage retry candidate/);
     assert.equal(await calls(fixture), 15, "only 7 successful leaves and one failed leaf ran");
@@ -66,6 +78,11 @@ test("64-page hierarchical closure retries only failed leaf and never hides extr
     assert.deepEqual(JSON.parse(JSON.stringify(frozen)).sections[3].attempts.map(attempt => attempt.status), ["failed"]);
     assert.deepEqual(recovery.sections[3].attempts.map(attempt => attempt.status), ["failed", "complete"]);
     assert.equal(recovery.sections[0].attempts.length, 1, "other sections were not rerun");
+    const recoveredPage = recovery.aggregate.pageCoverage.find(page => page.page === 25);
+    assert.equal(recoveredPage.reviewStatus, "fully_reviewed");
+    assert.equal(recoveredPage.unreviewedWindowIds.length, 0);
+    assert.equal(recoveredPage.citationStatus, "cited");
+    assert.deepEqual(recovery.aggregate.pageCoverage.find(page => page.page === 50).extractionGapIds, ["table-gap"]);
     assert.equal(await calls(fixture), 17);
     assert.ok(recovery.aggregate.startedCalls <= recovery.aggregate.plannedMaximumCalls);
     assert.equal(recovery.aggregate.status, "partial", "declared extraction gap survives recovery");
@@ -86,7 +103,43 @@ test("64-page hierarchical closure retries only failed leaf and never hides extr
     assert.match(markdown, /Recovery status: partial/);
     assert.match(markdown, /unverified extraction metadata/);
     assert.match(markdown, /source SHA-256/);
+    assert.match(markdown, /## Page-level coverage/);
+    assert.match(markdown, /page 50 — fully_reviewed; windows reviewed 1\/1/);
+    assert.match(markdown, /caller-declared extraction gaps: table-gap \(unverified\)/);
   } finally { await fixture.cleanup(); }
+});
+
+test("empty extracted pages remain visible and cannot qualify as reviewed coverage", () => {
+  const short = [{ id: "empty-paper", title: "Synthetic empty page", sha256: hash("raw empty-paper"), pages: [
+    { number: 1, text: "", sha256: hash("") },
+    { number: 2, text: "Retained text on page two.", sha256: hash("Retained text on page two.") },
+  ] }];
+  const tree = [{ id: "whole", parentId: null, title: "Whole document", pageRefs: [], extractionGaps: [] },
+    { id: "all", parentId: "whole", title: "All pages", pageRefs: [1, 2].map(page => ({ documentId: "empty-paper", page })), extractionGaps: [] }];
+  const planned = createDocumentRecovery("What does this document say?", { documents: short, sections: tree,
+    policy: { maxCallsPerSection: 2, maxRetriesPerSection: 0, totalMaxCalls: 2, passUtf16Units: 1000, maxSecondsPerSection: 10 } });
+  const empty = planned.aggregate.pageCoverage.find(page => page.page === 1);
+  assert.equal(empty.reviewStatus, "empty-extracted-text");
+  assert.equal(empty.extractedUtf16Units, 0);
+  assert.equal(empty.totalWindows, 1);
+  assert.ok(planned.aggregate.gaps.some(gap => /empty extracted text/.test(gap)));
+  assert.notEqual(planned.aggregate.status, "complete");
+  assert.deepEqual(validateDocumentRecovery(planned), planned);
+});
+
+test("pre-page-projection v1 artifacts remain readable and gain page coverage on Markdown render", () => {
+  const one = [{ id: "legacy", title: "Legacy page", sha256: hash("raw legacy"), pages: [
+    { number: 1, text: "Legacy retained page text.", sha256: hash("Legacy retained page text.") },
+  ] }];
+  const tree = [{ id: "whole", parentId: null, title: "Whole document", pageRefs: [], extractionGaps: [] },
+    { id: "all", parentId: "whole", title: "All pages", pageRefs: [{ documentId: "legacy", page: 1 }], extractionGaps: [] }];
+  const planned = createDocumentRecovery("Question?", { documents: one, sections: tree,
+    policy: { maxCallsPerSection: 2, maxRetriesPerSection: 0, totalMaxCalls: 2, passUtf16Units: 1000, maxSecondsPerSection: 10 } });
+  const legacy = structuredClone(planned);
+  delete legacy.aggregate.pageCoverage;
+  legacy.sha256 = recoveryDigest(legacy);
+  assert.deepEqual(validateDocumentRecovery(legacy), legacy);
+  assert.match(renderDocumentRecovery(legacy, { format: "markdown" }), /## Page-level coverage[\s\S]*legacy page 1 — not_run/);
 });
 
 test("closed retry reservation rejects excess sections before dispatch", () => {
