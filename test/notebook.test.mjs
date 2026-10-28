@@ -238,6 +238,34 @@ test("Briefing notebook sources retain exact item/source refs and only the owner
     "legacy notebooks without a Briefing origin remain compatible");
 });
 
+test("Briefing story context is additive to existing item/source origin records", () => {
+  const excerpt = "Synthetic story member excerpt.";
+  const storyReference = { owner: "signals-ai", kind: "briefing-story", id: "story:rd02", revision: `sha256:${sha("story record")}` };
+  const itemReference = { owner: "signals-ai", kind: "briefing-item", id: "item:rd02-story", revision: `sha256:${sha("story item")}` };
+  const sourceReference = { owner: "signals-ai", kind: "briefing-source", id: "source:rd02-story", revision: `sha256:${sha("story source")}` };
+  const origin = {
+    schemaVersion: 1, kind: "signals-briefing-item", storyReference, itemReference, sourceReference,
+    contentDigest: sha("captured item content"), excerptSha256: sha(excerpt),
+    observedAt: "2026-10-28T10:00:00.000Z",
+    sourceHealth: { status: "unknown", lastGoodAt: null, lastAttemptAt: null, lastAttemptStatus: null,
+      lastSuccessfulLinkCount: null, failureClass: null, expectedIntervalSec: null },
+  };
+  const document = { id: `briefing-item-${sha(canonical([storyReference, itemReference, sourceReference]))}`,
+    title: "Synthetic Briefing story member", sha256: sha("header"), pages: [page(1, excerpt)] };
+  const notebook = reviseResearchNotebook(createResearchNotebook("Story context"), {
+    type: "add-briefing-source", document, origin,
+  });
+  const reopened = validateResearchNotebook(JSON.parse(renderResearchNotebook(notebook)));
+  assert.deepEqual(reopened, notebook);
+  assert.equal(reopened.sources[0].briefingOrigin.storyReference.revision, storyReference.revision);
+  assert.equal(reopened.sources[0].briefingOrigin.itemReference.revision, itemReference.revision);
+
+  const tampered = structuredClone(notebook);
+  tampered.sources[0].briefingOrigin.storyReference.revision = `sha256:${"0".repeat(64)}`;
+  tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => validateResearchNotebook(tampered), /Briefing item excerpt or exact item identity/);
+});
+
 test("default empty topic reopens and a large source stays available for reading and explicit planning", () => {
   let notebook = createResearchNotebook("Untitled notes");
   assert.equal(notebook.topic, "");
