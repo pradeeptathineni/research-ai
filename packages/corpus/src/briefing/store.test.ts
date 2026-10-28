@@ -1,16 +1,24 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
-import { defaultSettings, saveSettings } from '../search-settings.js';
+import { defaultSettings, loadSettings, saveSettings } from '../search-settings.js';
 import {
   allDayEventFixture,
   itemFixture,
   metricObservationFixture,
   storyFixture,
 } from './fixtures.js';
-import { exportOpml, parseIcs, parseJsonFeed, parseOpml, refreshBriefing } from './ingest.js';
+import {
+  exportOpml,
+  importBriefingOpml,
+  parseIcs,
+  parseJsonFeed,
+  parseOpml,
+  previewBriefingOpml,
+  refreshBriefing,
+} from './ingest.js';
 import { briefingRoute } from './http.js';
 import { createBriefingApi, retainBriefingRecords } from './store.js';
 import { searchApi } from '../search-api.js';
@@ -50,6 +58,77 @@ async function fixtureRoot() {
 }
 
 describe('Briefing same-store API', () => {
+  it('keeps OPML receipts read-only to generic settings saves', async () => {
+    const root = await fixtureRoot();
+    const opml =
+      '<opml><body><outline text="Added" xmlUrl="https://example.test/added.xml"/></body></opml>';
+    const preview = await previewBriefingOpml(root, opml);
+    const requestId = '2e4ef39f-14cb-4327-b345-861c3b94920a';
+    await importBriefingOpml(root, opml, requestId, preview);
+    const committed = await loadSettings(root);
+    const receipt = committed.briefingOpmlImports;
+    await expect(saveSettings({ ...committed, briefingOpmlImports: [] }, root)).rejects.toThrow(
+      'briefing_import_receipts_read_only',
+    );
+    await expect(
+      saveSettings(
+        {
+          ...committed,
+          briefingOpmlImports: [
+            ...(receipt ?? []),
+            { ...receipt![0]!, requestId: '2e4ef39f-14cb-4327-b345-861c3b94920b' },
+          ],
+        },
+        root,
+      ),
+    ).rejects.toThrow('briefing_import_receipts_read_only');
+    const { briefingOpmlImports: _omitted, ...legacyShape } = committed;
+    await saveSettings(legacyShape, root);
+    await saveSettings(committed, root);
+    expect((await loadSettings(root)).briefingOpmlImports).toEqual(receipt);
+  });
+
+  it('preserves disabled Following identity when OPML updates a URL', async () => {
+    const root = await fixtureRoot();
+    const existing = {
+      uri: 'https://example.test/extra.xml',
+      label: 'Old label',
+      enabled: false,
+      interests: ['climate-data'],
+    };
+    const current = await loadSettings(root);
+    await saveSettings(
+      { ...current, followedSources: [...(current.followedSources ?? []), existing] },
+      root,
+    );
+    const opml =
+      '<opml><body><outline text="New label" xmlUrl="https://example.test/extra.xml"/></body></opml>';
+    const preview = await previewBriefingOpml(root, opml);
+    expect(preview.sources[0]?.status).toBe('update');
+    await importBriefingOpml(root, opml, '7a21f9cb-a8e5-4bdd-a2f5-dd41be26d361', preview);
+    expect(
+      (await loadSettings(root)).followedSources?.find(({ uri }) => uri === existing.uri),
+    ).toEqual({
+      ...existing,
+      label: 'New label',
+    });
+  });
+
+  it('does not rewrite settings when an OPML request is replayed', async () => {
+    const root = await fixtureRoot();
+    const opml =
+      '<opml><body><outline text="Added" xmlUrl="https://example.test/added.xml"/></body></opml>';
+    const preview = await previewBriefingOpml(root, opml);
+    const requestId = '351f3ca7-3c50-4b02-9bd1-96b27b4aec08';
+    await importBriefingOpml(root, opml, requestId, preview);
+    const file = join(root, '.signals/settings.json');
+    const beforeBytes = await readFile(file);
+    const beforeInode = (await stat(file, { bigint: true })).ino;
+    expect((await importBriefingOpml(root, opml, requestId, preview)).replayed).toBe(true);
+    expect(await readFile(file)).toEqual(beforeBytes);
+    expect((await stat(file, { bigint: true })).ino).toBe(beforeInode);
+  });
+
   it('keeps OPML mutations behind the existing session authority and rejects open payloads', async () => {
     const root = await fixtureRoot();
     const handler = searchApi(root);

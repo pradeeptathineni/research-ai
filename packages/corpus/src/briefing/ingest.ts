@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { fetchEvidence } from '../search-fetch.js';
 import { scanSources } from '../search-sources.js';
-import { loadSettings, updateSettings } from '../search-settings.js';
+import { loadSettings, updateSettingsForBriefingOpml } from '../search-settings.js';
 import type { SearchSettings } from '../search-settings.js';
 import type { AllDayEvent, Item, Source, Story, TimedEvent } from './schema.js';
 import { createBriefingApi, listSourceTerms, retainBriefingRecords } from './store.js';
@@ -461,12 +461,9 @@ function buildOpmlPreview(
   const byUrl = new Map(current.map((source) => [source.uri, source]));
   const changes = parsed.map((source) => {
     const prior = byUrl.get(source.url);
-    const next = {
-      uri: source.url,
-      label: source.label,
-      enabled: true,
-      interests: prior?.interests ?? [],
-    };
+    const next = prior
+      ? { ...prior, label: source.label }
+      : { uri: source.url, label: source.label, enabled: true, interests: [] };
     const status = !prior
       ? 'add'
       : canonicalSources(prior) === canonicalSources(next)
@@ -524,7 +521,7 @@ export async function importBriefingOpml(
     }),
   );
   let expectedSources: NonNullable<SearchSettings['followedSources']> = [];
-  const { settings: retained, result } = await updateSettings(root, (settings) => {
+  const { settings: retained, result } = await updateSettingsForBriefingOpml(root, (settings) => {
     const prior = (settings.briefingOpmlImports ?? []).find(
       (entry) => entry.requestId === requestId,
     );
@@ -545,13 +542,15 @@ export async function importBriefingOpml(
     )
       throw new Error('opml_preview_stale');
     const byUrl = new Map(before.map((source) => [source.uri, source]));
-    for (const source of preview.sources)
-      byUrl.set(source.url, {
-        uri: source.url,
-        label: source.label,
-        enabled: true,
-        interests: byUrl.get(source.url)?.interests ?? [],
-      });
+    for (const source of preview.sources) {
+      const prior = byUrl.get(source.url);
+      byUrl.set(
+        source.url,
+        prior
+          ? { ...prior, label: source.label }
+          : { uri: source.url, label: source.label, enabled: true, interests: [] },
+      );
+    }
     const followedSources = [...byUrl.values()];
     expectedSources = followedSources;
     if (followedSources.length > 50) throw new Error('following_source_limit');
