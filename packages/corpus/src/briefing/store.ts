@@ -704,6 +704,73 @@ export function createBriefingApi(root: string) {
 export async function listSourceTerms(root: string) {
   return (await readState(root)).sourceTerms;
 }
+
+/** Exact serialized bytes for the small Briefing record kinds exposed to local owners. */
+export async function briefingRecordBytes(
+  root: string,
+  kind: 'briefing-item' | 'briefing-source',
+  id: string,
+) {
+  const state = await readState(root);
+  const record = kind === 'briefing-item'
+    ? state.items.find((item) => item.id === id)
+    : (await projectedSources(root, state)).find((source) => source.id === id);
+  if (!record) {
+    const error = new Error('briefing_record_not_found');
+    Object.assign(error, { status: 404, code: 'briefing_record_not_found' });
+    throw error;
+  }
+  return Buffer.from(canonical(record));
+}
+
+export type BriefingCaptureContext = {
+  itemReference: BriefingRecordReference;
+  itemContentDigest: string;
+  sourceReference: BriefingRecordReference;
+  sourceHealth: Source['health'];
+  termsPolicy: SourceTermsPolicy | null;
+  observedAt: string;
+};
+
+/** Resolves a selected Briefing item and its current linked source/policy without fetching it. */
+export async function readBriefingCaptureContext(
+  root: string,
+  itemReference: unknown,
+): Promise<BriefingCaptureContext> {
+  if (
+    !Value.Check(BriefingRecordReferenceSchema, itemReference) ||
+    itemReference.kind !== 'briefing-item'
+  )
+    throw new Error('invalid_briefing_item_reference');
+  const state = await readState(root);
+  const item = state.items.find((candidate) => candidate.id === itemReference.id);
+  if (!item) {
+    const error = new Error('briefing_item_missing');
+    Object.assign(error, { status: 404, code: 'briefing_item_missing' });
+    throw error;
+  }
+  const currentItemReference = recordRef(item, 'briefing-item', item.id).reference;
+  if (canonical(currentItemReference) !== canonical(itemReference)) {
+    const error = new Error('briefing_item_changed');
+    Object.assign(error, { status: 409, code: 'briefing_item_changed' });
+    throw error;
+  }
+  const source = (await projectedSources(root, state)).find((candidate) => candidate.id === item.sourceId);
+  if (!source) {
+    const error = new Error('briefing_source_missing');
+    Object.assign(error, { status: 404, code: 'briefing_source_missing' });
+    throw error;
+  }
+  return {
+    itemReference: currentItemReference,
+    itemContentDigest: item.contentDigest,
+    sourceReference: recordRef(source, 'briefing-source', source.id).reference,
+    sourceHealth: source.health,
+    termsPolicy: state.sourceTerms.find((policy) => policy.sourceId === source.id) ?? null,
+    observedAt: currentTime(),
+  };
+}
+
 export async function listBriefingPreferences(root: string) {
   const state = await readState(root);
   return {

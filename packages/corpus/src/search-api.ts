@@ -10,6 +10,7 @@ import {
   selectSourceCapture,
   SourceCaptureError,
   type RecordRef,
+  type SourceCaptureOptions,
 } from './source-captures.js';
 import {
   createSourceChangeReview,
@@ -168,6 +169,7 @@ import {
   type QueryBatch,
 } from './search-query-list.js';
 import { briefingRoute } from './briefing/http.js';
+import { readBriefingCaptureContext } from './briefing/store.js';
 
 const selection = Type.Object(
   {
@@ -227,6 +229,7 @@ export function searchApi(
   // Saved-context discussion runner; the default is the no-web Codex runner.
   discussionRunner?: (task: string, schema: unknown) => Pick<SearchRunner, 'discover'>,
   sourceRenderRuntime: SourceRenderRuntime = {},
+  sourceCaptureFetcher?: SourceCaptureOptions['fetcher'],
 ) {
   const token = randomBytes(32).toString('hex');
   const runs = new Map<string, ActiveRun>();
@@ -565,6 +568,45 @@ export function searchApi(
           const exact = await exactOwnerRecord(root, ref);
           return { bytes: exact.bytes, ref: exact.ref as RecordRef };
         };
+        const readBriefingContext = async (ref: RecordRef) => {
+          if (ref.kind !== 'briefing-item')
+            throw new SourceCaptureError(400, 'invalid_source_capture_request', 'Only an exact Briefing item can be captured through this path.');
+          const briefRef = { owner: ref.owner, kind: ref.kind, id: ref.id, revision: ref.revision };
+          const context = await readBriefingCaptureContext(root, briefRef);
+          const sourceRef = {
+            owner: 'signals-ai' as const,
+            kind: 'briefing-source' as const,
+            id: context.sourceReference.id,
+            revision: context.sourceReference.revision,
+            digest: context.sourceReference.revision.slice('sha256:'.length),
+          };
+          const exactSource = await resolveSource(sourceRef as RecordRef);
+          if (
+            exactSource.ref.revision !== sourceRef.revision ||
+            exactSource.ref.digest !== sourceRef.digest
+          )
+            throw new SourceCaptureError(409, 'provider_record_changed', 'The linked Briefing source changed.');
+          return {
+            item_reference: {
+              owner: 'signals-ai' as const,
+              kind: 'briefing-item' as const,
+              id: ref.id,
+              revision: ref.revision,
+              digest: ref.digest,
+            },
+            item_content_digest: context.itemContentDigest,
+            source_ref: sourceRef,
+            source_health: context.sourceHealth,
+            terms_policy: context.termsPolicy ?? {
+              id: null,
+              sourceId: context.sourceReference.id,
+              termsUrl: null,
+              status: 'unknown' as const,
+              reviewedAt: null,
+            },
+            observed_at: context.observedAt,
+          };
+        };
         const routeParams = new URL(request.url!, 'http://127.0.0.1').searchParams;
         if (route === 'source-captures' && mutation) {
           if (routeParams.size)
@@ -584,7 +626,11 @@ export function searchApi(
               root,
               payload,
               resolveSource,
-              captureId === undefined ? {} : { captureId: captureId as string },
+              {
+                ...(captureId === undefined ? {} : { captureId: captureId as string }),
+                readBriefingContext,
+                ...(sourceCaptureFetcher ? { fetcher: sourceCaptureFetcher } : {}),
+              },
             ),
           );
         } else if (route === 'source-captures' && !mutation) {
@@ -709,7 +755,15 @@ export function searchApi(
               'invalid_source_capture_request',
               'Capture reopen does not accept query fields.',
             );
-          json(200, await openSourceCapture(root, route.slice('source-captures/'.length)));
+          json(
+            200,
+            await openSourceCapture(
+              root,
+              route.slice('source-captures/'.length),
+              resolveSource,
+              readBriefingContext,
+            ),
+          );
         } else if (route === 'source-annotations' && mutation) {
           if (routeParams.size)
             throw new SourceCaptureError(

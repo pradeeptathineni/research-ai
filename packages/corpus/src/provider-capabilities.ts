@@ -29,6 +29,7 @@ import {
   sourceRenderRecordBytes,
   SourceRenderError,
 } from './source-render.js';
+import { briefingRecordBytes } from './briefing/store.js';
 
 const closed = { additionalProperties: false };
 const text = Type.String({ minLength: 1, maxLength: 200 });
@@ -90,6 +91,7 @@ const recordSchema = Type.Object(
       'source_change_review_record',
       'project_topic_relevance_record',
       'project_opportunity_brief_record',
+      'briefing_record',
     ]),
   },
   closed,
@@ -721,6 +723,18 @@ async function ownedBytes(
       bytes: projectedBytes({ id, uri: lead.uri, history: lead.lead!.history }),
       storage: 'lead_record',
     };
+  }
+  if (kind === 'briefing-item' || kind === 'briefing-source') {
+    try {
+      return { bytes: await briefingRecordBytes(root, kind, id), storage: 'briefing_record' };
+    } catch (error) {
+      if (error && typeof error === 'object' && 'status' in error) {
+        const status = Number((error as { status: unknown }).status);
+        const code = String((error as { code?: unknown }).code ?? 'briefing_record_unavailable');
+        if (status === 404) fail(404, code, 'The exact Briefing record is missing.');
+      }
+      fail(503, 'briefing_record_unavailable', 'The exact Briefing record could not be read safely.');
+    }
   }
   if (kind === 'project') {
     if (!projectId.test(id)) fail(400, 'invalid_provider_reference', 'Invalid project identity.');
