@@ -1147,7 +1147,16 @@ export interface ResearchNotebookNoteVersion {
   version: number; title: string; text: string; origin: ResearchNotebookOrigin; sha256: string;
 }
 export interface ResearchNotebookNote { id: string; versions: ResearchNotebookNoteVersion[] }
-export interface ResearchNotebookSource { id: string; document: ResearchDocumentInput; digest: string }
+export interface ResearchShouldaSourceOrigin {
+  schemaVersion: 1; kind: "shoulda-source-selection"; sourceSelectionId: string; selectionReceiptSha256: string;
+  repository: string; sourceId: string; headCommit: string; snapshotFingerprint: string;
+  sourceInspectionId: string; sourceAssessmentId: string; decisionId: string;
+  files: Array<{ page: number; path: string; role: string; sha256: string; byteCount: number }>;
+  nearbyDocuments: Array<{ path: string; kind: "readme" | "license" | "notice"; sha256: string | null;
+    truncated: boolean; state: "observed" | "missing" | "symlink" | "unavailable" }>;
+  qualificationBasis: "caller-authored-only"; legalCompatibility: "not-assessed";
+}
+export interface ResearchNotebookSource { id: string; document: ResearchDocumentInput; digest: string; shouldaOrigin?: ResearchShouldaSourceOrigin }
 export interface ResearchNotebookSourceMap {
   documentId: string; kind: "document" | "note"; recordId: string; version: number | null; digest: string; title: string;
 }
@@ -1165,6 +1174,7 @@ export interface ResearchNotebook {
 export type ResearchNotebookEdit =
   | { type: "rename"; title?: string; topic?: string }
   | { type: "add-source"; id?: string; document: ResearchDocumentInput }
+  | { type: "add-shoulda-source"; id?: string; document: ResearchDocumentInput; origin: ResearchShouldaSourceOrigin }
   | { type: "add-note"; id?: string; title: string; text: string }
   | { type: "edit-note"; id: string; title: string; text: string };
 export interface PreparedNotebookQuestion {

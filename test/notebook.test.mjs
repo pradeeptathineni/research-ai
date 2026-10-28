@@ -168,6 +168,45 @@ test("whole-state and scope tampering refuse without mutating retained input", (
   assert.equal(prepared.spec.id, spec.id);
 });
 
+test("Shoulda selected-source origin is additive, exact-page bound and cold-reopen validated", () => {
+  const content = "# Retained selected file\n\nExact synthetic bytes.\n";
+  const document = doc("shoulda-sfs_0123456789abcdef01234567", [page(1, content)]);
+  const origin = {
+    schemaVersion: 1,
+    kind: "shoulda-source-selection",
+    sourceSelectionId: "sfs_0123456789abcdef01234567",
+    selectionReceiptSha256: sha("exact synthetic Shoulda receipt"),
+    repository: "example/synthetic-repo",
+    sourceId: "fixture",
+    headCommit: "1".repeat(40),
+    snapshotFingerprint: `srcsnap_${"2".repeat(64)}`,
+    sourceInspectionId: "sdi_0123456789abcdef01234567",
+    sourceAssessmentId: "sda_0123456789abcdef01234567",
+    decisionId: "dec_0123456789abcdef",
+    files: [{ page: 1, path: "README.md", role: "implementation overview", sha256: sha(content), byteCount: Buffer.byteLength(content) }],
+    nearbyDocuments: [{ path: "NOTICE", kind: "notice", sha256: sha("Synthetic notice."), truncated: false, state: "observed" }],
+    qualificationBasis: "caller-authored-only",
+    legalCompatibility: "not-assessed",
+  };
+  const documentId = document.id;
+  let notebook = createResearchNotebook("Selected repository evidence");
+  notebook = reviseResearchNotebook(notebook, { type: "add-shoulda-source", document, origin });
+  assert.equal(notebook.sources[0].document.id, documentId);
+  assert.equal(notebook.sources[0].shouldaOrigin.sourceSelectionId, origin.sourceSelectionId);
+  assert.equal(notebook.sources[0].shouldaOrigin.repository, origin.repository);
+  assert.equal(notebook.sources[0].shouldaOrigin.legalCompatibility, "not-assessed");
+  assert.deepEqual(validateResearchNotebook(JSON.parse(renderResearchNotebook(notebook))), notebook);
+
+  const tampered = structuredClone(notebook);
+  tampered.sources[0].shouldaOrigin.files[0].sha256 = sha("different bytes");
+  tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => validateResearchNotebook(tampered), /Shoulda source file identity/);
+  assert.throws(() => reviseResearchNotebook(notebook, { type: "add-shoulda-source",
+    document: doc("second-shoulda-selection", [page(1, content)]),
+    origin: { ...origin, legalCompatibility: "compatible" } }), /qualification/);
+  assert.equal(validateResearchNotebook(starter()).sources[0].shouldaOrigin, undefined, "older source records remain compatible");
+});
+
 test("default empty topic reopens and a large source stays available for reading and explicit planning", () => {
   let notebook = createResearchNotebook("Untitled notes");
   assert.equal(notebook.topic, "");
