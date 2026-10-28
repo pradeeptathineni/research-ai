@@ -1,0 +1,209 @@
+import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinaryResearchPrompt, researchQuestion, groundedAnswer, groundedResearchQuestion, validateGrounding, assessGroundedAnswer, perspectiveCandidates, chooseLenses, perspectiveResearch, basicFacts, outlineResearch, validateOutline, reviseOutline, renderOutline, createInvestigation, reviseInvestigation, validateInvestigation, planInvestigation, renderInvestigation, advanceInvestigation, resumeInvestigation, createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch, createReport, validateReport, reviseReport, draftReportSection, renderReport, researchActivity } from '@pradeeptathineni/research-ai';
+import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, InvestigationPlan, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
+import { createLiteratureSet, addLiteraturePaper, deduplicateLiteraturePapers, prepareLiteratureQuestion, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion, checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, exportLiteratureStudyPlanningSource, validateLiteratureStudyPlanningSource, formatLiteratureSet } from '@pradeeptathineni/research-ai';
+import type { LiteraturePaper, PreparedLiteratureStudyQuestion, LiteratureStudyPlanningSource } from '@pradeeptathineni/research-ai';
+const literaturePaper: LiteraturePaper = { id: 'paper:fixture', metadata: { title: 'Synthetic paper' }, availability: 'missing', source: null,
+  statusEvidence: { kind: 'missing-source', assertedBy: 'fixture', observedAt: '2026-10-27T12:00:00Z', verification: 'asserted-unverified', detail: 'Synthetic absence.' },
+  finding: null, stance: null, claimKey: null, qualification: ['Source missing from fixture.'] };
+const literature = addLiteraturePaper(createLiteratureSet('Synthetic set'), literaturePaper);
+const dedupe = deduplicateLiteraturePapers(literature.papers);
+const literatureExport: string = formatLiteratureSet(literature);
+declare const selectedLiteratureNotebooks: unknown[];
+const literaturePreview: PreparedLiteratureStudyQuestion = prepareLiteratureStudyQuestion(literature, selectedLiteratureNotebooks,
+  'Synthetic question', {}, { paperIds: [literaturePaper.id] });
+const coldLiteraturePreview: PreparedLiteratureStudyQuestion = validateLiteratureStudyQuestion(literaturePreview);
+const literatureCurrentness = checkLiteratureStudyQuestionSources(coldLiteraturePreview, literature, selectedLiteratureNotebooks);
+declare const coverageResult: DocumentCoverageResult;
+const literatureEvidence = projectLiteratureStudyEvidence(coldLiteraturePreview, coverageResult);
+declare const admissionRequestId: string;
+const literaturePlanningSource: LiteratureStudyPlanningSource = exportLiteratureStudyPlanningSource(coldLiteraturePreview, coverageResult, admissionRequestId);
+const checkedLiteraturePlanningSource: LiteratureStudyPlanningSource = validateLiteratureStudyPlanningSource(coldLiteraturePreview, coverageResult, admissionRequestId, literaturePlanningSource);
+void [dedupe, literatureExport, prepareLiteratureQuestion, literatureCurrentness, literatureEvidence, checkedLiteraturePlanningSource];
+import { createPerspectiveWorkflow, validatePerspectiveWorkflow, perspectiveSpanContribution, renderPerspectiveWorkflow, reviewWorkflowOutlineCitations } from '@pradeeptathineni/research-ai';
+import type { ResearchPerspectiveWorkflow } from '@pradeeptathineni/research-ai';
+const workflowSources: FrozenSource[] = [{ uri: 'https://example.org/frozen', text: 'A frozen source.' }];
+const workflow: ResearchPerspectiveWorkflow = createPerspectiveWorkflow('A question', { sources: workflowSources, perspectives: 'auto' });
+const checkedWorkflow: ResearchPerspectiveWorkflow = validatePerspectiveWorkflow(workflow);
+const workflowJson: string = renderPerspectiveWorkflow(checkedWorkflow, { format: 'json' });
+void [perspectiveSpanContribution, workflowJson, reviewWorkflowOutlineCitations];
+import { importTableCsv, registerTable } from '@pradeeptathineni/research-ai';
+import type { ResearchTableCsvResult } from '@pradeeptathineni/research-ai';
+declare const hostParserRoot: string;
+const importedCsv: Promise<ResearchTableCsvResult> = importTableCsv('header\nvalue\n', { parserRoot: hostParserRoot, label: 'Synthetic CSV' });
+const suppliedTable = registerTable({ version: 'research-table-v1', id: 'table-4f7d831d-fb2b-4a4b-89f4-c06c8cf08699', columns: [{ id: 'c0', label: 'Header', type: 'text' }], rows: [['value']], origin: { type: 'caller-supplied', label: 'Synthetic CSV' } });
+void [importedCsv, suppliedTable.sha256];
+import { prepareDocumentRecoverySynthesis, runDocumentRecoverySynthesis, validateDocumentRecoverySynthesis, renderDocumentRecoverySynthesis } from '@pradeeptathineni/research-ai';
+import type { DocumentRecoverySynthesis, DocumentRecoverySynthesisPlan } from '@pradeeptathineni/research-ai';
+declare const recoveryArtifact: ResearchDocumentRecovery;
+declare const synthesisPlan: DocumentRecoverySynthesisPlan;
+const synthesisRun: Promise<DocumentRecoverySynthesis> = runDocumentRecoverySynthesis(recoveryArtifact, synthesisPlan, { confirmedPlanSha256: synthesisPlan.planDigest });
+void [prepareDocumentRecoverySynthesis(recoveryArtifact), validateDocumentRecoverySynthesis, renderDocumentRecoverySynthesis, synthesisRun];
+import { documentResearchLimits, prepareDocumentResearch, researchDocuments, renderDocumentResearch, validateDocumentResearch } from '@pradeeptathineni/research-ai';
+import type { DocumentResearchDraft, DocumentResearchResult, PreparedDocumentResearch, ResearchDocumentInput } from '@pradeeptathineni/research-ai';
+const frozenPage = 'A complete synthetic page.';
+const frozenDocument: ResearchDocumentInput = { id: 'doc-a', title: 'Synthetic document', sha256: 'a'.repeat(64), pages: [{ number: 1, text: frozenPage, sha256: 'b'.repeat(64) }] };
+const preparedDocument: PreparedDocumentResearch = prepareDocumentResearch('Question', [frozenDocument]);
+const documentActivity = (event: ResearchActivity): void => { void [event.kind, event.sequence]; };
+const documentRun: Promise<DocumentResearchResult> = researchDocuments('Question', [frozenDocument], { activity: documentActivity });
+function documentUse(draft: DocumentResearchDraft): string {
+  return renderDocumentResearch(validateDocumentResearch(draft));
+}
+void [preparedDocument, documentRun, documentUse, documentResearchLimits.documents];
+import { legacy } from './shape.mjs';
+const cleanup: SessionCleanup = { complete: true, error: null };
+const outcome: SessionOutcome = { ...legacy, cleanup };
+const result: ResearchResult = { status: 'complete', answer: outcome.final, receipt: {
+  profile: 'quick', model: 'fixture', effort: 'high', provider: null, searches: 0,
+  actionCounts: outcome.actionCounts, nativeSessions: 1, stages: outcome.stages,
+  termination: outcome.termination, terminal: outcome.terminal, cleanup,
+} };
+const sources: FrozenSource[] = [{ uri: 'https://example.org', text: 'Captured text' }];
+const grounded = groundedAnswer({ sources, judge: { id: 'typed', kind: 'synthetic' }, claims: [{ text: 'Unknown.', citations: [], joint: { verdict: 'insufficient', reason: 'No evidence.' } }] });
+validateGrounding(grounded.answer, grounded.grounding);
+void groundedResearchQuestion;
+void assessGroundedAnswer({ sources, claims: [] }, { identity: grounded.grounding.judge, judge: async () => ({ verdict: 'unknown', reason: 'No judgment.' }) });
+async function consumer() {
+  const ready = await codexReadiness();
+  const direct = await withCodexWorkspace({ lease: '/tmp/typed-example', prefix: 'typed-' }, ws => ws.run({
+    prompt: ordinaryResearchPrompt('Question'), live: false, budget: profiles.quick, signal: new AbortController().signal,
+  }));
+  const research = await researchQuestion('Question', { sources, model: result.receipt.model });
+  return [ready.available, sessionCompleted(outcome), direct.cleanup.complete, research.receipt.cleanup.error];
+}
+void consumer;
+import { createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch, mindMapLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchMindMap, MindMapNode, MindMapCitation, MindMapRelation, MindMapEdit, MindMapTree, MindMapTreeNode } from '@pradeeptathineni/research-ai';
+const relation: MindMapRelation = 'qualifies';
+const citation: MindMapCitation = { source: 0, start: 0, end: 13, quote: 'Captured text' };
+const mapRoot: MindMapNode = { id: 'root', label: 'Question', relation: null, citations: [], gap: null, children: [
+  { id: 'child', label: 'Captured', relation, citations: [citation], gap: null, children: [] },
+] };
+const mindMap: ResearchMindMap = createMindMap('Question', { sources, root: mapRoot });
+const mapEdit: MindMapEdit = { nodes: [{ id: 'child', label: 'A capture' }] };
+const editedMap = reviseMindMap(validateMindMap(mindMap), mapEdit);
+const mapTree: MindMapTree = JSON.parse(renderMindMap(editedMap, { format: 'tree' }));
+const mapTreeNode: MindMapTreeNode = mapTree.nodes[0]!;
+void [mapTreeNode.accessibleName, mindMapLimits.nodes];
+void mindMapResearch('Question', { sources, activity: event => { const sequence: number = event.sequence; void sequence; } });
+// @ts-expect-error unsupported relation
+const badMapRelation: MindMapRelation = 'causes';
+// @ts-expect-error renderer accepts only the three documented formats
+renderMindMap(mindMap, { format: 'html' });
+void badMapRelation;
+import { exportReportHtml } from '@pradeeptathineni/research-ai';
+const portableHtml: string = exportReportHtml(createReport(createEvidenceTable('Retention', { sources, columns: [{ id: 'retention', title: 'Retention', question: 'How long?' }] })));
+void portableHtml;
+// @ts-expect-error a mind map is not report authoring state
+exportReportHtml(mindMap);
+const lenses = chooseLenses(sources, [perspectiveCandidates(sources)[0]?.id ?? basicFacts.id, { label: 'Renter', focus: 'Costs without building changes' }]);
+async function perspectives(): Promise<PerspectiveResult['status']> {
+  const viewed = await perspectiveResearch('Topic', { sources, perspectives: 'auto', questions: 2, onLens: ({ id, state }) => void [id, state] });
+  return viewed.lenses[0]?.questions?.[0]?.citations[0]?.occurrence === 'exact-retained-span' ? viewed.status : 'failed';
+}
+void [lenses, perspectives];
+const investigationBudget: InvestigationBudget = { ...profiles.quick, calls: 12 };
+const investigationQuestion: InvestigationQuestion = { id: 'q1', parentId: null, question: 'What changes?' };
+const investigation: Investigation = createInvestigation('Topic', { questions: [investigationQuestion], budget: investigationBudget });
+const revisedInvestigation = reviseInvestigation(validateInvestigation(investigation), { scope: 'Offline first' });
+const investigationPlan: InvestigationPlan = planInvestigation(revisedInvestigation);
+void [renderInvestigation(revisedInvestigation), advanceInvestigation, resumeInvestigation, investigationPlan];
+const outline: ResearchOutline | null = null;
+void [outline, outlineResearch, validateOutline, reviseOutline, renderOutline];
+const tableColumns: EvidenceTableColumn[] = [{ id: 'retention', title: 'Retention', question: 'How long?' }];
+const table: ResearchEvidenceTable = createEvidenceTable('Compare', { sources, columns: tableColumns });
+const editedTable = reviseEvidenceTable(validateEvidenceTable(table), { question: 'Compare captured values' });
+void [renderEvidenceTable(editedTable), evidenceTableResearch];
+const report: ResearchReport = createReport(editedTable);
+const reviewed: ResearchReport = reviseReport(validateReport(report), { sectionId: 'retention', paragraphs: [{ text: 'Captured retention.', citations: [{ source: 0, start: 0, end: 6, quote: 'Naïve ' }] }] });
+const paragraph: ReportParagraph = reviewed.sections[0].versions[0].paragraphs[0];
+void [draftReportSection, renderReport(reviewed), paragraph];
+const onActivity = (event: ResearchActivity): void => {
+  if (event.kind === 'web.completed') { const url: string | null = event.detail.url; void [url, event.detail.urlStatus]; }
+  if (event.kind === 'session.settled') { const done: boolean = event.detail.completed; void [done, event.sequence, event.observedAt]; }
+};
+void [researchQuestion('Typed activity', { activity: onActivity }), researchActivity.kinds, researchActivity.version];
+
+import { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from '@pradeeptathineni/research-ai';
+import type { PreparedDocumentCoverage, DocumentCoverageResult } from '@pradeeptathineni/research-ai';
+const coveragePlan: PreparedDocumentCoverage = prepareDocumentCoverage('Question', [frozenDocument], { maxCalls: 4, passUtf16Units: 24000, maxSeconds: 60 });
+const coverageRun: Promise<DocumentCoverageResult> = researchDocumentCoverage('Question', [frozenDocument], { confirmedPlanDigest: coveragePlan.planDigest, activity: documentActivity });
+function coverageUse(value: unknown): string {
+  const result: DocumentCoverageResult = validateDocumentCoverage(value);
+  const reviewed: string[] = result.inputCoverage.reviewedWindows;
+  const calls: number = result.receipt.startedCalls;
+  const cleanup: 'complete' | 'unconfirmed' | 'not_started' = result.receipt.cleanup;
+  const answer: 'answered' | 'partial' | 'insufficient' | undefined = result.draft?.coverage;
+  void [reviewed, calls, cleanup, answer];
+  return renderDocumentCoverage(result);
+}
+void [coveragePlan, coverageRun, coverageUse, documentCoverageLimits.totalPages];
+
+
+import {prepareTableQuery, queryTables, validateTableQueryResult, tableQueryLimits} from '@pradeeptathineni/research-ai';
+import type {TableQueryPreview, TableQueryResult, TableQueryComplete} from '@pradeeptathineni/research-ai';
+declare const queryEngineRoot: string;
+const sqlBindings = [{name:'sample',table:suppliedTable}];
+const sqlQuery = {sql:'SELECT c0 FROM sample',parameters:[]};
+const sqlPreview: TableQueryPreview = prepareTableQuery(sqlBindings, sqlQuery);
+const sqlResult: Promise<TableQueryResult> = queryTables(sqlBindings, sqlQuery, {engineRoot:queryEngineRoot});
+declare const savedSqlResult: unknown;
+const reopenedSql: TableQueryComplete = validateTableQueryResult(savedSqlResult, {tables:sqlBindings});
+void [sqlPreview.inputs[0]?.row_column,sqlResult,reopenedSql.result_sha256,tableQueryLimits.rows];
+
+import {createAnalysis, compileStep, tableNotebookLimits} from '@pradeeptathineni/research-ai';
+import type {ResearchTableAnalysis} from '@pradeeptathineni/research-ai';
+const tableAnalysis: ResearchTableAnalysis = createAnalysis({id:'analysis-types',title:'Typed analysis',tables:[{name:'sample',id:suppliedTable.id,sha256:suppliedTable.sha256}],steps:[{name:'s1',sql:'SELECT c0 FROM sample'}]});
+const compiledStep = compileStep(tableAnalysis,'s1');
+void [compiledStep.sql, tableNotebookLimits.steps];
+
+import { createResearchNotebook, reviseResearchNotebook, prepareNotebookQuestion, validateResearchNotebook, renderResearchNotebook, researchNotebookLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchNotebook, ResearchNotebookQuestionSpec, PreparedNotebookQuestion } from '@pradeeptathineni/research-ai';
+const notebook: ResearchNotebook = createResearchNotebook('Portable research');
+const noteBookWithNote: ResearchNotebook = reviseResearchNotebook(notebook, { type: 'add-note', title: 'Scope', text: 'Use retained sources only.' });
+const notebookSpec: ResearchNotebookQuestionSpec = { id: 'question:4f7d831d-fb2b-4a4b-89f4-c06c8f086999', question: 'What is in scope?', sourceIds: [], notes: [{ id: noteBookWithNote.notes[0]!.id, version: 1 }] };
+const notebookPreview: PreparedNotebookQuestion = prepareNotebookQuestion(noteBookWithNote, notebookSpec);
+const reopenedNotebook: ResearchNotebook = validateResearchNotebook(noteBookWithNote);
+void [renderResearchNotebook(reopenedNotebook), notebookPreview.preview.planDigest, researchNotebookLimits.bytes];
+
+import { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from '@pradeeptathineni/research-ai';
+import type { NotebookSearchResult, NotebookSearchOptions, NotebookSearchHit } from '@pradeeptathineni/research-ai';
+const searchOptions: NotebookSearchOptions = { mode: 'fuzzy', kinds: ['document', 'note'], noteVersions: 'all', limit: 8 };
+const searchResult: NotebookSearchResult = searchResearchNotebooks([reopenedNotebook], 'retained', searchOptions);
+const searchHit: NotebookSearchHit | undefined = searchResult.hits[0];
+if (searchHit) openNotebookSearchHit([reopenedNotebook], searchResult, searchHit.id);
+void notebookSearchLimits.engine.sha256;
+
+import { exportResearchRetrievalArm } from '@pradeeptathineni/research-ai';
+import type { ResearchRetrievalArmExport, ResearchRetrievalQuestion } from '@pradeeptathineni/research-ai';
+const retrievalQuestions: ResearchRetrievalQuestion[] = [{ id: 'question:appeal', text: 'appeal window' }];
+declare const retrievalExport: ResearchRetrievalArmExport;
+const lexicalArm: ResearchRetrievalArmExport = exportResearchRetrievalArm([reopenedNotebook], retrievalQuestions,
+  { mode: 'prefix', researchRevision: 'pinned-research-revision' });
+void [retrievalExport.corpus.id, lexicalArm.arm.rankings['question:appeal']];
+
+import { exportResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
+import type { ResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
+const citationMap: ResearchAnswerCitationMap = exportResearchAnswerCitationMap([reopenedNotebook], ['question:appeal']);
+void citationMap.questions[0]?.citations[0]?.hit_id;
+
+
+import { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins,
+  prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation,
+  exportResearchStudyPlanningSource, validateResearchStudyPlanningSource, renderResearchStudy,
+  researchStudyLimits } from '@pradeeptathineni/research-ai';
+import type { ResearchStudy, ResearchStudyEdit, ResearchStudyQuestionSpec, PreparedResearchStudyQuestion, ResearchStudyPlanningSource } from '@pradeeptathineni/research-ai';
+const study: ResearchStudy = createResearchStudy('Portable study');
+const studyEdit: ResearchStudyEdit = { type: 'deselect-hit', selectionId: 'study-selection:4f7d831d-fb2b-4a4b-89f4-c06c8f086999' };
+const editedStudy = reviseResearchStudy(validateResearchStudy(study), studyEdit);
+const studySpec: ResearchStudyQuestionSpec = { id: 'study-question:4f7d831d-fb2b-4a4b-89f4-c06c8f086999', question: 'Question', selectionIds: [] };
+const studyPreview = null as unknown as PreparedResearchStudyQuestion;
+const planningSource = null as unknown as ResearchStudyPlanningSource;
+void [checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation,
+  exportResearchStudyPlanningSource(editedStudy, studySpec.id), validateResearchStudyPlanningSource(editedStudy, studySpec.id, planningSource),
+  renderResearchStudy(editedStudy), researchStudyLimits.bytes, studySpec, studyPreview];
+
+import { createDocumentRecovery, validateDocumentRecovery, renderDocumentRecovery } from '@pradeeptathineni/research-ai';
+import type { DocumentRecoverySection, ResearchDocumentRecovery } from '@pradeeptathineni/research-ai';
+const recoverySections: DocumentRecoverySection[] = [{ id: 'chapter', parentId: null, title: 'Chapter', pageRefs: [], extractionGaps: [] }, { id: 'part', parentId: 'chapter', title: 'Part', pageRefs: [{ documentId: 'doc', page: 1 }], extractionGaps: [] }];
+const recovery: ResearchDocumentRecovery = createDocumentRecovery('Question', { documents: workflowSources.map((source) => ({ id: 'doc', title: 'Doc', sha256: '0'.repeat(64), pages: [{ number: 1, text: source.text, sha256: '0'.repeat(64) }] })), sections: recoverySections });
+void [validateDocumentRecovery(recovery), renderDocumentRecovery(recovery)];

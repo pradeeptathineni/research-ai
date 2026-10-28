@@ -1,0 +1,114 @@
+{
+  "schema": "research.component-source-manifest.v1",
+  "component": "Methods",
+  "ownerId": "research-ai",
+  "sourcePath": ".",
+  "targetPath": "packages/methods",
+  "packageIdentity": {
+    "name": "@pradeeptathineni/research-ai",
+    "version": "0.4.0-rc.1",
+    "license": "MIT",
+    "type": "module",
+    "engines": {
+      "node": ">=24.19.0 <25"
+    },
+    "types": "./src/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./src/index.d.ts",
+        "default": "./src/index.mjs"
+      }
+    },
+    "bin": {
+      "research-ai": "bin/research-ai.mjs",
+      "research-report-export": "bin/research-report-export.mjs",
+      "research-study-report": "bin/research-study-report.mjs",
+      "research-bibliography": "bin/research-bibliography.mjs",
+      "research-branches": "bin/research-branches.mjs",
+      "research-table-analysis": "bin/research-table-analysis.mjs",
+      "research-table-csv": "bin/research-table-csv.mjs",
+      "research-documents": "bin/research-documents.mjs",
+      "research-table-query": "bin/research-table-query.mjs",
+      "research-notebook": "bin/research-notebook.mjs",
+      "research-notebook-search": "bin/research-notebook-search.mjs",
+      "research-study": "bin/research-study.mjs",
+      "research-perspective-workflow": "bin/research-perspective-workflow.mjs",
+      "research-document-recovery": "bin/research-document-recovery.mjs",
+      "research-document-recovery-synthesis": "bin/research-document-recovery-synthesis.mjs",
+      "research-table-notebook": "bin/research-table-notebook.mjs",
+      "research-investigation": "bin/research-investigation.mjs"
+    },
+    "files": [
+      "bin",
+      "src",
+      "LICENSE",
+      "THIRD-PARTY-NOTICES.md",
+      "README.md",
+      "ARCHITECTURE.md",
+      "docs/compatibility.md",
+      "docs/SurfSense-LICENSE.txt",
+      "docs/report-export.md",
+      "docs/study-reports.md",
+      "src/bibliography-NOTICE.txt",
+      "src/bibliography-MIT-LICENSE.txt",
+      "docs/bibliography.md",
+      "docs/independent-branches.md",
+      "docs/table-analysis.md",
+      "docs/table-csv.md",
+      "docs/document-research.md",
+      "docs/document-coverage.md",
+      "docs/table-query.md",
+      "docs/notebook.md",
+      "src/notebook-MIT-LICENSE.txt",
+      "src/notebook-NOTICE.txt",
+      "docs/notebook-search.md",
+      "src/notebook-search-NOTICE.txt",
+      "src/vendor/minisearch-7.2.0.mjs",
+      "src/vendor/minisearch-LICENSE.txt",
+      "docs/research-study.md",
+      "docs/literature-set.md",
+      "docs/perspective-workflow.md",
+      "docs/document-recovery.md",
+      "docs/document-recovery-synthesis.md",
+      "bin/research-table-notebook.mjs",
+      "docs/table-notebook.md",
+      "docs/investigation-adaptive.md"
+    ]
+  },
+  "packageIdentityProjectionSha256": "0950ddc47a678ef501e66413f66d47207152355f16d505981d83dfbf33aa9da8",
+  "frozenSource": {
+    "acceptedResearchBase": "1722016738e1367f3e5a4900b6777297f83a69fd",
+    "integrationCommit": "048e33cc737c215b051c699cf27f62fc9bf820c7",
+    "integrationTree": "a6271defbfcae33939e39514abde98044475df7b",
+    "binTree": "57cd7052cb07bb5b6287736b5102f5c76ba482ca",
+    "srcTree": "087e64e3aab95963cdfe2664f18241483a223a1e",
+    "includedNativeCommits": [
+      "2eeeb06ee063fa4c3fcfdc5e6272cd9d40db5858",
+      "911b48d5b13aef1ffa921dfb66d24d87d943ba91"
+    ],
+    "qualification": "B1 doc-only commits after 048e33c do not alter package payload, package identity or its bin/src trees. Update this ref and manifest if Methods payload changes."
+  },
+  "payloadManifest": {
+    "algorithm": "Read package.json fields name,version,license,type,engines,bin,types,exports,files. The projection hash is compact UTF-8 JSON in that key order, ensure_ascii=false, separators=(',',':'). For payload, expand package.json files directory entries recursively to ordinary files, include explicit file entries, deduplicate by repository-relative POSIX path, and sort those paths. Create compact UTF-8 JSON rows [{path,sha256}] with ensure_ascii=false and separators=(',',':'), where each sha256 is SHA-256 of exact file bytes. SHA-256 those JSON bytes.",
+    "fileCount": 85,
+    "sha256": "379d80489b61d82cc1dd695357c7bc112c93f7bd5eebabec4863491baaa91412",
+    "packageIdentityProjection": "SHA-256 of compact UTF-8 JSON in key order name,version,license,type,engines,bin,types,exports,files. Workspace-only package.json keys are excluded; each projected field must still exactly match this manifest."
+  },
+  "standaloneCompatibility": {
+    "preserve": [
+      "package name @pradeeptathineni/research-ai and version 0.4.0-rc.1",
+      "all listed bin names and executable paths",
+      "root export and declaration paths",
+      "standalone tarball resolution and its existing integrity guard mode"
+    ],
+    "signalsExecutorImports": [
+      "codexReadiness",
+      "sessionCompleted",
+      "withCodexWorkspace",
+      "ResearchActivity",
+      "validateGrounding",
+      "Grounding",
+      "FrozenSource"
+    ]
+  }
+}

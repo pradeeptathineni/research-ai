@@ -1,0 +1,14 @@
+Notebook source and note search
+
+The scoped source/note discovery workflow independently reproduces concepts in
+lfnovo/open-notebook at revision a0f6f3081ae06328f0a451b3a3ef2959ca25721d,
+Copyright (c) 2024 Luis Novo. No donor implementation, schema, database,
+vector engine, or model code is included. The retained notebook and note data
+are validated by this package's existing portable notebook owner.
+
+The lexical engine is the intact MiniSearch 7.2.0 ESM distribution,
+Copyright (c) 2022 Luca Ongaro, copied without modification. Its exact MIT
+license is shipped in vendor/minisearch-LICENSE.txt. SHA-256:
+0393b3ba253b809d5e55707c7b0875ef9b518a296a006c6739b28876e154edb3.
+The npm package metadata verified the published tarball integrity; metadata
+does not identify a gitHead, so no repository-source equivalence is claimed.
