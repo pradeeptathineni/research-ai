@@ -894,8 +894,22 @@ export interface ResearchReport {
   usage: { calls: number; nativeSessions: number; searches: number; reads: number; seconds: number };
   revision: number; parentHash: string | null; limits: string[];
 }
+export interface ReportClaimRegister {
+  schema: "research-report-claim-register.v1";
+  revision: number;
+  reportSha256: string;
+  citedClaims: Array<{
+    id: string; sectionId: string; sectionTitle: string; versionId: string | null; text: string;
+    citation: { sourceIndex: number; start: number; end: number; quote: string };
+    source: { uri: string; sha256: string; selectionId: string | null; studyId: string | null; questionId: string | null; resultSha256: string | null; notebookId: string | null; sourceDigest: string | null };
+    review: "exact-span-matched; entailment-and-truth-unassessed";
+  }>;
+  unresolvedClaims: Array<{ id: string; sectionId: string; sectionTitle: string; versionId: string | null; text: string; status: "unresolved"; citations: [] }>;
+}
 /** Converts an outline or evidence table into a report without inference or loss. */
 export function createReport(input: ResearchOutline | ResearchEvidenceTable): ResearchReport;
+/** Derives a revision-bound register from current section versions and exact validated citations. */
+export function projectReportClaimRegister(report: ResearchReport): ReportClaimRegister;
 /** Validates current report content and returns self-contained, offline HTML, capped at 8 MiB. */
 export function exportReportHtml(report: ResearchReport): string;
 /** Rechecks the basis, bounded version history, accounting and exact source spans. */
