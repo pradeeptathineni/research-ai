@@ -1,0 +1,115 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "bc12be21d8dc5ccb9e70b9df591f82a294d96c639728ff5285481eea7a0d8480",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:23:45.405657Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary sources independently reviewed for narrow capability support, practical trial criteria and explicit privacy or provider limits. Volatile documentation requires re-observation after 90 days.",
+    "claimReviews": [
+      {
+        "claimId": "semantic-index",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "semantic-sections",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "bc12be21d8dc5ccb9e70b9df591f82a294d96c639728ff5285481eea7a0d8480",
+      "researchRunId": "host-acquisition:signals-public-semantic-context-2026-10-05",
+      "reviewRunId": "source-research-independent:semantic-context:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:23:45.405657Z",
+      "options": [
+        {
+          "optionId": "option-vscode-semantic-context",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Directly addresses finding repository code when exact names are unknown; enforced snippet budgeting remains outside its supported scope.",
+            "evidence": "Current first-party documentation supports semantic indexes, index status and rebuild controls, relevant code sections and non-GitHub upload restrictions.",
+            "usefulness": "A pinned public-repository trial checks two genuine questions, cited lines, omissions and further reads against keyword search.",
+            "clarity": "Explicitly excludes a guaranteed snippet cap, standalone retrieval API, completeness and local-only behavior; cataloging grants no upload authority."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-semantic-context-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T22:16:05Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "How can I retrieve relevant repository code when I do not know its exact names?",
+      "concept_ids": ["semantic-code-context-retrieval", "task-ranked-repository-context"]
+    },
+    "sources": [
+      {
+        "id": "vscode-context",
+        "uri": "https://code.visualstudio.com/docs/agents/reference/workspace-context",
+        "title": "VS Code workspace context",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T22:16:05Z",
+        "revision": null,
+        "independence_group": "code.visualstudio.com"
+      },
+      {
+        "id": "github-index",
+        "uri": "https://docs.github.com/en/copilot/concepts/context/repository-indexing",
+        "title": "GitHub repository indexing",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T22:16:05Z",
+        "revision": null,
+        "independence_group": "docs.github.com"
+      }
+    ],
+    "claims": [
+      {
+        "id": "semantic-index",
+        "text": "Copilot uses semantic repository or workspace indexes for meaning-based code context. VS Code documents indexing status and an explicit index rebuild command.",
+        "source_ids": ["vscode-context"],
+        "status": "supported"
+      },
+      {
+        "id": "semantic-sections",
+        "text": "GitHub documents indexed repository context and references to relevant code sections. Non-GitHub workspace indexing sends content to GitHub and has account and policy restrictions.",
+        "source_ids": ["github-index"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-vscode-semantic-context",
+        "name": "Evaluate native semantic repository context",
+        "canonical_uri": "https://code.visualstudio.com/docs/agents/reference/workspace-context",
+        "claim_ids": ["semantic-index", "semantic-sections"],
+        "disposition": "consider",
+        "reason": "For a separately authorized trial on a pinned public repository, ask two real questions with unfamiliar naming, request a small snippet set, verify cited lines and record omissions and further reads. Compare with narrow keyword search.",
+        "limitations": [
+          "Documentation supplies no caller-enforced snippet or token cap, standalone retrieval API or completeness guarantee. Opened or selected ignored files can enter context. No private workspace was uploaded and no candidate was executed; strict bounded retrieval and local-only behavior remain unproved."
+        ]
+      }
+    ],
+    "limitations": [
+      "Primary-source capability evidence; usefulness and comparative trial results are unmeasured. Cataloging grants no execution or upload authority."
+    ]
+  }
+}

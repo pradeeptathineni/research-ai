@@ -1,0 +1,1078 @@
+{
+  "schemaVersion": 1,
+  "source": "retained Signals catalog concept definitions; identifiers and meanings preserved",
+  "concepts": [
+    {
+      "id": "c3b57ab9-215b-53ea-9b92-7c76fa4207ba",
+      "key": "agent-control-planes",
+      "label": "Agent control planes",
+      "definition": "Surfaces and runtimes that coordinate software agents.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "3c81bc60-0b2a-5e00-bfd9-0b17489f0232",
+      "key": "agent-workflow-evaluation",
+      "label": "Agent workflow evaluation",
+      "definition": "Evidence and evaluation of coding-agent workflows.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "71115d9e-b514-5e41-bd3f-84648a59fb70",
+      "key": "ai-coding-systems",
+      "label": "AI coding systems",
+      "definition": "Capabilities that assist or coordinate software-development work.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000023",
+      "key": "ai-development-tools",
+      "label": "AI development tools",
+      "definition": "Tools, interfaces, practices, and evidence for building software with or for AI systems.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "b6243cfe-3a66-543c-813b-41e7b8e0e573",
+      "key": "ai-engineering",
+      "label": "AI engineering",
+      "definition": "Capabilities used to build, evaluate, and operate AI-assisted systems.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000021",
+      "key": "ai-model-families",
+      "label": "AI model families",
+      "definition": "Versioned model families, releases, modalities, and access forms.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000012",
+      "key": "ai-models-providers",
+      "label": "AI models and providers",
+      "definition": "Model families, releases, providers, serving, and model access.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000022",
+      "key": "ai-providers",
+      "label": "AI providers",
+      "definition": "Organizations and services publishing or serving model families.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000010",
+      "key": "artificial-intelligence",
+      "label": "Artificial intelligence",
+      "definition": "Models, methods, infrastructure, practices, and knowledge for artificial intelligence.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "64c22632-b806-573c-81ae-76e5325bd2a6",
+      "key": "capability:agent-context-compaction",
+      "label": "Agent context compaction",
+      "definition": "A Codex agent-loop mechanism that replaces older conversation input with a smaller continuation representation when context grows.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "e966709a-592d-53ea-8a45-e5f160fc02df",
+      "key": "capability:agent-context-efficiency-guidance",
+      "label": "Agent context and implementation efficiency guidance",
+      "definition": "An agent plugin and ruleset for concise output, reuse-first implementation, and bounded tool-output compression.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "63620dfb-43f8-5a1b-b6b1-f451a0b7fc16",
+      "key": "capability:agent-development-methodology",
+      "label": "Agent development methodology",
+      "definition": "A composable skill-based software-development methodology for coding agents, including planning, testing, review, and optional subagent workflows.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "0bb66fe0-82df-595b-bc1b-c27fb354d1ce",
+      "key": "capability:agent-execution-control",
+      "label": "Coordinate software-agent execution",
+      "definition": "Run and observe software-agent conversations against configured workspaces.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "9dd82355-2d2a-5680-9eff-45daeba0e8b5",
+      "key": "capability:agent-extension-security-scanning",
+      "label": "Scan agent extensions for security signals",
+      "definition": "Produce structured findings for plugin, skill, MCP, manifest, and runtime policy surfaces.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1adf1f4d-61c3-57d2-bc0b-4d08e941d037",
+      "key": "capability:agent-instruction-lifecycle",
+      "label": "Agent instruction lifecycle",
+      "definition": "A repository-onboarding workflow for generating, maintaining, compressing, and auditing agent instruction files.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "6e149971-cc77-5e71-961f-60d9ed38373d",
+      "key": "capability:agent-lifecycle-hooks",
+      "label": "Agent lifecycle hooks",
+      "definition": "Trusted commands or MCP checks that run at configured Codex lifecycle points.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "fdfe292f-cb1f-585d-9586-b6ebf4f45548",
+      "key": "capability:agent-memory-lifecycle",
+      "label": "Agent memory lifecycle",
+      "definition": "A local-first agent-memory workflow with explicit recall, evidence, consolidation, audit, and forgetting stages.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "c390783c-d867-5048-a6be-47c3539a11d8",
+      "key": "capability:agent-output-brevity",
+      "label": "Agent output brevity",
+      "definition": "An output-style skill that asks coding agents to compress narration while preserving exact code, commands, and errors.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "015797de-6fdd-596e-b41d-e25e3a4e81f7",
+      "key": "capability:agent-runtime-orchestration",
+      "label": "Agent runtime and orchestration",
+      "definition": "A TypeScript agent runtime with tools, handoffs, guardrails, sessions, tracing, and orchestration primitives.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "fd9b7bed-5324-598d-b134-80debb39d718",
+      "key": "capability:agent-tool-integration-platform",
+      "label": "Agent tool integration platform",
+      "definition": "An SDK and hosted tool platform for agent-facing app integrations, authentication, tool routing, triggers, and execution.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1fb24929-9d53-5ea4-9f28-4fdc94660081",
+      "key": "capability:agent-web-application-development",
+      "label": "Agent-assisted web application development",
+      "definition": "A Codex workflow for creating or refining web applications and preparing a deployable preview.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1175e005-301e-51f2-80b8-26cda8b5fd43",
+      "key": "capability:agent-workflow-evaluation",
+      "label": "Evaluate coding-agent workflow evidence",
+      "definition": "Inspect project and session evidence and produce scoped workflow findings.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "beccf5fe-feef-5b5d-989d-02af294d4c7d",
+      "key": "capability:ai-model-provider",
+      "label": "AI model provider",
+      "definition": "A provider of model families and APIs for language, reasoning, image, audio, and agent applications.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "7c262428-5c00-516b-93db-12cc3c9db96d",
+      "key": "capability:algorithm-design-analysis",
+      "label": "Algorithm design and analysis",
+      "definition": "Finite procedures and analysis techniques for solving computational problems.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "ef47afcd-7b27-5311-92c7-3e01321daebe",
+      "key": "capability:bounded-agent-delegation",
+      "label": "Bounded agent delegation",
+      "definition": "A Codex capability for parallel, specialized subtasks coordinated by a parent agent.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1b55cc30-26be-5343-8efe-37f63c8d460d",
+      "key": "capability:bounded-repository-packaging",
+      "label": "Bounded repository packaging",
+      "definition": "A repository packager with file selection, structure extraction, secret scanning, and explicit token budgets.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "9ab8671f-bd4d-5c21-9d80-42f2ad393ed8",
+      "key": "capability:budgeted-repository-search",
+      "label": "Budgeted repository search",
+      "definition": "A Codex-oriented guard for narrowing broad ripgrep or grep searches under an explicit result budget.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "af02adf5-6b1f-5cbc-8748-43877ff80e62",
+      "key": "capability:cache-stable-context-layout",
+      "label": "Cache-stable context layout",
+      "definition": "A prompt-layout practice that keeps reusable rendered prefixes stable so eligible requests can reuse cached computation.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "261979e4-2a31-5680-8f97-c5e09a4cc07c",
+      "key": "capability:capability-configuration-fanout",
+      "label": "Generate agent capability configuration",
+      "definition": "Project declared capabilities into host-native rules, skills, plugins, and MCP configuration.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "b174a4fe-5683-5535-88cb-74be575eb343",
+      "key": "capability:classical-machine-learning",
+      "label": "Classical machine learning",
+      "definition": "A Python library for supervised and unsupervised learning, preprocessing, model selection, and evaluation.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "d718c067-c091-544b-b789-53f42babcce1",
+      "key": "capability:code-context-compression-evaluation",
+      "label": "Code-context compression evaluation",
+      "definition": "A benchmark project for comparing code-context compression methods and downstream task behavior.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "2cfa00d8-f029-5264-a2e7-d3d7345874b5",
+      "key": "capability:code-context-reduction",
+      "label": "Code-context reduction",
+      "definition": "A source-code reduction tool intended to preserve task-relevant structure while shrinking repository context.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "4f2bca1c-d10b-5b0a-ba1e-2eec073223c5",
+      "key": "capability:codex-ecosystem-discovery",
+      "label": "Codex ecosystem discovery",
+      "definition": "A curated catalog of Codex plugins, skills, and related resources that can supply research leads.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "11a5867d-046f-522b-ae74-bccce281420d",
+      "key": "capability:coding-agent-usage-observability",
+      "label": "Attribute coding-agent token usage",
+      "definition": "Parse supported local session records into model, project, task, token, and estimated-cost observations.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "89f2c3fd-45c3-5a74-8892-104483fc29e4",
+      "key": "capability:command-output-rewriting",
+      "label": "Command-output rewriting",
+      "definition": "A command wrapper that substitutes token-efficient output for supported developer-tool commands.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "dd6a4bfe-daea-564d-9783-bdc3e8f9cc2c",
+      "key": "capability:compaction-continuity",
+      "label": "Compaction continuity",
+      "definition": "A Codex plugin intended to preserve authoritative requirements and verification evidence across long tasks and compaction.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "21a2ac15-c4c8-59dc-88ac-43ec20c449ed",
+      "key": "capability:container-orchestration",
+      "label": "Container orchestration",
+      "definition": "An open-source system for automating deployment, scaling, and management of containerized applications.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "637d99c8-be8d-5eb7-ac77-2d46742f5264",
+      "key": "capability:container-platform",
+      "label": "Container platform",
+      "definition": "A platform and toolchain for building, distributing, and running container images.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "4c76bfa1-a95a-5d06-a1d3-c0bf09c8ea2f",
+      "key": "capability:context-budgeted-file-tools",
+      "label": "Context-budgeted file tools",
+      "definition": "An MCP toolkit for narrow file search, diff-oriented reads, caching, and stashing bulky material outside active context.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "8fc0c5cf-9928-5ebc-a56b-05f166f18af9",
+      "key": "capability:context-output-optimization",
+      "label": "Reduce large tool-output context",
+      "definition": "Externalize, index, search, or summarize tool output before it enters model context.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "2af05b66-a73c-5580-aa92-8be1d9d21225",
+      "key": "capability:cross-session-agent-memory",
+      "label": "Cross-session agent memory",
+      "definition": "A Codex plugin for capturing, compressing, and retrieving selected session context across later work.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "b07c05ba-c1a7-59fd-b14c-6273642cb429",
+      "key": "capability:database-systems",
+      "label": "Database systems",
+      "definition": "Systems and techniques for durable data models, queries, transactions, indexing, and recovery.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "91c4053c-ed06-508b-84aa-7e9b266f7584",
+      "key": "capability:declarative-operations-practice",
+      "label": "Declarative operations practice",
+      "definition": "An operational practice using declarative desired state, version control, and automated reconciliation.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "a0030259-d90d-5ce7-b25b-923cd4ff67a7",
+      "key": "capability:deliberate-thread-compaction",
+      "label": "Deliberate thread compaction",
+      "definition": "A workflow for deliberate Codex thread compaction, verified handoff material, and one-time continuation.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "2bcd4587-e5f4-5d9d-a652-951c21977de0",
+      "key": "capability:design-reference-discovery",
+      "label": "Design reference discovery",
+      "definition": "A curated collection of design references and reusable design context.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "bfe7c3b1-f32b-5675-9d18-a3bd178757f6",
+      "key": "capability:developer-output-compression",
+      "label": "Developer-output compression",
+      "definition": "A command-line tool for compressing verbose developer-tool output before it enters an agent context.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1ca13a37-ed94-507d-9b0b-4fade22bf25a",
+      "key": "capability:distributed-systems",
+      "label": "Distributed systems",
+      "definition": "Systems whose components coordinate across networked computers under partial failure and concurrency.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "e48e8700-cd4e-5272-b871-c7d86aa293e8",
+      "key": "capability:evidence-backed-project-memory",
+      "label": "Evidence-backed project memory",
+      "definition": "A local-first project-memory and code-intelligence layer that separates observations, reviewed knowledge, and advisory inference.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "ce298526-281c-5009-a43a-dd54c5907668",
+      "key": "capability:general-purpose-ai-model-family",
+      "label": "General-purpose AI model family",
+      "definition": "A family of OpenAI language and reasoning models with dated variants documented by the provider.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "80e2ea14-6967-5087-88db-6dde62558d04",
+      "key": "capability:general-purpose-programming-runtime",
+      "label": "Run general-purpose Python software",
+      "definition": "Provide a maintained programming language and reference runtime.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "f598c0f0-6fba-5c6b-b585-fe5534f61c2d",
+      "key": "capability:gitops-continuous-delivery",
+      "label": "GitOps continuous delivery",
+      "definition": "A declarative GitOps continuous-delivery controller for Kubernetes.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "4a3cff17-eb42-5d34-871e-f32164a4d97f",
+      "key": "capability:indexed-tool-output-externalization",
+      "label": "Indexed tool-output externalization",
+      "definition": "An MCP and hook toolkit that keeps large tool output in a searchable local index and returns bounded context.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "a25533f0-4ac1-5210-95cf-81527ede0ff2",
+      "key": "capability-infrastructure",
+      "label": "Capability infrastructure",
+      "definition": "Protocols, registries, and evaluation infrastructure for capabilities.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "2a2c5070-37e2-556e-af45-48031c092a74",
+      "key": "capability:infrastructure-as-code",
+      "label": "Plan and apply infrastructure state",
+      "definition": "Describe infrastructure declaratively and calculate or apply state transitions through providers.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "3cd58d03-5c2a-5aed-afe2-7cf079792bb8",
+      "key": "capability:interface-design-guidance",
+      "label": "Interface design guidance",
+      "definition": "A design-process skill for more intentional frontend visual work.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "38573c04-d15e-5da4-8812-b29c2a5c5795",
+      "key": "capability:interface-design-memory",
+      "label": "Interface and design-system memory",
+      "definition": "A local design-context and UI-audit toolkit for building reusable interface briefs for coding agents.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "3381c179-449c-572d-b2b1-9465283c02c8",
+      "key": "capability:kubernetes-package-management",
+      "label": "Kubernetes package management",
+      "definition": "A package manager for defining, installing, and upgrading Kubernetes applications with charts.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "9e26a39f-ea24-560b-80ea-e3dc44967ed3",
+      "key": "capability:learned-prompt-compression",
+      "label": "Learned prompt compression",
+      "definition": "A model-based prompt-compression toolkit with configurable context, sentence, and token-level filtering.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "7ca9b0e3-069e-5f57-94fb-1bdc8fdf31b4",
+      "key": "capability:local-model-runtime",
+      "label": "Local model runtime",
+      "definition": "A local runtime and API for running explicitly provisioned model artifacts.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "4cbca08b-39fd-595b-8eb6-f1722e6d421b",
+      "key": "capability:local-session-retrieval",
+      "label": "Local session retrieval",
+      "definition": "A local index and search tool for retrieving prior coding-agent sessions without a model in the retrieval loop.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "ff73c7ca-fbab-5e26-bd06-8bff819be07b",
+      "key": "capability:loss-aware-response-brevity",
+      "label": "Loss-aware response brevity",
+      "definition": "An agent response-style skill aimed at removing filler while retaining actionable facts and exact technical material.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "cceb1a90-a062-580f-90a5-25ac6fc877e4",
+      "key": "capability:machine-learning-framework",
+      "label": "Machine-learning framework",
+      "definition": "An open-source tensor and deep-learning framework for model development and deployment.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "398db213-9d65-5061-9644-39cf00140d0a",
+      "key": "capability:machine-learning-lifecycle",
+      "label": "Machine-learning lifecycle",
+      "definition": "An open-source platform for tracking experiments, packaging models, registry workflows, and deployment metadata.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "dd41039e-d07e-517f-8dc1-f1d409cd1148",
+      "key": "capability:mcp-response-encoding",
+      "label": "MCP response encoding",
+      "definition": "A proxy that re-encodes structured MCP tool responses before they are returned to an agent.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "ac8befa0-e400-5493-8a3a-6dc99dce0c9e",
+      "key": "capability:mcp-server-discovery",
+      "label": "Discover MCP server metadata",
+      "definition": "Publish and query identity and lifecycle metadata for MCP servers.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "16621561-624e-582d-9888-9eb1a1034d6f",
+      "key": "capability:metasearch-discovery",
+      "label": "Metasearch discovery",
+      "definition": "A self-hostable metasearch engine with an operator-enabled JSON search API.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "2665c792-de0e-51fe-81bf-02e50de73380",
+      "key": "capability:metrics-monitoring",
+      "label": "Metrics monitoring",
+      "definition": "An open-source monitoring and alerting system centered on time-series metrics.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "404b1921-f057-55be-a50c-c89bb15f500e",
+      "key": "capability:minimal-change-guidance",
+      "label": "Minimal-change engineering guidance",
+      "definition": "An agent-portable skill and ruleset that makes new code the last resort while retaining safety checks.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1b76df7f-edaf-5307-ba82-ea5800e96eb3",
+      "key": "capability:model-output-evaluation",
+      "label": "Model output evaluation",
+      "definition": "An evaluation framework for testing prompts, models, and AI application behavior.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "10f56c6b-3ba5-5015-b46b-1694388d0ff5",
+      "key": "capability:model-provider-integration",
+      "label": "Model provider integration",
+      "definition": "A TypeScript toolkit for model calls, structured output, and provider adapters.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "6f5dcd06-f4ed-5e82-86a2-2972a06d802e",
+      "key": "capability:multi-model-gateway",
+      "label": "Multi-model gateway",
+      "definition": "An OpenAI-compatible gateway for configuring model providers, keys, budgets, routing, and usage records.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "3191ffb2-7620-50e6-974b-6299e21c904a",
+      "key": "capability:open-weight-ai-model-family",
+      "label": "Open-weight AI model family",
+      "definition": "A family of Meta-published open-weight language models with versioned model cards and licenses.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "426d555e-9341-5204-b79c-b7a531952f1f",
+      "key": "capability:plugin-package-distribution",
+      "label": "Package reusable agent capabilities",
+      "definition": "Distribute skills and optional live integrations through an official plugin contract.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "c02c7736-899f-536e-a846-75bb754425bc",
+      "key": "capability:pretool-command-filtering",
+      "label": "Pre-tool command filtering",
+      "definition": "A local command-output filter with a Codex pre-tool hook that can transparently rewrite supported shell commands.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "027578d6-deb1-574d-affc-8a69dbd2f9b0",
+      "key": "capability:ranked-repository-mapping",
+      "label": "Ranked repository mapping",
+      "definition": "A graph-ranked repository-map approach that selects important symbols under a configurable token budget.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "ffbc6fcd-ef2d-52ad-bfcd-d17776b8a4ee",
+      "key": "capability:reinforcement-learning-method",
+      "label": "Reinforcement learning method",
+      "definition": "A learning paradigm in which an agent improves behavior through actions, observations, and rewards.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "3fa5a63a-c435-5f3b-b436-73a6313dedde",
+      "key": "capability:repeatable-agent-workflows",
+      "label": "Repeatable agent workflows",
+      "definition": "Focused, progressively disclosed instructions and resources for repeatable Codex workflows.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "7841e8e7-f32d-53d3-b71d-55c6d5b6496e",
+      "key": "capability:repository-agentic-workflows",
+      "label": "Run guarded repository automations",
+      "definition": "Compile natural-language workflow definitions into guarded GitHub Actions workflows.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "a17293ad-1e12-5d34-92f3-ac182ef048c7",
+      "key": "capability:repository-briefing-generation",
+      "label": "Repository briefing generation",
+      "definition": "A skill for generating a compact first-pass repository briefing before targeted source exploration.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "c585b553-36be-59e0-9e12-2c66d1299959",
+      "key": "capability:repository-code-intelligence",
+      "label": "Repository code intelligence",
+      "definition": "A local code knowledge graph and MCP surface for dependencies, call chains, impact analysis, and repository navigation.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "69179135-43e5-52c9-89df-6ce86bec6a0f",
+      "key": "capability:reversible-tool-output-compression",
+      "label": "Reversible tool-output compression",
+      "definition": "A local rule-based post-tool compressor that retains changed raw output behind a recovery reference.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "4100eaa7-b6cb-55de-bda5-3359828c0e47",
+      "key": "capability:runtime-agent-verification",
+      "label": "Runtime agent verification",
+      "definition": "A dev-only runtime observation layer that exposes application state, network, console, routes, and DOM to coding agents.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "760884b0-4f34-530f-8484-d1e2ad9a6fcf",
+      "key": "capability:semantic-code-context-retrieval",
+      "label": "Semantic code-context retrieval",
+      "definition": "A code-context engine for indexing repositories and retrieving bounded task-relevant code through agent-facing tools.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "cefa6531-7903-5b31-b5dd-09bba5f565dd",
+      "key": "capability:site-reliability-engineering",
+      "label": "Site reliability engineering",
+      "definition": "An engineering discipline for operating reliable services through objectives, automation, and measured risk.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "1bb58d3c-6069-5fdd-965c-91fbda32b1c4",
+      "key": "capability:skill-discovery-planning",
+      "label": "Discover and plan skill stacks",
+      "definition": "Search skills locally and produce reviewable stack plans.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "a4670e1c-69c0-5739-a206-04d2580a227b",
+      "key": "capability:supervised-learning-method",
+      "label": "Supervised learning method",
+      "definition": "A learning method that estimates mappings from labeled examples for classification or regression.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "3053fc8f-2a2f-5cef-b95a-f70f20bc8029",
+      "key": "capability:systems-programming-language",
+      "label": "Systems programming language",
+      "definition": "A programming language focused on performance, type safety, and memory safety without garbage collection.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "9026052c-3d0c-5cc4-893e-65c684bcd70d",
+      "key": "capability:task-ranked-repository-context",
+      "label": "Task-ranked repository context",
+      "definition": "A local context engine for ranking repository files, rules, commands, tests, and warnings for a stated task.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "ab3d786d-f03a-518d-86f7-13f321a4690c",
+      "key": "capability:telemetry-instrumentation",
+      "label": "Telemetry instrumentation",
+      "definition": "A vendor-neutral observability framework and specification for traces, metrics, and logs.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "5da04c2b-ab96-5ca9-b48e-9e6ed3d2798c",
+      "key": "capability:tool-context-interoperability",
+      "label": "Tool and context interoperability",
+      "definition": "A protocol specification for connecting AI applications to tools and context sources.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "e3f30484-8bfb-5f80-87bd-0971efc2e811",
+      "key": "capability:typed-programming-language",
+      "label": "Typed programming language",
+      "definition": "A typed language that builds on JavaScript and compiles to JavaScript.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "7d96b4ec-6d88-5504-b22a-cb02349c9cae",
+      "key": "capability:writing-quality-guidance",
+      "label": "Writing quality guidance",
+      "definition": "Editing guidance aimed at reducing generic AI-writing patterns.",
+      "facet": "capability",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000017",
+      "key": "computer-science",
+      "label": "Computer science",
+      "definition": "Algorithms, languages, systems, data, networks, theory, and learning resources.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000019",
+      "key": "computer-systems",
+      "label": "Computer systems",
+      "definition": "Operating, distributed, database, compiler, and networking systems.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000014",
+      "key": "containers-orchestration",
+      "label": "Containers and orchestration",
+      "definition": "Container packaging, scheduling, cluster orchestration, and application deployment.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "e9635e91-3a41-5faf-80d1-cf7b1798963f",
+      "key": "context-code-intelligence",
+      "label": "Context and code intelligence",
+      "definition": "Capabilities that retrieve, structure, or reduce coding context.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000015",
+      "key": "delivery-automation",
+      "label": "Delivery automation",
+      "definition": "Continuous integration, delivery, release, and GitOps mechanisms.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000013",
+      "key": "devops",
+      "label": "DevOps",
+      "definition": "Delivery, infrastructure, operations, reliability, and their supporting practices.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "04ae0e65-de5f-5812-a2d2-d779132a0b7b",
+      "key": "document-type:article",
+      "label": "Article",
+      "definition": "An authored article.",
+      "facet": "document_type",
+      "status": "active"
+    },
+    {
+      "id": "4bb71e8d-594d-5b85-ba94-c035d9eed7c2",
+      "key": "document-type:research",
+      "label": "Research",
+      "definition": "A research publication.",
+      "facet": "document_type",
+      "status": "active"
+    },
+    {
+      "id": "dab59ee8-764b-50f8-b55b-f36dde0c60be",
+      "key": "document-type:resource",
+      "label": "Resource",
+      "definition": "A durable reference resource.",
+      "facet": "document_type",
+      "status": "active"
+    },
+    {
+      "id": "c4bdbcb1-d413-5b0a-9543-75549eb48d9b",
+      "key": "document-type:specification",
+      "label": "Specification",
+      "definition": "A normative or descriptive specification.",
+      "facet": "document_type",
+      "status": "active"
+    },
+    {
+      "id": "8185e377-8f37-5e26-9ddc-2a54ca306d31",
+      "key": "document-type:standard",
+      "label": "Standard document",
+      "definition": "A published standard or standards artifact.",
+      "facet": "document_type",
+      "status": "active"
+    },
+    {
+      "id": "4aa775a2-cbcb-5dd4-b21c-c24230356ade",
+      "key": "entity-class:document",
+      "label": "Document",
+      "definition": "A publication that explains, evaluates, specifies, or reports knowledge.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "9844255b-8896-5f40-8d5a-4255e492fb19",
+      "key": "entity-class:implementation",
+      "label": "Implementation",
+      "definition": "A concrete software artifact or integration that can be evaluated without granting authority.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "f47a71dd-6836-530f-a4a7-cfb550a679c9",
+      "key": "entity-class:language",
+      "label": "Language",
+      "definition": "A programming, query, or specification language.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "b624cc32-0ad3-5d27-bf52-8e6d5b4059fe",
+      "key": "entity-class:model",
+      "label": "Model",
+      "definition": "A named computational model or model family.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "49c4fba3-0fa7-5111-9dd2-06f657e1c328",
+      "key": "entity-class:practice",
+      "label": "Practice",
+      "definition": "A method, technique, workflow, or convention.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "5caa6181-066f-501b-95c8-45214068b466",
+      "key": "entity-class:service",
+      "label": "Service",
+      "definition": "A hosted or operated technology service.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "343d4bf3-bff0-5e89-a2b4-b9c142822176",
+      "key": "entity-class:standard",
+      "label": "Standard or protocol",
+      "definition": "A versioned standard, protocol, or interoperability contract.",
+      "facet": "entity_class",
+      "status": "active"
+    },
+    {
+      "id": "b0d496e0-b3ad-525c-a0b5-e5a34f64af55",
+      "key": "infrastructure-as-code",
+      "label": "Infrastructure as code",
+      "definition": "Declarative infrastructure planning and state-management capabilities.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "4c39e31f-3acf-5e21-851d-118b01599d9e",
+      "key": "interface:api",
+      "label": "API",
+      "definition": "A programmatic service interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "43118ef0-6115-5fe4-94d2-f38a30e9eb24",
+      "key": "interface:cli",
+      "label": "Command line",
+      "definition": "A command-line interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "8a78e2f4-b6cc-57b9-9e05-4353a2e0b1ed",
+      "key": "interface:language",
+      "label": "Language",
+      "definition": "A language-facing interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "f139ac64-bdda-522c-b5d4-25e8a8ad67c0",
+      "key": "interface:library",
+      "label": "Library",
+      "definition": "A programmatic library interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "dcdb07c8-5ef1-566a-a186-2ce0c353fbbb",
+      "key": "interface:mcp-server",
+      "label": "MCP server",
+      "definition": "A Model Context Protocol server interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "eceb72e3-ef6b-5260-88cf-355f9b2990aa",
+      "key": "interface:plugin",
+      "label": "Plugin",
+      "definition": "A host-extension or plugin interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "7da48e4f-23f2-52b1-863f-0d663ab09c6e",
+      "key": "interface:protocol",
+      "label": "Protocol",
+      "definition": "A protocol-facing interface.",
+      "facet": "interface",
+      "status": "active"
+    },
+    {
+      "id": "b3b8db54-85a6-59fc-970c-41f6455e1427",
+      "key": "languages-runtimes",
+      "label": "Languages and runtimes",
+      "definition": "Programming languages and their supported execution runtimes.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000011",
+      "key": "machine-learning",
+      "label": "Machine learning",
+      "definition": "Learning methods, frameworks, evaluation, data, and model operations.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "d8929d5a-8113-50b8-b01f-b2513215ce32",
+      "key": "observability-evaluation",
+      "label": "Observability and evaluation",
+      "definition": "Measured observations and evaluation tooling for AI-assisted work.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000016",
+      "key": "observability-reliability",
+      "label": "Observability and reliability",
+      "definition": "Telemetry, monitoring, and site-reliability practices.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000018",
+      "key": "programming-languages",
+      "label": "Programming languages",
+      "definition": "Language design, implementations, runtimes, and programming resources.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "0475ee83-1dab-5674-a3e0-6d27887e6c0d",
+      "key": "registries-discovery",
+      "label": "Registries and discovery",
+      "definition": "Identity and metadata sources used to discover capabilities.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "87000000-0000-4000-8000-000000000020",
+      "key": "research-learning",
+      "label": "Research and learning",
+      "definition": "Primary research, explanatory articles, specifications, and learning resources.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "3ed0f24d-f17a-5ece-96bc-4c93dec9363c",
+      "key": "service-model:hosted-api",
+      "label": "Hosted API",
+      "definition": "Operated remotely behind an API.",
+      "facet": "service_model",
+      "status": "active"
+    },
+    {
+      "id": "4f9e508b-9cf2-5923-803a-879d4071d672",
+      "key": "service-model:hybrid",
+      "label": "Hybrid",
+      "definition": "Combines local or self-hosted and managed components.",
+      "facet": "service_model",
+      "status": "active"
+    },
+    {
+      "id": "bf0e00d9-ad8e-59ca-8273-b464b89c5242",
+      "key": "service-model:local",
+      "label": "Local",
+      "definition": "Operated on a user-controlled local host.",
+      "facet": "service_model",
+      "status": "active"
+    },
+    {
+      "id": "6cb05366-615c-5411-8c79-43f830c5a79f",
+      "key": "service-model:managed",
+      "label": "Managed",
+      "definition": "Operated for the user by a service provider.",
+      "facet": "service_model",
+      "status": "active"
+    },
+    {
+      "id": "e552476d-cb38-56f8-b150-8d06c6297c7a",
+      "key": "service-model:saas",
+      "label": "SaaS",
+      "definition": "Operated as multi-tenant software as a service.",
+      "facet": "service_model",
+      "status": "active"
+    },
+    {
+      "id": "473d4020-944e-5ab9-a067-a5b88a6634c6",
+      "key": "service-model:self-hosted",
+      "label": "Self-hosted",
+      "definition": "Operated by the adopting organization.",
+      "facet": "service_model",
+      "status": "active"
+    },
+    {
+      "id": "c65d8538-e558-56c2-aff6-6039ef5e05d9",
+      "key": "skills-plugins",
+      "label": "Skills and plugins",
+      "definition": "Packaging and configuration surfaces for reusable agent capabilities.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "907fdea5-17da-5e66-a9b6-d2c906cc24ac",
+      "key": "software-engineering-foundations",
+      "label": "Software engineering foundations",
+      "definition": "Established technologies used to build and operate software.",
+      "facet": "domain",
+      "status": "active"
+    },
+    {
+      "id": "0c1caf72-d6cd-59c8-8960-0b8ecbe1163f",
+      "key": "tool-agent-protocols",
+      "label": "Tool and agent protocols",
+      "definition": "Transport contracts between agents, applications, and tools.",
+      "facet": "domain",
+      "status": "active"
+    }
+  ]
+}

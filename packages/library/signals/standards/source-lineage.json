@@ -1,0 +1,100 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "f2d6172b49720e864e037b794f507c4b7107f45f642c84a3e58f7584cf39b9b3",
+    "category": "Research",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "source-lineage-prov",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "f2d6172b49720e864e037b794f507c4b7107f45f642c84a3e58f7584cf39b9b3",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-source-lineage",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Per-claim identity and attribution are concrete; provenance remains distinct from truth and corroboration.",
+            "evidence": "Per-claim identity and attribution are concrete; provenance remains distinct from truth and corroboration.",
+            "usefulness": "Per-claim identity and attribution are concrete; provenance remains distinct from truth and corroboration.",
+            "clarity": "Per-claim identity and attribution are concrete; provenance remains distinct from truth and corroboration."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-source-lineage-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Keep source identity and attribution on each claim. Reuse the existing records before adopting a separate provenance framework.",
+      "concept_ids": [
+        "research.provenance",
+        "context.provenance",
+        "data.lineage",
+        "delivery.artifacts"
+      ]
+    },
+    "sources": [
+      {
+        "id": "prov",
+        "uri": "https://www.w3.org/TR/2013/REC-prov-dm-20130430/",
+        "title": "W3C PROV-DM",
+        "source_class": "standard",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": "2013-04-30 Recommendation",
+        "independence_group": "www.w3.org"
+      }
+    ],
+    "claims": [
+      {
+        "id": "source-lineage-prov",
+        "text": "PROV-DM models entities, activities, agents, derivation and attribution. Provenance descriptions can themselves have provenance.",
+        "source_ids": ["prov"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-source-lineage",
+        "name": "Source-bound claims and derivation",
+        "canonical_uri": "https://www.w3.org/TR/2013/REC-prov-dm-20130430/",
+        "claim_ids": ["source-lineage-prov"],
+        "disposition": "consider",
+        "reason": "Keep source identity and attribution on each claim. Reuse the existing records before adopting a separate provenance framework.",
+        "limitations": [
+          "Lineage helps assess a claim; it does not prove truth, originality or independent corroboration."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

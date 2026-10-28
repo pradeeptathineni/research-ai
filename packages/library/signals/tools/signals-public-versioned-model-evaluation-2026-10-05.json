@@ -1,0 +1,115 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "d182c723b3f5cbc892edab1914d4e47522759c4806569a681f2a2efcb84b055b",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:12:31.614558Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary material independently challenged for relevance, support, actionable usefulness and limits. Changing documentation is due for re-observation after 90 days; this cadence is review policy, not a guarantee.",
+    "claimReviews": [
+      {
+        "claimId": "evaluation-cases",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "evaluation-saved-output",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "d182c723b3f5cbc892edab1914d4e47522759c4806569a681f2a2efcb84b055b",
+      "researchRunId": "host-acquisition:signals-public-versioned-model-evaluation-2026-10-05",
+      "reviewRunId": "source-research-independent:versioned-model-evaluation:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:12:31.614558Z",
+      "options": [
+        {
+          "optionId": "option-promptfoo-cases",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Versioned cases and assertions directly address repeatable prompt and model-output evaluation.",
+            "evidence": "Official case and assertion documentation supports external case files and saved-output checks within their stated scope.",
+            "usefulness": "A small offline pass/fail matrix with counts and separate deterministic/model assertions is actionable without candidate execution.",
+            "clarity": "Deterministic checks are distinguished from model grading, factual truth and claims of broader reproducibility."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-versioned-model-evaluation-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:46:22Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "What framework tests prompts, models and application behavior against versioned cases?",
+      "concept_ids": ["model-output-evaluation", "agent-workflow-evaluation"]
+    },
+    "sources": [
+      {
+        "id": "promptfoo-cases",
+        "uri": "https://www.promptfoo.dev/docs/configuration/test-cases/",
+        "title": "Promptfoo test-case configuration",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "page updated 2026-10-05",
+        "independence_group": "www.promptfoo.dev"
+      },
+      {
+        "id": "promptfoo-assertions",
+        "uri": "https://www.promptfoo.dev/docs/configuration/expected-outputs/",
+        "title": "Promptfoo assertions and metrics",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "page updated 2026-10-05",
+        "independence_group": "www.promptfoo.dev"
+      }
+    ],
+    "claims": [
+      {
+        "id": "evaluation-cases",
+        "text": "Promptfoo cases contain variables, assertions, descriptions and metadata, and may be loaded from external YAML, JSON, JSONL or CSV files, including multiple file patterns.",
+        "source_ids": ["promptfoo-cases"],
+        "status": "supported"
+      },
+      {
+        "id": "evaluation-saved-output",
+        "text": "Promptfoo supports standalone assertions over saved outputs with --assertions and --model-outputs; deterministic assertions and model-assisted grading are distinct mechanisms.",
+        "source_ids": ["promptfoo-assertions"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-promptfoo-cases",
+        "name": "Version cases and evaluate saved outputs first",
+        "canonical_uri": "https://www.promptfoo.dev/docs/configuration/test-cases/",
+        "claim_ids": ["evaluation-cases", "evaluation-saved-output"],
+        "disposition": "consider",
+        "reason": "For a future authorized trial, commit a small case set, prompt/configuration and saved outputs. Start with deterministic assertions including known pass and fail cases; verify counts and failure reporting before any live-model evaluation.",
+        "limitations": [
+          "Git versioning is a proposed reproducibility practice; model output is not guaranteed reproducible. Assertions measure only their criteria, while model grading adds an additional uncalibrated judgment dependency."
+        ]
+      }
+    ],
+    "limitations": [
+      "Documented capabilities acquired through primary-source research. Proposed trials have not been run; source support is separate from usefulness or comparative superiority."
+    ]
+  }
+}

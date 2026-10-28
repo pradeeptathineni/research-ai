@@ -1,0 +1,102 @@
+{
+  "name": "signals-ai",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.19.0 <25",
+    "npm": ">=12.1.0 <13"
+  },
+  "scripts": {
+    "knowledge": "node --import tsx scripts/knowledge.ts",
+    "smart-collections": "node --import tsx scripts/smart-collections.ts",
+    "source-captures": "node --import tsx scripts/source-captures.ts",
+    "source-change-reviews": "node --import tsx scripts/source-change-reviews.ts",
+    "project-topic-relevance": "node --import tsx scripts/project-topic-relevance.ts",
+    "private-documents": "node --import tsx scripts/private-documents.ts",
+    "private-collection": "node --import tsx scripts/private-collection.ts",
+    "private-reader": "node --import tsx scripts/private-reader.ts",
+    "test:corpus": "playwright test --config playwright.corpus.config.ts",
+    "corpus:build": "npm run corpus -- build && vite build --config apps/corpus/vite.config.ts",
+    "corpus:preview": "vite preview --config apps/corpus/vite.config.ts",
+    "corpus": "node --import tsx scripts/corpus.ts",
+    "release:check": "node scripts/check-release.mjs",
+    "build": "npm run typecheck && npm run corpus:build",
+    "clean": "node scripts/clean.mjs",
+    "context:pack": "node scripts/run-context-pack.mjs",
+    "context:pack:test": "node --test scripts/run-context-pack.test.mjs",
+    "context:verify": "node scripts/verify-context-engineering.mjs",
+    "dev": "npm run corpus -- build && vite --config apps/corpus/vite.config.ts --host 127.0.0.1",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "quality:dead-code": "knip --no-progress",
+    "quality:duplicates": "jscpd --config .jscpd.json",
+    "quality:structure": "npm run quality:dead-code && npm run quality:duplicates",
+    "security:dependencies": "node scripts/dependency-check.mjs",
+    "security:audit": "node scripts/dependency-audit-policy.mjs",
+    "security:audit:test": "node --test scripts/dependency-audit-policy.test.mjs",
+    "security:secrets": "node scripts/secret-check.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "test:research-answer": "node --import tsx --test tests/unit/research-answer.test.ts",
+    "demo:processes": "node scripts/examples/process-demo.mjs",
+    "demo:grounding": "node --import tsx scripts/examples/grounded-demo.ts",
+    "research-answer": "node --import tsx scripts/research-answer.ts",
+    "test:provenance": "node --import tsx packages/corpus/src/audit.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify": "bash scripts/verify.sh",
+    "research": "node --import tsx scripts/research.ts",
+    "test:local-query": "playwright test --config playwright.local-query.config.ts",
+    "test:workbench": "playwright test --config playwright.workbench.config.ts",
+    "test:built": "playwright test --config playwright.built.config.ts",
+    "library:coverage": "node --import tsx scripts/library-coverage.ts",
+    "signal-search": "node --import tsx scripts/signal-search.ts",
+    "material-preview": "node --import tsx scripts/material-preview.ts",
+    "start": "node --import tsx scripts/workbench.ts",
+    "discovery": "node --import tsx scripts/discovery.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "@pradeeptathineni/research-ai": "file:vendor/research-ai/0f7ab726f7267e1a7e85c4f7094d909db5a7e64671a2b319d3083aa39f6ce947.tgz",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "linkedom": "0.18.13",
+    "minisearch": "7.2.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "rss-parser": "3.13.0",
+    "typebox": "1.3.34"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@eslint/js": "10.0.1",
+    "@linger-alpha/cca": "0.2.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "eslint": "10.11.0",
+    "jscpd": "5.3.3",
+    "knip": "6.38.0",
+    "prettier": "3.9.9",
+    "repomix": "1.18.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "8.3.3",
+    "vitest": "5.0.2"
+  },
+  "overrides": {
+    "repomix": {
+      "@modelcontextprotocol/sdk": "1.32.0"
+    }
+  },
+  "optionalDependencies": {
+    "playwright": "1.63.0"
+  }
+}

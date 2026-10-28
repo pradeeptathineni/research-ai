@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "purpose": "Comprehensive default discovery catalog; actual access is discovered and reported, never assumed.",
+  "implemented_routes": ["host-search", "public-fetch"],
+  "route_note": "Other listed routes are potential integrations, not installed adapters. Current Codex supplies live discovery across enabled families. PDFs and inaccessible sources report gaps. The profiles bound structured operations and tool calls; provider-internal reasoning/request counts are unavailable.",
+  "default_profile": "wide",
+  "channels": [
+    {
+      "id": "open-web",
+      "name": "General web discovery",
+      "enabled": true,
+      "routes": ["host-search", "configured-web-api", "configured-searxng"],
+      "starting_domains": [],
+      "applicable_types": ["all"],
+      "policy": "Attempt early broad discovery, synonyms and disconfirming searches.",
+      "source_refs": ["brave"]
+    },
+    {
+      "id": "primary",
+      "name": "Original project/provider documentation",
+      "enabled": true,
+      "routes": ["host-search", "public-fetch"],
+      "starting_domains": [],
+      "applicable_types": ["all"],
+      "policy": "Follow canonical documentation and release pages discovered in the run.",
+      "source_refs": ["prov"]
+    },
+    {
+      "id": "github",
+      "name": "GitHub repositories and discussions",
+      "enabled": true,
+      "routes": ["github-api", "host-search"],
+      "starting_domains": ["github.com"],
+      "applicable_types": ["software", "practice", "model", "dataset"],
+      "policy": "Use stable repository identity; repository docs/issues are related origins.",
+      "source_refs": ["github-search"]
+    },
+    {
+      "id": "other-forges",
+      "name": "Other code forges",
+      "enabled": true,
+      "routes": ["host-search"],
+      "starting_domains": ["gitlab.com", "codeberg.org"],
+      "applicable_types": ["software", "practice"],
+      "policy": "Discover beyond GitHub; do not treat mirrors as independent endorsement.",
+      "source_refs": ["github-search"]
+    },
+    {
+      "id": "registries",
+      "name": "Package/model/dataset registries",
+      "enabled": true,
+      "routes": ["host-search", "public-fetch"],
+      "starting_domains": ["npmjs.com", "pypi.org", "crates.io", "huggingface.co"],
+      "applicable_types": ["software", "model", "dataset"],
+      "policy": "Validate metadata at canonical registries; installs/downloads have known biases.",
+      "source_refs": ["criticality"]
+    },
+    {
+      "id": "hacker-news",
+      "name": "Hacker News discussions",
+      "enabled": true,
+      "routes": ["hn-algolia", "host-search"],
+      "starting_domains": ["news.ycombinator.com"],
+      "applicable_types": ["software", "service", "practice", "publication"],
+      "policy": "Independent experiences and caveats; comments in one thread are capped.",
+      "source_refs": ["hn-search"]
+    },
+    {
+      "id": "qa",
+      "name": "Stack Exchange communities",
+      "enabled": true,
+      "routes": ["stackexchange-api", "host-search"],
+      "starting_domains": ["stackoverflow.com", "stackexchange.com"],
+      "applicable_types": ["all"],
+      "policy": "Choose relevant community; not just software.",
+      "source_refs": ["stackexchange"]
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit community discussions",
+      "enabled": true,
+      "routes": ["host-search", "explicit-authorized-api"],
+      "starting_domains": ["reddit.com"],
+      "applicable_types": ["all"],
+      "policy": "Indexed leads or authorized access only; no denied-access scraping.",
+      "source_refs": ["injection"]
+    },
+    {
+      "id": "standards",
+      "name": "Standards and reference institutions",
+      "enabled": true,
+      "routes": ["host-search", "public-fetch"],
+      "starting_domains": ["w3.org", "rfc-editor.org", "ietf.org", "nist.gov"],
+      "applicable_types": ["standard", "practice", "software"],
+      "policy": "Use ratification/current status evidence; do not buy or bypass restricted standards.",
+      "source_refs": ["skos"]
+    },
+    {
+      "id": "scholarly",
+      "name": "Research papers and scholarly metadata",
+      "enabled": true,
+      "routes": ["arxiv-api", "host-search"],
+      "starting_domains": ["arxiv.org", "crossref.org", "openalex.org"],
+      "applicable_types": ["publication", "model", "dataset", "practice"],
+      "policy": "Broaden institutions by subject; preprint/citation counts are not replication.",
+      "source_refs": ["arxiv"]
+    },
+    {
+      "id": "practitioners",
+      "name": "Independent technical/practitioner sources",
+      "enabled": true,
+      "routes": ["host-search", "public-fetch"],
+      "starting_domains": ["dev.to"],
+      "applicable_types": ["all"],
+      "policy": "Discover other appropriate publications dynamically; avoid syndication double count.",
+      "source_refs": ["prov"]
+    },
+    {
+      "id": "media-feeds",
+      "name": "Videos, newsletters and feeds",
+      "enabled": true,
+      "routes": ["host-search", "public-feed", "explicit-authorized-api"],
+      "starting_domains": ["youtube.com"],
+      "applicable_types": ["all"],
+      "policy": "Use attributable metadata or permitted source text; no required video downloads.",
+      "source_refs": ["prov"]
+    }
+  ],
+  "rules": {
+    "dynamic_public_domains": true,
+    "general_search_required_for_broad_live_claim": true,
+    "no_search_engine_result_as_independent_source": true,
+    "third_party_payments_require_opt_in": true,
+    "never_bypass_access_denials": true,
+    "every_channel_has_reported_disposition": true
+  },
+  "profiles": {
+    "quick": {
+      "max_searches": 8,
+      "max_documents": 20,
+      "max_entities": 20,
+      "max_structured_operations": 2,
+      "max_elapsed_seconds": 240,
+      "max_refinement_rounds": 1
+    },
+    "wide": {
+      "max_searches": 24,
+      "max_documents": 60,
+      "max_entities": 60,
+      "max_structured_operations": 2,
+      "max_elapsed_seconds": 600,
+      "max_refinement_rounds": 2
+    }
+  },
+  "network": {
+    "max_parallel_requests": 1,
+    "per_host_concurrency": 1,
+    "max_retries": 0,
+    "max_document_bytes": 2000000,
+    "max_redirects": 3,
+    "access_denials_stop_without_retry": true
+  }
+}

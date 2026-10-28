@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "policy_id": "signal-strength-v0",
+  "status": "Provisional transparent policy to implement, challenge and revise from tests; not calibrated scientific confidence.",
+  "score_range": [0, 100],
+  "autosave_threshold": 75,
+  "weights": {
+    "corroboration": 25,
+    "adoption": 20,
+    "maturity": 20,
+    "currentness": 15,
+    "authority": 10,
+    "verification": 10
+  },
+  "aggregate": "round(clamp(sum(weight[dimension] * normalized_feature[dimension]) - evidence_bound_risk_penalty, 0, 100))",
+  "unknowns": "Use zero earned credit for unknown applicable indicators and display coverage/missing fields. With no usable evidence, score is null and state is unassessed. Do not reweight around unknowns.",
+  "normalization": "Pure named reducers and type-specific documented indicators; no executable configuration or model-supplied final score.",
+  "corroboration": {
+    "reducer": "bounded_exponential",
+    "scale": 3,
+    "formula": "1 - exp(-effective_independent_support / 3)",
+    "duplicate_credit": 0,
+    "uncertain_independence_credit": 0,
+    "max_effective_credit_per_origin_group": 1,
+    "publisher_and_search_engine_copies_are_not_new_origins": true,
+    "negative_mentions_count_as_support": false,
+    "raw_mentions_retained_separately": true
+  },
+  "adoption": {
+    "attention_only_max_dimension_fraction": 0.25,
+    "require_observed_type_relevant_usage_for_more_credit": true,
+    "count_normalization": "Fixed usage bands: attention/single-user .25, multiple-users .5, sustained .75, broad 1. Above .25 requires two independent non-primary origins; above .75 requires three. Counts alone do not establish use.",
+    "never_normalize_against_this_run_results": true
+  },
+  "type_profiles": {
+    "computational": ["software", "service", "model", "dataset"],
+    "methods": ["standard", "practice"],
+    "knowledge": ["publication", "learning-resource"],
+    "tangible": ["product"],
+    "institutional": ["organization"],
+    "unclassified": ["other"]
+  },
+  "relevance": {
+    "separate_from_intrinsic_signal": true,
+    "levels": ["direct", "related", "out-of-scope", "unknown"],
+    "save_eligible_levels": ["direct"],
+    "ordering": "Direct before related before unknown before out-of-scope; within bucket use Signal score, evidence coverage, stable ID. Other sorts are explicit."
+  },
+  "automatic_save_requires": [
+    "validated non-fixture entity",
+    "resolved identity and minimally supported defining claim",
+    "direct query relevance",
+    "score at or above configured threshold",
+    "no unresolved blocking contradiction for the defining claim",
+    "public-safe serialized record for Git-visible corpus",
+    "configured retention consent"
+  ],
+  "automatic_save_does_not_require": [
+    "a second model call for every candidate",
+    "a local installation or execution trial",
+    "all features independently perfect",
+    "proof of universal comparative superiority",
+    "permission to redistribute an entire linked project when only permitted facts and citations are retained"
+  ],
+  "invariants": [
+    "same inputs + policy + effective time yield same score",
+    "exact duplicates and mirrored mentions do not increase score",
+    "more valid independent support cannot reduce the corroboration component at fixed other inputs and time",
+    "critical contrary evidence can lower overall score or prevent autosave",
+    "unchanged source re-fetch does not create new corroboration",
+    "user preference changes relevance/selection, not external evidence",
+    "Context repeating Signals output is not independent corroboration"
+  ]
+}

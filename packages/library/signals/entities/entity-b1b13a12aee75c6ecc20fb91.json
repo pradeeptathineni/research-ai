@@ -1,0 +1,210 @@
+{
+  "recordVersion": 2,
+  "entity": {
+    "uri": "https://www.rfc-editor.org/rfc/rfc9110.html",
+    "name": "RFC 9110 HTTP Semantics, section 9.2.2",
+    "kind": "standard",
+    "identity": "resolved",
+    "aliases": ["HTTP idempotent methods"],
+    "description": "Defines HTTP method idempotency and conditions for automatically retrying requests after communication failures.",
+    "facets": {
+      "domains": ["HTTP", "API architecture"],
+      "capabilities": ["retry semantics"],
+      "interfaces": ["HTTP"],
+      "deliveryForms": ["normative specification"],
+      "platforms": [],
+      "licenses": [],
+      "tags": ["PUT", "DELETE", "intended effects"]
+    },
+    "observations": [
+      {
+        "feature": "maturity",
+        "indicator": "stable-interface",
+        "statement": "The published specification supplies a normative restriction on automatic retries of non-idempotent methods.",
+        "quote": "A client SHOULD NOT automatically retry",
+        "independent": false,
+        "origin": "rfc9110",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-2a17a01ad32c2c7fb5765b20",
+        "id": "observation-0e79a0a783f361d70d9d04d3",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-643e1104fbcc3675809069fa",
+        "verified": true
+      },
+      {
+        "feature": "verification",
+        "indicator": "inspectable",
+        "statement": "The fetched specification exposes the concrete set of methods classified as idempotent.",
+        "quote": "PUT , DELETE , and safe request methods",
+        "independent": false,
+        "origin": "rfc9110",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-afe7f80f225c38b9f25cf178",
+        "id": "observation-2830036dca523d1a80ba62a2",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-643e1104fbcc3675809069fa",
+        "verified": true
+      },
+      {
+        "feature": "currentness",
+        "indicator": "current",
+        "statement": "The authority record reports an update on May 20, 2026 and retains Internet Standard status; this dates the record, not a revision of the specification.",
+        "quote": "Last updated 2026-05-20",
+        "independent": false,
+        "origin": "rfc9110",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-ecab8981df1a76c0f679deb8",
+        "id": "observation-2909e47b3a022aa6a5ede239",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-af7672afeec087fcea26b2d1",
+        "verified": true
+      },
+      {
+        "feature": "defining",
+        "indicator": "defines",
+        "statement": "Section 9.2.2 defines idempotency by equality of intended server effects across repeated identical requests.",
+        "quote": "the intended effect on the server of multiple identical requests",
+        "independent": false,
+        "origin": "rfc9110",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-5a9a1872f732ffd7a98d046e",
+        "id": "observation-424afb97ab3b4c7be132faf1",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-643e1104fbcc3675809069fa",
+        "verified": true
+      },
+      {
+        "feature": "authority",
+        "indicator": "formal-current",
+        "statement": "The issuing authority's document record identifies RFC 9110 as an Internet Standard.",
+        "quote": "Document Type RFC - Internet Standard (June 2022)",
+        "independent": false,
+        "origin": "rfc9110",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-3e747112a5324c0939cc4d4b",
+        "id": "observation-6720dc8304851d09e41a5bb9",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-af7672afeec087fcea26b2d1",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "supported-or-complete",
+        "statement": "The authority record establishes completed publication as an Internet Standard in June 2022.",
+        "quote": "also known as STD 97",
+        "independent": false,
+        "origin": "rfc9110",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-cdc85ef4fc5cea27d728d906",
+        "id": "observation-bed20966c892b94166a2e966",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-af7672afeec087fcea26b2d1",
+        "verified": true
+      }
+    ],
+    "limits": [
+      "Idempotency concerns intended effects; response equality and suppression of every incidental side effect are not required.",
+      "Automatic retries of non-idempotent methods require knowledge of idempotent request semantics or detection that the original request was never applied.",
+      "The supplied material does not establish independent implementation adoption or replicated validation."
+    ],
+    "id": "entity-b1b13a12aee75c6ecc20fb91",
+    "acquisition": "configured-live",
+    "evidence": [
+      {
+        "uri": "https://www.rfc-editor.org/rfc/rfc9110.html",
+        "title": "RFC 9110: HTTP Semantics",
+        "publisher": "RFC Editor / IETF",
+        "family": "standards",
+        "publishedAt": "2022-06",
+        "origin": "rfc9110",
+        "id": "evidence-643e1104fbcc3675809069fa",
+        "fetchedAt": "2026-10-06T08:35:27.939Z",
+        "digest": "d431760660ea44e130f6e919dab216df2d0b3a490567a98089267523368fe1e5",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "A client SHOULD NOT automatically retry … PUT , DELETE , and safe request methods … the intended effect on the server of multiple identical requests",
+        "normalizer": "text-v2",
+        "excerptDigest": "07d517d710cbf2eb8d3875f188f983314787d42b872264c546444a0ca0b416d0"
+      },
+      {
+        "uri": "https://datatracker.ietf.org/doc/rfc9110",
+        "title": "RFC 9110 document record",
+        "publisher": "IETF",
+        "family": "standards",
+        "publishedAt": null,
+        "origin": "rfc9110",
+        "id": "evidence-af7672afeec087fcea26b2d1",
+        "fetchedAt": "2026-10-06T08:35:28.859Z",
+        "digest": "62ad0ccdfdcf29b16f9ad45503688fa222f878a31b86336e80c81bac5c3564e7",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "Document Type RFC - Internet Standard (June 2022) … Last updated 2026-05-20 … also known as STD 97",
+        "normalizer": "text-v2",
+        "excerptDigest": "27c0e0e18da67ebf86e9a89dc41328003f09684fea66ab27bff99584b175b117"
+      }
+    ],
+    "currentEvidence": ["evidence-643e1104fbcc3675809069fa", "evidence-af7672afeec087fcea26b2d1"],
+    "currentChecks": {
+      "https://www.rfc-editor.org/rfc/rfc9110.html": "2026-10-06T08:35:27.939Z",
+      "https://datatracker.ietf.org/doc/rfc9110": "2026-10-06T08:35:28.859Z"
+    },
+    "assessment": {
+      "policy": "signal-strength-v6",
+      "asOf": "2026-10-06T08:36:36.999Z",
+      "score": 75,
+      "features": {
+        "corroboration": { "value": 0, "contribution": 0, "observations": [], "state": "unknown" },
+        "adoption": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "not-applicable"
+        },
+        "maturity": {
+          "value": 0.5,
+          "contribution": 7.5,
+          "observations": [
+            "observation-0e79a0a783f361d70d9d04d3",
+            "observation-bed20966c892b94166a2e966"
+          ],
+          "state": "observed"
+        },
+        "currentness": {
+          "value": 1,
+          "contribution": 25,
+          "observations": ["observation-2909e47b3a022aa6a5ede239"],
+          "state": "observed"
+        },
+        "authority": {
+          "value": 1,
+          "contribution": 40,
+          "observations": ["observation-6720dc8304851d09e41a5bb9"],
+          "state": "observed"
+        },
+        "verification": {
+          "value": 0.25,
+          "contribution": 2.5,
+          "observations": ["observation-2830036dca523d1a80ba62a2"],
+          "state": "observed"
+        }
+      },
+      "risk": 0,
+      "coverage": 0.8,
+      "missing": ["corroboration"],
+      "state": "assessed"
+    }
+  },
+  "state": "eligible-saved"
+}

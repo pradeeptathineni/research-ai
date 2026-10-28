@@ -1,0 +1,135 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "6b84f16d4ad451033bf19ac3fdbf0b5e070fd530ada3c039505238c1acf29b49",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:12:31.614558Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary material independently challenged for relevance, support, actionable usefulness and limits. Changing documentation is due for re-observation after 90 days; this cadence is review policy, not a guarantee.",
+    "claimReviews": [
+      {
+        "claimId": "sdk-provider-contract",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "sdk-validation",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "sdk-mocks",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "6b84f16d4ad451033bf19ac3fdbf0b5e070fd530ada3c039505238c1acf29b49",
+      "researchRunId": "host-acquisition:signals-public-typed-model-output-2026-10-05",
+      "reviewRunId": "source-research-independent:typed-model-output:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:12:31.614558Z",
+      "options": [
+        {
+          "optionId": "option-ai-sdk-output",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "TypeScript provider adapters and structured final output address the stated integration contract need.",
+            "evidence": "Official provider and structured-output documentation supports feature variation, final schemas, partial output and typed failures.",
+            "usefulness": "Malformed JSON, incorrect types, missing fields and partial results define useful checks with explicit mock boundaries.",
+            "clarity": "Schema validity is separated from truth and authority; fixture providers do not establish configured-live behavior."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-typed-model-output-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:46:22Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Which TypeScript toolkit supports provider adapters and structured model output, and what contract checks should I use?",
+      "concept_ids": ["model-provider-integration"]
+    },
+    "sources": [
+      {
+        "id": "sdk-providers",
+        "uri": "https://ai-sdk.dev/providers/ai-sdk-providers",
+        "title": "AI SDK v7 provider capabilities",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "v7 documentation",
+        "independence_group": "ai-sdk.dev"
+      },
+      {
+        "id": "sdk-output",
+        "uri": "https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data",
+        "title": "AI SDK v7 structured output",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "v7 documentation",
+        "independence_group": "ai-sdk.dev"
+      },
+      {
+        "id": "sdk-testing",
+        "uri": "https://ai-sdk.dev/docs/ai-sdk-core/testing",
+        "title": "AI SDK v7 testing",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "v7 documentation",
+        "independence_group": "ai-sdk.dev"
+      }
+    ],
+    "claims": [
+      {
+        "id": "sdk-provider-contract",
+        "text": "AI SDK offers a shared TypeScript integration API across supported providers; provider features and capabilities differ.",
+        "source_ids": ["sdk-providers"],
+        "status": "supported"
+      },
+      {
+        "id": "sdk-validation",
+        "text": "Output.object with a schema validates the completed output. Partial streamed objects are not validated as completed objects; parsing, validation and missing final output have documented error paths.",
+        "source_ids": ["sdk-output"],
+        "status": "supported"
+      },
+      {
+        "id": "sdk-mocks",
+        "text": "The ai/test module supplies mock providers for repeatable tests without calling a model provider.",
+        "source_ids": ["sdk-testing"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-ai-sdk-output",
+        "name": "Validate completed structured model output",
+        "canonical_uri": "https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data",
+        "claim_ids": ["sdk-provider-contract", "sdk-validation", "sdk-mocks"],
+        "disposition": "consider",
+        "reason": "For a future authorized trial, pin SDK and provider versions. Use mocks to check valid output, malformed JSON, wrong field types, missing final output and incomplete streaming; prevent partial objects from reaching a completed-result consumer.",
+        "limitations": [
+          "Schema conformance does not prove factual correctness or authority. Mock tests do not establish configured-live quality or universal provider compatibility."
+        ]
+      }
+    ],
+    "limitations": [
+      "Documented capabilities acquired through primary-source research. Proposed trials have not been run; source support is separate from usefulness or comparative superiority."
+    ]
+  }
+}

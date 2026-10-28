@@ -1,0 +1,209 @@
+{
+  "recordVersion": 2,
+  "entity": {
+    "uri": "https://www.w3.org/TR/trace-context-1",
+    "name": "W3C Trace Context, 23 November 2021 Recommendation",
+    "kind": "standard",
+    "identity": "resolved",
+    "aliases": ["Trace Context Level 1", "https://www.w3.org/TR/trace-context/"],
+    "description": "HTTP header and value conventions for propagating distributed tracing context across services.",
+    "facets": {
+      "domains": ["distributed tracing", "observability"],
+      "capabilities": ["trace context propagation", "interoperability"],
+      "interfaces": ["HTTP"],
+      "deliveryForms": ["specification"],
+      "platforms": [],
+      "licenses": [],
+      "tags": ["traceparent", "tracestate"]
+    },
+    "observations": [
+      {
+        "feature": "maturity",
+        "indicator": "supported-or-complete",
+        "statement": "Recommendation status establishes a completed normative publication.",
+        "quote": "Recommendation",
+        "independent": false,
+        "origin": "w3c-trace-context",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-0424a24fa6c08ae308856043",
+        "id": "observation-11660b71acfe3a05ad0cd73e",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-5862abcb0a1b477ef87a89c2",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "stable-interface",
+        "statement": "Published normative requirements specify handling of invalid parent identifiers.",
+        "quote": "Vendors MUST ignore the traceparent when the parent-id is invalid",
+        "independent": false,
+        "origin": "w3c-trace-context",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-2c9483edd156d8dcc09d11b5",
+        "id": "observation-23c724bc90711f4e0a6dc79d",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-89e5a521338197cbddd37cfd",
+        "verified": true
+      },
+      {
+        "feature": "currentness",
+        "indicator": "current",
+        "statement": "The issuing page identifies this candidate URI as the latest published version of Trace Context Level 1.",
+        "quote": "Latest published version:",
+        "independent": false,
+        "origin": "w3c-trace-context",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-bf43eaad0ae9be0fb70c070d",
+        "id": "observation-39263c920c6abbb7b320d347",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-89e5a521338197cbddd37cfd",
+        "verified": true
+      },
+      {
+        "feature": "authority",
+        "indicator": "formal-current",
+        "statement": "The issuing authority's publication history lists the November 2021 Recommendation as its latest entry, consistent with the specification's latest-version statement.",
+        "quote": "23 November 2021 Recommendation",
+        "independent": false,
+        "origin": "w3c-trace-context",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-3490acdc4cd05903b5d994b7",
+        "id": "observation-a11a27cf30011f843dd3e48a",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-5862abcb0a1b477ef87a89c2",
+        "verified": true
+      },
+      {
+        "feature": "defining",
+        "indicator": "defines",
+        "statement": "The specification defines HTTP headers and a value format for propagating distributed tracing context.",
+        "quote": "HTTP headers and a value format to propagate context information",
+        "independent": false,
+        "origin": "w3c-trace-context",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-f86453e1213e825c5f2e4d6b",
+        "id": "observation-a7f489bc4645caa0b37530a9",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-89e5a521338197cbddd37cfd",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "track-record",
+        "statement": "The history documents an earlier Recommendation in February 2020 in addition to the November 2021 publication.",
+        "quote": "6 February 2020 Recommendation",
+        "independent": false,
+        "origin": "w3c-trace-context",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-e324a42d31277b59c76a0bd8",
+        "id": "observation-f8e8d3078fdee2577afa1f7a",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-5862abcb0a1b477ef87a89c2",
+        "verified": true
+      }
+    ],
+    "limits": [
+      "Level 2 was discovered but not substantively investigated.",
+      "Implementation-report contents and independent interoperability results were not supplied.",
+      "Errata exists; its substantive contents were not supplied.",
+      "The specification covers HTTP tracing-context propagation, rather than a complete observability system.",
+      "Trace fields must not carry personally identifiable or otherwise sensitive information; vendors must assess header abuse.",
+      "W3C liability, trademark and permissive document license rules apply."
+    ],
+    "id": "entity-ea916635066b6efdf779ed3b",
+    "acquisition": "configured-live",
+    "evidence": [
+      {
+        "uri": "https://www.w3.org/standards/history/trace-context-1",
+        "title": "Trace Context publication history",
+        "publisher": "W3C",
+        "family": "standards",
+        "publishedAt": null,
+        "origin": "w3c-trace-context",
+        "id": "evidence-5862abcb0a1b477ef87a89c2",
+        "fetchedAt": "2026-10-06T10:58:23.079Z",
+        "digest": "70e2dad402936139fafff07cc28c6739e3d3bb8be4ca0550107cf21216533832",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "23 November 2021 Recommendation … 6 February 2020 Recommendation … Recommendation",
+        "normalizer": "text-v2",
+        "excerptDigest": "31c2dfe29f26802b4a1f9990e14f5d9be5c63c2a6315658bc9bfa77a84452b9b"
+      },
+      {
+        "uri": "https://www.w3.org/TR/trace-context-1",
+        "title": "Trace Context",
+        "publisher": "W3C",
+        "family": "standards",
+        "publishedAt": "2021-11-23",
+        "origin": "w3c-trace-context",
+        "id": "evidence-89e5a521338197cbddd37cfd",
+        "fetchedAt": "2026-10-06T10:58:22.944Z",
+        "digest": "9e7228d2a91c5aa4bef6e7f610366a2000274ee51699053e10c8ac3f0b8965be",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "HTTP headers and a value format to propagate context information … Latest published version: … Vendors MUST ignore the traceparent when the parent-id is invalid",
+        "normalizer": "text-v2",
+        "excerptDigest": "00b632308f2973960c22eff40a0e3af7f587605992379e4d715f9abbbdc51587"
+      }
+    ],
+    "currentEvidence": ["evidence-5862abcb0a1b477ef87a89c2", "evidence-89e5a521338197cbddd37cfd"],
+    "currentChecks": {
+      "https://www.w3.org/TR/trace-context-1": "2026-10-06T10:58:22.944Z",
+      "https://www.w3.org/standards/history/trace-context-1": "2026-10-06T10:58:23.079Z"
+    },
+    "assessment": {
+      "policy": "signal-strength-v6",
+      "asOf": "2026-10-06T10:59:32.481Z",
+      "score": 76,
+      "features": {
+        "corroboration": { "value": 0, "contribution": 0, "observations": [], "state": "unknown" },
+        "adoption": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "not-applicable"
+        },
+        "maturity": {
+          "value": 0.75,
+          "contribution": 11.25,
+          "observations": [
+            "observation-11660b71acfe3a05ad0cd73e",
+            "observation-23c724bc90711f4e0a6dc79d",
+            "observation-f8e8d3078fdee2577afa1f7a"
+          ],
+          "state": "observed"
+        },
+        "currentness": {
+          "value": 1,
+          "contribution": 25,
+          "observations": ["observation-39263c920c6abbb7b320d347"],
+          "state": "observed"
+        },
+        "authority": {
+          "value": 1,
+          "contribution": 40,
+          "observations": ["observation-a11a27cf30011f843dd3e48a"],
+          "state": "observed"
+        },
+        "verification": { "value": 0, "contribution": 0, "observations": [], "state": "unknown" }
+      },
+      "risk": 0,
+      "coverage": 0.6,
+      "missing": ["corroboration", "verification"],
+      "state": "assessed"
+    }
+  },
+  "state": "eligible-saved"
+}

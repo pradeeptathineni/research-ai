@@ -1,0 +1,95 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "97fe5e2d70ac2ae81d48db973e4ecb019e6063e2813b0c0ec535b43fbe73d483",
+    "category": "Household",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "emergency-plan-texas",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "97fe5e2d70ac2ae81d48db973e4ecb019e6063e2813b0c0ec535b43fbe73d483",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-emergency-plan",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Contacts, meeting places and a paper plan are concrete actions; jurisdiction-specific evacuation limits remain explicit.",
+            "evidence": "Contacts, meeting places and a paper plan are concrete actions; jurisdiction-specific evacuation limits remain explicit.",
+            "usefulness": "Contacts, meeting places and a paper plan are concrete actions; jurisdiction-specific evacuation limits remain explicit.",
+            "clarity": "Contacts, meeting places and a paper plan are concrete actions; jurisdiction-specific evacuation limits remain explicit."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-emergency-plan-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Prepare a shared contact and meeting plan, keep an accessible paper copy, and check it with household members."
+    },
+    "sources": [
+      {
+        "id": "texas",
+        "uri": "https://texasready.gov/make-a-plan/how-to-make-a-plan.html",
+        "title": "Texas DSHS emergency planning",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "texasready.gov"
+      }
+    ],
+    "claims": [
+      {
+        "id": "emergency-plan-texas",
+        "text": "Texas DSHS recommends a written shared plan with local and out-of-town contacts and meeting places; it offers a printable form and notes that messaging may work during phone disruption.",
+        "source_ids": ["texas"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-emergency-plan",
+        "name": "Make a household communication plan",
+        "canonical_uri": "https://texasready.gov/make-a-plan/how-to-make-a-plan.html",
+        "claim_ids": ["emergency-plan-texas"],
+        "disposition": "consider",
+        "reason": "Prepare a shared contact and meeting plan, keep an accessible paper copy, and check it with household members.",
+        "limitations": [
+          "Communication planning only. Local hazard and evacuation directions require jurisdiction-specific guidance.",
+          "No household practice outcome was observed. Ready.gov retrieval was unavailable during acquisition."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

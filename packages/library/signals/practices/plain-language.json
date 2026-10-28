@@ -1,0 +1,120 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "2d257dd89ba48792da0932a3509f67d132967fa276451f7c91850cb87cad1d97",
+    "category": "Communication",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "plain-language-clear",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "plain-language-tone",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "2d257dd89ba48792da0932a3509f67d132967fa276451f7c91850cb87cad1d97",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-plain-language",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Familiar words, explained terminology and specific actions are concrete editorial checks without claiming measured comprehension gains.",
+            "evidence": "Familiar words, explained terminology and specific actions are concrete editorial checks without claiming measured comprehension gains.",
+            "usefulness": "Familiar words, explained terminology and specific actions are concrete editorial checks without claiming measured comprehension gains.",
+            "clarity": "Familiar words, explained terminology and specific actions are concrete editorial checks without claiming measured comprehension gains."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-plain-language-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Review purpose, action and limits in the project's own voice. Borrow relevant editorial principles.",
+      "concept_ids": [
+        "communication.voice",
+        "communication.clarity",
+        "communication.anti_slop",
+        "delivery.documentation"
+      ]
+    },
+    "sources": [
+      {
+        "id": "clear",
+        "uri": "https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/writing-guidelines/clear-language/",
+        "title": "GOV.UK clear language",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "guidance.publishing.service.gov.uk"
+      },
+      {
+        "id": "tone",
+        "uri": "https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/writing-guidelines/right-tone/",
+        "title": "GOV.UK tone guidance",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "guidance.publishing.service.gov.uk"
+      }
+    ],
+    "claims": [
+      {
+        "id": "plain-language-clear",
+        "text": "GOV.UK directs writers to use familiar plain language, explain necessary specialist terms, and replace vague jargon with specific actions.",
+        "source_ids": ["clear"],
+        "status": "supported"
+      },
+      {
+        "id": "plain-language-tone",
+        "text": "GOV.UK recommends conversational writing, active voice and direct address while preserving precision.",
+        "source_ids": ["tone"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-plain-language",
+        "name": "Plain language with precise actions",
+        "canonical_uri": "https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/writing-guidelines/clear-language/",
+        "claim_ids": ["plain-language-clear", "plain-language-tone"],
+        "disposition": "consider",
+        "reason": "Review purpose, action and limits in the project's own voice. Borrow relevant editorial principles.",
+        "limitations": [
+          "No local comprehension study was performed. These rules do not detect AI authorship."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

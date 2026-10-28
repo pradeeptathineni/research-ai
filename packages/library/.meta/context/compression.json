@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "strength": "default",
+  "rawDir": ".meta/context/local/raw",
+  "metricsPath": ".meta/context/local/gain.jsonl"
+}

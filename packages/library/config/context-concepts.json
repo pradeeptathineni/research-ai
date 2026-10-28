@@ -1,0 +1,569 @@
+{
+  "schemaVersion": 1,
+  "source": "Context AI current concept catalog; research input, separate from the pinned development loadout",
+  "revision": "51de330e0ea02111b7d6c2ff76b6c811e8db7051",
+  "catalogDigest": "4b99d7e91cc2a7ae37c10b434e7e188dfe3b421297ef743b010b12031ce2c3a9",
+  "uncommittedCatalog": false,
+  "concepts": {
+    "product.intent": {
+      "definition": "Define the outcome the work must achieve for its users.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.audience": {
+      "definition": "Identify the people, agents, and systems that consume the result.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.requirements": {
+      "definition": "Separate required behavior from preferences and assumptions.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.constraints": {
+      "definition": "Record hard limits on time, cost, compatibility, and authority.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.scope": {
+      "definition": "Bound the work and its completion criteria.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.prioritization": {
+      "definition": "Order work by user value, risk, and dependencies.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.acceptance": {
+      "definition": "Make success observable before implementation.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.tradeoffs": {
+      "definition": "Record consequential choices and their costs.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "product.lifecycle": {
+      "definition": "Plan ownership, maintenance, deprecation, and removal.",
+      "modules": ["overlays/project-intent.md"]
+    },
+    "research.discovery": {
+      "definition": "Find relevant primary sources and existing implementations.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.prior_art": {
+      "definition": "Assess existing standards, native facilities, and maintained tools before building.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.provenance": {
+      "definition": "Keep a claim traceable to its original source or observation.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.credibility": {
+      "definition": "Judge source authority, independence, and applicability.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.synthesis": {
+      "definition": "Combine evidence without laundering inference into fact.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.decision": {
+      "definition": "Choose an owner for each responsibility with a review trigger.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.freshness": {
+      "definition": "Assess evidence age against the volatility of the deciding claim.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "research.licensing": {
+      "definition": "Establish reuse and redistribution rights for sources and software.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "context.instructions": {
+      "definition": "Route durable instructions by authority and scope.",
+      "modules": ["core/context.md"]
+    },
+    "context.project_knowledge": {
+      "definition": "Retrieve project facts and decisions when relevant.",
+      "modules": ["core/context.md"]
+    },
+    "context.retrieval": {
+      "definition": "Select just enough source material for the current task.",
+      "modules": ["core/context.md"]
+    },
+    "context.skills": {
+      "definition": "Package repeatable procedures for on-demand use.",
+      "modules": ["skills/pact-hrr/SKILL.md", "skills/context-loadout/SKILL.md"]
+    },
+    "context.memory": {
+      "definition": "Preserve useful long-lived knowledge without treating recall as authority.",
+      "modules": ["core/context.md"]
+    },
+    "context.compression": {
+      "definition": "Retain decisions and constraints when shortening history.",
+      "modules": ["core/compression.md"]
+    },
+    "context.budget": {
+      "definition": "Control the attention, token, and latency cost of supplied context.",
+      "modules": ["core/context.md"]
+    },
+    "context.provenance": {
+      "definition": "Trace context excerpts to their original material.",
+      "modules": ["core/context.md"]
+    },
+    "context.injection": {
+      "definition": "Keep untrusted content from becoming instructions.",
+      "modules": ["core/context.md"]
+    },
+    "context.adaptation": {
+      "definition": "Map shared guidance to a provider's actual instruction mechanism.",
+      "modules": ["core/context.md"]
+    },
+    "context.sync": {
+      "definition": "Detect drift between source material and derived context.",
+      "modules": ["core/context.md"]
+    },
+    "models.selection": {
+      "definition": "Choose a model for the task's required capabilities and constraints.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.reasoning": {
+      "definition": "Set deliberation effort proportional to difficulty and stakes.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.routing": {
+      "definition": "Map task attributes to a current model and fallback.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.prompting": {
+      "definition": "Give clear tasks, constraints, inputs, and completion criteria.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.tool_use": {
+      "definition": "Bound when and how a model may call tools.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.structured_output": {
+      "definition": "Validate machine-consumed model output against a contract.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.multimodal": {
+      "definition": "Select and verify image, audio, video, or text handling.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.cost_latency": {
+      "definition": "Measure total time and cost at acceptable quality.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.fallback": {
+      "definition": "Recover when a model is unavailable or fails the task.",
+      "modules": ["models/routing.yaml"]
+    },
+    "models.eval": {
+      "definition": "Compare model behavior on representative tasks.",
+      "modules": ["models/routing.yaml"]
+    },
+    "agents.decomposition": {
+      "definition": "Split work into independently checkable tasks when useful.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.orchestration": {
+      "definition": "Coordinate agent work, dependencies, and result assembly.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.roles": {
+      "definition": "Define specialist responsibilities and boundaries.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.delegation": {
+      "definition": "Delegate bounded work with a clear return contract.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.isolation": {
+      "definition": "Keep concurrent changes and experiments from interfering.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.state": {
+      "definition": "Persist the minimum state needed to resume or audit work.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.handoff": {
+      "definition": "Transfer constraints, evidence, and remaining work faithfully.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.recovery": {
+      "definition": "Resume safely after interruption or partial failure.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.autonomy": {
+      "definition": "Match independent action to the user's authorization and risk.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "agents.oversight": {
+      "definition": "Reserve consequential choices for human judgment where needed.",
+      "modules": ["overlays/orchestration.md"]
+    },
+    "integration.protocols": {
+      "definition": "Prefer interoperable protocols where they fit the job.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.mcp": {
+      "definition": "Connect model applications to tools and resources through MCP.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.plugins": {
+      "definition": "Distribute a cohesive set of capabilities across supported surfaces.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.hooks": {
+      "definition": "Run checks at supported lifecycle or tool events.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.commands": {
+      "definition": "Expose repeatable operations through native commands.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.api_contracts": {
+      "definition": "Define request, response, error, and compatibility behavior.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.authentication": {
+      "definition": "Establish identity and permissions for external systems.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.external_data": {
+      "definition": "Access external applications and data with explicit boundaries.",
+      "modules": ["core/engineering.md"]
+    },
+    "integration.workflow_capture": {
+      "definition": "Turn a demonstrated repeatable workflow into a reusable procedure.",
+      "modules": ["core/engineering.md"]
+    },
+    "architecture.boundaries": {
+      "definition": "Assign authority and responsibilities to clear components.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.composition": {
+      "definition": "Combine existing components before adding a new platform.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.patterns": {
+      "definition": "Select patterns for present needs and removal cost.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.interfaces": {
+      "definition": "Keep component interfaces explicit and testable.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.contracts": {
+      "definition": "State input, output, invariant, and failure conditions.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.state": {
+      "definition": "Decide what state exists, who owns it, and how it changes.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.effects": {
+      "definition": "Keep side effects visible and controlled.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.idempotency": {
+      "definition": "Make retries safe where operations may repeat.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.concurrency": {
+      "definition": "Preserve invariants under simultaneous work.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.migration": {
+      "definition": "Evolve contracts and stored state without losing history.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "architecture.portability": {
+      "definition": "Isolate provider or platform assumptions behind narrow adapters.",
+      "modules": ["overlays/patterns.md"]
+    },
+    "implementation.reuse": {
+      "definition": "Inspect existing code and libraries before writing a new mechanism.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.dependencies": {
+      "definition": "Choose dependencies by fit, maintenance, and exit cost.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.types": {
+      "definition": "Use type and schema checks to express useful invariants.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.errors": {
+      "definition": "Make failures observable and recoverable at the right boundary.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.configuration": {
+      "definition": "Keep runtime settings explicit and scoped.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.comments": {
+      "definition": "Explain non-obvious intent and contracts without narrating code.",
+      "modules": ["core/code-comments.md", "overlays/code-comments.md"]
+    },
+    "implementation.debugging": {
+      "definition": "Reproduce and localize faults before changing behavior.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.refactoring": {
+      "definition": "Improve structure while preserving observable behavior.",
+      "modules": ["core/development.md"]
+    },
+    "implementation.performance": {
+      "definition": "Measure meaningful bottlenecks before optimizing.",
+      "modules": ["core/development.md"]
+    },
+    "data.modeling": {
+      "definition": "Represent entities, relationships, and constraints faithfully.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.validation": {
+      "definition": "Reject malformed or out-of-contract data at a defined boundary.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.lineage": {
+      "definition": "Track how data was sourced, transformed, and used.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.persistence": {
+      "definition": "Choose durable storage and recovery semantics for the workload.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.transactions": {
+      "definition": "Preserve invariants across multi-step writes.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.privacy": {
+      "definition": "Minimize sensitive data and define its permitted uses.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.retention": {
+      "definition": "Set deletion and archival behavior for retained data.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.portability": {
+      "definition": "Keep data exportable and avoid needless lock-in.",
+      "modules": ["core/engineering.md"]
+    },
+    "data.determinism": {
+      "definition": "Produce stable, reproducible outputs where required.",
+      "modules": ["core/engineering.md"]
+    },
+    "security.trust": {
+      "definition": "Define trust boundaries for users, agents, tools, and data.",
+      "modules": ["core/context.md"]
+    },
+    "security.permissions": {
+      "definition": "Grant the least authority needed for an operation.",
+      "modules": ["core/context.md"]
+    },
+    "security.sandbox": {
+      "definition": "Match isolation claims to tested runtime boundaries.",
+      "modules": ["core/context.md"]
+    },
+    "security.secrets": {
+      "definition": "Keep credentials out of prompts, logs, and repositories.",
+      "modules": ["core/context.md"]
+    },
+    "security.supply_chain": {
+      "definition": "Verify the origin and integrity of dependencies and artifacts.",
+      "modules": ["core/context.md"]
+    },
+    "security.vulnerabilities": {
+      "definition": "Discover, prioritize, and remediate exploitable flaws.",
+      "modules": ["core/context.md"]
+    },
+    "security.audit": {
+      "definition": "Preserve useful records of consequential actions.",
+      "modules": ["core/context.md"]
+    },
+    "security.threat_model": {
+      "definition": "Identify plausible attackers, assets, and failure paths.",
+      "modules": ["core/context.md"]
+    },
+    "security.abuse": {
+      "definition": "Bound misuse of exposed capabilities and outputs.",
+      "modules": ["core/context.md"]
+    },
+    "security.policy": {
+      "definition": "Enforce restrictions with a mechanism that covers the action.",
+      "modules": ["core/context.md"]
+    },
+    "quality.strategy": {
+      "definition": "Choose verification proportional to risk and failure modes.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.unit_tests": {
+      "definition": "Check focused behavior with controlled inputs.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.integration_tests": {
+      "definition": "Check component boundaries and real dependencies.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.end_to_end": {
+      "definition": "Check a complete user or system workflow.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.property_tests": {
+      "definition": "Check invariants over varied generated inputs.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.evaluations": {
+      "definition": "Grade model or agent outcomes against representative tasks.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.benchmarks": {
+      "definition": "Compare performance under controlled, repeatable conditions.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.review": {
+      "definition": "Inspect changes for correctness, maintainability, and missed scope.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.reproducibility": {
+      "definition": "Preserve enough inputs and environment to repeat a result.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.accessibility": {
+      "definition": "Check that people can use the output across abilities and devices.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "quality.visual": {
+      "definition": "Inspect rendered or interactive behavior when appearance matters.",
+      "modules": ["core/testing.md", "core/review.md"]
+    },
+    "delivery.versioning": {
+      "definition": "Communicate compatibility and change through release versions.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.git": {
+      "definition": "Keep change history reviewable and preserve existing work.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.ci": {
+      "definition": "Run deterministic repository gates on shared changes.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.release": {
+      "definition": "Package, publish, and verify a declared version.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.deployment": {
+      "definition": "Move a verified artifact into its operating environment.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.rollback": {
+      "definition": "Recover from a bad release or migration.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.documentation": {
+      "definition": "Give users accurate setup, usage, and limitations.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "delivery.artifacts": {
+      "definition": "Produce traceable outputs and evidence of their origin.",
+      "modules": ["core/version-control.md", "overlays/delivery.md"]
+    },
+    "operations.observability": {
+      "definition": "Collect signals that explain system behavior and failures.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.reliability": {
+      "definition": "Define and check the service behavior that must hold.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.incidents": {
+      "definition": "Detect, respond to, and learn from failures.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.scheduling": {
+      "definition": "Run recurring work with explicit ownership and failure handling.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.monitoring": {
+      "definition": "Watch meaningful conditions and notify the right owner.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.resources": {
+      "definition": "Bound compute, storage, network, and financial consumption.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.backup": {
+      "definition": "Restore essential state from verified backups.",
+      "modules": ["core/engineering.md"]
+    },
+    "operations.support": {
+      "definition": "Make diagnosis and correction possible for maintainers and users.",
+      "modules": ["core/engineering.md"]
+    },
+    "communication.voice": {
+      "definition": "Match tone and persona to audience and task.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "communication.anti_slop": {
+      "definition": "Remove generic filler, repetition, and unsupported confidence.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "communication.clarity": {
+      "definition": "Explain decisions in plain language with useful structure.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "communication.citations": {
+      "definition": "Place a usable source near the claim it supports.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "communication.uncertainty": {
+      "definition": "Distinguish observed results, inference, and unknowns.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "communication.ux": {
+      "definition": "Make outputs and controls help people decide and act.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "communication.visualization": {
+      "definition": "Use a visual when it makes relationships easier to grasp.",
+      "modules": ["overlays/writing.md", "overlays/evidence-claims.md"]
+    },
+    "context.loadouts": {
+      "definition": "Select a declarative project composition with exact evidence and resource pins.",
+      "modules": ["skills/context-loadout/SKILL.md"]
+    },
+    "context.capability_selection": {
+      "definition": "Choose required and optional support for the actual project and stage.",
+      "modules": ["core/prior-art.md"]
+    },
+    "research.confidence": {
+      "definition": "State strength and limitations of claim support without invented probabilities.",
+      "modules": ["core/research.md", "core/prior-art.md"]
+    },
+    "quality.comments": {
+      "definition": "Preserve intent, invariants and useful API contracts in accurate comments.",
+      "modules": ["core/code-comments.md", "overlays/code-comments.md"]
+    },
+    "web.design": {
+      "definition": "Choose and critique a coherent visual direction for the product and brand.",
+      "modules": ["domains/web/design.md"]
+    },
+    "web.product": {
+      "definition": "Make audience, primary job and truthful content govern the experience.",
+      "modules": ["domains/web/product-ux.md"]
+    },
+    "web.responsive": {
+      "definition": "Preserve reading order and usable controls across viewport and input sizes.",
+      "modules": ["domains/web/accessibility.md", "domains/web/browser-verification.md"]
+    },
+    "web.motion": {
+      "definition": "Use bounded purposeful motion with reduced-motion and static fallbacks.",
+      "modules": ["domains/web/design.md", "domains/web/accessibility.md"]
+    },
+    "web.performance": {
+      "definition": "Measure assets and interactions without confusing lab and field evidence.",
+      "modules": ["domains/web/performance.md"]
+    },
+    "web.static_hosting": {
+      "definition": "Match built routes and runtime features to the actual static destination.",
+      "modules": ["domains/web/performance.md", "domains/infrastructure/aws.md"]
+    }
+  }
+}

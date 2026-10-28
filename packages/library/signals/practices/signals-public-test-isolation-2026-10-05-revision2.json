@@ -1,0 +1,101 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "b72eb4b6f6edaf914000289d76923454a4b4dcdcdf2148ae0c63e95562f1dcc3",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:12:31.614558Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary material independently challenged for relevance, support, actionable usefulness and limits. Changing documentation is due for re-observation after 90 days; this cadence is review policy, not a guarantee.",
+    "claimReviews": [
+      {
+        "claimId": "test-isolation-containers",
+        "basis": "volatile",
+        "reviewAfterDays": 30
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "b72eb4b6f6edaf914000289d76923454a4b4dcdcdf2148ae0c63e95562f1dcc3",
+      "researchRunId": "host-acquisition:signals-public-test-isolation-2026-10-05-revision2",
+      "reviewRunId": "source-research-independent:test-isolation-revision2:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:12:31.614558Z",
+      "options": [
+        {
+          "optionId": "option-test-isolation-revision2",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Owned disposable lifecycles address retained-data safety during database or service trials without implying a current runtime dependency.",
+            "evidence": "Official lifecycle and reuse documentation supports stop/removal controls, while isolation still depends on the operator configuration.",
+            "usefulness": "The proposed checks identify owned resources, non-default ports, retained-volume exclusions, disabled reuse and verified cleanup.",
+            "clarity": "Native temporary-resource workflows remain valid; no Testcontainers execution, speed advantage or automatic isolation is claimed."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-test-isolation-2026-10-05-revision2",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:46:22Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "How should I evaluate disposable test dependency lifecycle without risking retained state?",
+      "concept_ids": [
+        "quality.integration_tests",
+        "quality.reproducibility",
+        "agents.isolation",
+        "data.persistence"
+      ]
+    },
+    "sources": [
+      {
+        "id": "containers",
+        "uri": "https://node.testcontainers.org/features/containers/",
+        "title": "Testcontainers for Node: containers",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "node.testcontainers.org"
+      }
+    ],
+    "claims": [
+      {
+        "id": "test-isolation-containers",
+        "text": "Testcontainers documents stop and removal controls, including container-created volumes; reuse and cleanup settings can retain state.",
+        "source_ids": ["containers"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-test-isolation-revision2",
+        "name": "Owned disposable dependency tests",
+        "canonical_uri": "https://node.testcontainers.org/features/containers/",
+        "claim_ids": ["test-isolation-containers"],
+        "disposition": "consider",
+        "reason": "Keep the current owned disposable lifecycle when sufficient. For a future authorized Testcontainers trial, name one throwaway resource, use a non-default port, exclude retained volumes, leave reuse disabled and assert stop/removal plus preservation of unrelated data. Compare setup/cleanup maintenance with the existing workflow before changing it.",
+        "limitations": [
+          "No library was installed or exercised. Cleanup controls do not prove isolation from retained databases, bind mounts or external effects.",
+          "The proposed trial is not an installation or execution instruction for this campaign. Library lifecycle documentation does not establish lower maintenance cost or speed; a native isolated workflow remains a valid choice."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

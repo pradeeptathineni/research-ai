@@ -1,0 +1,5 @@
+{
+  "name": "@signals/domain",
+  "private": true,
+  "type": "module"
+}

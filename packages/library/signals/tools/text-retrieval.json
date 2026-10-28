@@ -1,0 +1,191 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "0c0a4c4576b478530a535c32e10d74df9c6d2e01bccd8d1113435ea0358ced18",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Checked original API descriptions and the bounded local literal-filter trial. Deferrals have observable triggers; no installed-library or semantic-research claim.",
+    "claimReviews": [
+      {
+        "claimId": "native-includes",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "mini-features",
+        "basis": "volatile",
+        "reviewAfterDays": 30
+      },
+      {
+        "claimId": "pagefind-filters",
+        "basis": "volatile",
+        "reviewAfterDays": 30
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "0c0a4c4576b478530a535c32e10d74df9c6d2e01bccd8d1113435ea0358ced18",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-native-filter",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "evidence": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "usefulness": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "clarity": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority."
+          },
+          "blockers": []
+        },
+        {
+          "optionId": "option-minisearch",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "evidence": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "usefulness": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "clarity": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority."
+          },
+          "blockers": []
+        },
+        {
+          "optionId": "option-pagefind",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "evidence": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "usefulness": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority.",
+            "clarity": "Each option has a capability-specific role, revisit trigger and limits; the Pagefind preference is a design inference, not measured superiority."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-text-retrieval-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:20:38Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3badfed8922e896e1c83d20c68654057487541ca",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Find and compare options for searching a compact public collection in a browser and a machine client.",
+      "concept_ids": ["context.retrieval", "research.discovery"]
+    },
+    "sources": [
+      {
+        "id": "ecmascript",
+        "uri": "https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.includes",
+        "title": "ECMAScript String.prototype.includes",
+        "source_class": "standard",
+        "observed_at": "2026-10-05T20:20:38Z",
+        "revision": "Living specification observed 2026-10-05",
+        "independence_group": "ecma-tc39"
+      },
+      {
+        "id": "minisearch",
+        "uri": "https://lucaong.github.io/minisearch/",
+        "title": "MiniSearch documentation",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:06:11Z",
+        "revision": null,
+        "independence_group": "minisearch"
+      },
+      {
+        "id": "pagefind",
+        "uri": "https://pagefind.app/docs/filtering/",
+        "title": "Pagefind filters",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:06:11Z",
+        "revision": null,
+        "independence_group": "pagefind"
+      }
+    ],
+    "claims": [
+      {
+        "id": "native-includes",
+        "text": "String.prototype.includes reports whether a string contains the supplied substring. It does not supply fuzzy or semantic search.",
+        "source_ids": ["ecmascript"],
+        "status": "supported"
+      },
+      {
+        "id": "mini-features",
+        "text": "MiniSearch supports in-memory full-text search in Node and browsers, including prefix matching, fuzzy matching and field boosting.",
+        "source_ids": ["minisearch"],
+        "status": "supported"
+      },
+      {
+        "id": "pagefind-filters",
+        "text": "Pagefind derives a search index from generated HTML and can restrict matches using named filter metadata.",
+        "source_ids": ["pagefind"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-native-filter",
+        "name": "Shared literal text filter",
+        "canonical_uri": "https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.includes",
+        "claim_ids": ["native-includes"],
+        "disposition": "trial",
+        "reason": "Use one small filter for the same public IDs and exact constraints in browser and CLI. Each entered term must appear in the indexed fields.",
+        "limitations": [
+          "Typos, synonyms and whole natural-language questions can omit useful options.",
+          "The local matched-task checks establish behavior on this small collection, not general research superiority."
+        ]
+      },
+      {
+        "id": "option-minisearch",
+        "name": "MiniSearch for fuzzy and ranked text",
+        "canonical_uri": "https://lucaong.github.io/minisearch/",
+        "claim_ids": ["mini-features"],
+        "disposition": "defer",
+        "reason": "Revisit if typo tolerance, prefix completion or ranked lexical results change human task outcomes. Share the same configuration across Node and browser.",
+        "limitations": [
+          "No library was installed or exercised. No comparative performance or relevance benefit is established here.",
+          "Fuzzy lexical matches still do not interpret an open-world research need."
+        ]
+      },
+      {
+        "id": "option-pagefind",
+        "name": "Pagefind for a generated document site",
+        "canonical_uri": "https://pagefind.app/docs/filtering/",
+        "claim_ids": ["pagefind-filters"],
+        "disposition": "defer",
+        "reason": "Revisit when the public collection becomes a multi-page document site with substantial prose. Its HTML index fits that responsibility better than this structured record view.",
+        "limitations": [
+          "No Pagefind index was built. API/browser identity and filtering parity would need a discriminating integration trial."
+        ]
+      }
+    ],
+    "limitations": [
+      "This comparison uses primary documentation plus a bounded local implementation trial. Selection does not install software or grant execution authority."
+    ]
+  }
+}

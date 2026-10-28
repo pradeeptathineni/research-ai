@@ -1,0 +1,142 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "160f3f5ab3557ae4d3c9243e0e7228df6a774f5c7f401c0a0505bda8e7fdd6ae",
+    "category": "Photography",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Revalidated primary source claims and their applicability; examples are not universal settings or measured outcomes. Attribution and original dates retained; public-only paraphrases, no private context or reproduced content.",
+    "claimReviews": [
+      {
+        "claimId": "waterfall-stability",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "waterfall-nd",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "160f3f5ab3557ae4d3c9243e0e7228df6a774f5c7f401c0a0505bda8e7fdd6ae",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-waterfall-available-light",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority.",
+            "evidence": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority.",
+            "usefulness": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority.",
+            "clarity": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority."
+          },
+          "blockers": []
+        },
+        {
+          "optionId": "option-waterfall-nd",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority.",
+            "evidence": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority.",
+            "usefulness": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority.",
+            "clarity": "Baseline metering, stabilization and conditional ND use are actionable; examples do not become universal settings or product superiority."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-waterfall-exposure-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:23:29Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "78d7f1c4e35bed6e3a0dce61cece04479c95f41e",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "photographing waterfalls with long exposure",
+      "concept_ids": ["photography.exposure", "photography.landscape"]
+    },
+    "sources": [
+      {
+        "id": "nikon-water",
+        "uri": "https://www.nikonusa.com/learn-and-explore/c/tips-and-techniques/how-to-use-long-exposures-to-create-compelling-photos-of-moving-water",
+        "title": "Nikon: Long exposures of moving water — Tony Sweet",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T21:23:29Z",
+        "revision": null,
+        "independence_group": "nikonusa.com"
+      },
+      {
+        "id": "canon-landscape",
+        "uri": "https://www.usa.canon.com/learning/training-articles/training-articles-list/getting-started-with-landscape-photography-camera-bodies-lenses-and-filters",
+        "title": "Canon: Getting started with landscape photography",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T21:23:29Z",
+        "revision": "2018-08-27",
+        "independence_group": "canon.com"
+      }
+    ],
+    "claims": [
+      {
+        "id": "waterfall-stability",
+        "text": "Nikon describes tripod stabilization and remote release or camera delay. Its photographer first meters a normal exposure with chosen ISO and aperture, then adjusts duration for an ND filter. Waterfall examples include dim-light exposures without ND and a five-stop ND exposure lasting 25 seconds.",
+        "source_ids": ["nikon-water"],
+        "status": "supported"
+      },
+      {
+        "id": "waterfall-nd",
+        "text": "Canon describes ND filters for longer waterfall exposures in brighter light. Its three-stop example changes one-eighth second to one second at unchanged ISO and aperture.",
+        "source_ids": ["canon-landscape"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-waterfall-available-light",
+        "name": "Use available dim light for moving water",
+        "canonical_uri": "https://www.nikonusa.com/learn-and-explore/c/tips-and-techniques/how-to-use-long-exposures-to-create-compelling-photos-of-moving-water",
+        "claim_ids": ["waterfall-stability"],
+        "disposition": "consider",
+        "reason": "Stabilize the camera, meter a correctly exposed baseline and compare several durations for water texture. Start with available light when it permits the intended duration.",
+        "limitations": [
+          "No universal best shutter speed follows from the examples. Flow, desired texture, light and camera controls differ; publication date is unstated."
+        ]
+      },
+      {
+        "id": "option-waterfall-nd",
+        "name": "Add neutral density when light limits exposure duration",
+        "canonical_uri": "https://www.usa.canon.com/learning/training-articles/training-articles-list/getting-started-with-landscape-photography-camera-bodies-lenses-and-filters",
+        "claim_ids": ["waterfall-stability", "waterfall-nd"],
+        "disposition": "consider",
+        "reason": "Establish a baseline first. Add ND when available light prevents the desired duration at the chosen ISO and aperture; adjust exposure for its actual stop reduction.",
+        "limitations": [
+          "A filter is conditional rather than a required purchase. Manufacturer examples do not establish a particular product advantage or the best result for a scene."
+        ]
+      }
+    ],
+    "limitations": [
+      "Primary-source guidance acquired by the host agent after a peer identified a retrieval gap. No consumer trial, success rate or human usefulness has been established."
+    ]
+  }
+}

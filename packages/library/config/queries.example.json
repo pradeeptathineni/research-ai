@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "description": "Twelve editable starter interests: eight Context concepts plus four related interests. Not expected answers or a hardcoded search ontology.",
+  "execution_enabled_by_default": false,
+  "activation": "The local UI or CLI explicitly enables discovery after runner capability and budgets are displayed.",
+  "defaults": {
+    "profile": "wide",
+    "save": "eligible",
+    "threshold": 75,
+    "publication": "local-only",
+    "missed_run_policy": "coalesce-once",
+    "timezone": "UTC"
+  },
+  "queries": [
+    {
+      "id": "context-efficient",
+      "query": "Which maintained approaches reduce coding-agent context and tool-output overhead while preserving requirements, raw-output recovery and useful behavior?",
+      "concept_refs": ["context.compression"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 7,
+        "stagger_minutes": 11
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "agent-skills",
+      "supplemental_sites": [
+        "https://www.reddit.com/r/codex",
+        "https://www.reddit.com/r/ClaudeAI",
+        "https://www.reddit.com/r/ChatGPT"
+      ],
+      "query": "Which reusable agent skills and delivery conventions work across coding assistants without large always-loaded instructions?",
+      "concept_refs": ["context.skills"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 14,
+        "stagger_minutes": 28
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "controlled-delegation",
+      "query": "Which practical patterns and tools improve bounded coding-agent delegation, independent review and handoffs without duplicated work or runaway cost?",
+      "concept_refs": ["agents.orchestration"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 14,
+        "stagger_minutes": 45
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "model-routing",
+      "supplemental_sites": [
+        "https://www.reddit.com/r/LocalLLaMA",
+        "https://www.reddit.com/r/ClaudeAI",
+        "https://www.reddit.com/r/ChatGPT"
+      ],
+      "query": "Which current evidence and practices help select a coding model and reasoning effort by task difficulty, cost, latency and observed failures?",
+      "concept_refs": ["models.routing"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 7,
+        "stagger_minutes": 62
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "agent-evaluation",
+      "query": "Which practical evaluations can show that an agent harness, context module or skill improves real development tasks rather than only passing metadata checks?",
+      "concept_refs": ["quality.evaluations"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 14,
+        "stagger_minutes": 79
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "clear-technical-writing",
+      "query": "Which evidence-backed writing practices and selective tools remove vague AI-generated prose while preserving technical meaning and the author's voice?",
+      "concept_refs": ["communication.anti_slop"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 21,
+        "stagger_minutes": 96
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "web-design-workflows",
+      "query": "Which maintained AI-assisted frontend design and UX workflows produce distinctive, accessible, responsive sites with real browser critique?",
+      "concept_refs": ["web.design"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 7,
+        "stagger_minutes": 113
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "reviewable-git",
+      "query": "Which lightweight Git and release practices keep autonomous coding changes coherent, reviewable and reversible without tagging every commit?",
+      "concept_refs": ["delivery.git"],
+      "enabled": true,
+      "schedule": {
+        "every_days": 21,
+        "stagger_minutes": 130
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "aws-static-sites",
+      "query": "Which practical AWS-hosted static-site architectures improve performance, security, deployment simplicity and rollback without unnecessary infrastructure?",
+      "concept_refs": [],
+      "enabled": true,
+      "schedule": {
+        "every_days": 21,
+        "stagger_minutes": 147
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "iac-quality",
+      "query": "Which maintained Terraform and infrastructure-as-code checks catch important configuration, policy and supply-chain problems without burdensome tool stacks?",
+      "concept_refs": [],
+      "enabled": true,
+      "schedule": {
+        "every_days": 14,
+        "stagger_minutes": 164
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "local-knowledge",
+      "query": "Which laptop-friendly local-first knowledge and research tools support portable data, search, provenance and useful AI integration without an always-on server?",
+      "concept_refs": [],
+      "enabled": true,
+      "schedule": {
+        "every_days": 14,
+        "stagger_minutes": 181
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    },
+    {
+      "id": "small-business-automation",
+      "query": "Which practical tools and patterns help small businesses automate intake, documents and follow-up with clear ownership, privacy and manageable operating cost?",
+      "concept_refs": [],
+      "enabled": true,
+      "schedule": {
+        "every_days": 21,
+        "stagger_minutes": 198
+      },
+      "source_profile": "wide",
+      "publishable_query": true
+    }
+  ],
+  "initial_live_probe_ids": [
+    "context-efficient",
+    "agent-skills",
+    "controlled-delegation",
+    "web-design-workflows",
+    "local-knowledge",
+    "small-business-automation"
+  ],
+  "corpus_discovery": {
+    "enabled": false,
+    "every_days": 14,
+    "max_entities_per_run": 10,
+    "selection": "oldest-due-with-fair-rotation",
+    "include_negative_and_deprecation_search": true,
+    "auto_remove_below_threshold": false
+  },
+  "run_limits": {
+    "max_jobs_per_activation": 3,
+    "max_simultaneous_ai_runs": 1,
+    "max_runtime_minutes_per_activation": 20
+  },
+  "note": "Per-query enabled selects participation; discovery is still globally disabled until explicit local enablement. Queries are copied into ignored local settings, not edited in this kit."
+}

@@ -1,0 +1,121 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "23036270adffdeafb6da20a2847476239a86d00702970d07e72402f7e579670c",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "selective-context-lost-middle",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "selective-context-bazel",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "withdrawn",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "23036270adffdeafb6da20a2847476239a86d00702970d07e72402f7e579670c",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-selective-context",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 2,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Source facts are supported but build dependency and input-position findings do not establish the proposed instruction-selection rule.",
+            "evidence": "Source facts are supported but build dependency and input-position findings do not establish the proposed instruction-selection rule.",
+            "usefulness": "Source facts are supported but build dependency and input-position findings do not establish the proposed instruction-selection rule.",
+            "clarity": "Source facts are supported but build dependency and input-position findings do not establish the proposed instruction-selection rule."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-selective-context-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Select task context separately from required resource dependencies. An informational link should not expand the applied instruction set.",
+      "concept_ids": [
+        "context.retrieval",
+        "context.budget",
+        "context.loadouts",
+        "architecture.contracts"
+      ]
+    },
+    "sources": [
+      {
+        "id": "lost-middle",
+        "uri": "https://arxiv.org/abs/2307.03172v3",
+        "title": "Lost in the Middle",
+        "source_class": "research",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": "v3",
+        "independence_group": "arxiv.org"
+      },
+      {
+        "id": "bazel",
+        "uri": "https://bazel.build/concepts/dependencies",
+        "title": "Bazel dependency model",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "bazel.build"
+      }
+    ],
+    "claims": [
+      {
+        "id": "selective-context-lost-middle",
+        "text": "Studied models often performed worse when relevant information appeared in the middle of long inputs in multi-document question answering and key-value retrieval.",
+        "source_ids": ["lost-middle"],
+        "status": "supported"
+      },
+      {
+        "id": "selective-context-bazel",
+        "text": "Bazel distinguishes actual from declared dependencies, requires explicit direct dependencies, and resolves their transitive closure; excessive declarations carry costs.",
+        "source_ids": ["bazel"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-selective-context",
+        "name": "Selective context with explicit dependencies",
+        "canonical_uri": "https://bazel.build/concepts/dependencies",
+        "claim_ids": ["selective-context-lost-middle", "selective-context-bazel"],
+        "disposition": "consider",
+        "reason": "Select task context separately from required resource dependencies. An informational link should not expand the applied instruction set.",
+        "limitations": [
+          "The paper studied particular models and tasks; it does not establish current-model savings.",
+          "The Bazel precedent does not prove Context's implementation or justify removing required licenses."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

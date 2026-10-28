@@ -1,0 +1,80 @@
+{
+  "output": {
+    "filePath": ".meta/context/local/signals.xml",
+    "style": "xml",
+    "filePathStyle": "target-relative",
+    "parsableStyle": true,
+    "headerText": "Disposable Signals source map. Source and tests remain authoritative. Current product contracts are included; history stays in Git and planning. Git JSON is the public Corpus database; private state and local context artifacts are never included.",
+    "fileSummary": true,
+    "directoryStructure": true,
+    "compress": true,
+    "patterns": [
+      {
+        "pattern": "AGENTS.md"
+      },
+      {
+        "pattern": "README.md"
+      },
+      {
+        "pattern": "package.json"
+      },
+      {
+        "pattern": "docs/**/*.md"
+      }
+    ],
+    "topFilesLength": 10,
+    "truncateBase64": true,
+    "tokenBudget": 30000,
+    "git": {
+      "sortByChanges": true,
+      "sortByChangesMaxCommits": 100,
+      "includeDiffs": false,
+      "includeLogs": false
+    }
+  },
+  "include": [
+    "AGENTS.md",
+    "README.md",
+    "ARCHITECTURE.md",
+    "package.json",
+    "apps/corpus/vite.config.ts",
+    "packages/domain/src/search-contract.ts",
+    "packages/domain/src/search-native.ts",
+    "packages/domain/src/search-score.ts",
+    "packages/domain/src/search-assessment.ts",
+    "packages/domain/src/library-search.ts",
+    "packages/corpus/src/library.ts",
+    "packages/corpus/src/library-meaning.ts",
+    "packages/corpus/src/project-contract.ts",
+    "scripts/verify.sh",
+    "docs/architecture/schema.md",
+    "docs/signals-contract.md",
+    "docs/product.yaml",
+    ".meta/context/README.md",
+    ".meta/context/authoring.md"
+  ],
+  "ignore": {
+    "useGitignore": false,
+    "useDotIgnore": false,
+    "useDefaultPatterns": false,
+    "customPatterns": [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "packages/test-fixtures/**",
+      "packages/domain/src/public-index.ts",
+      "packages/domain/src/url.ts",
+      "scripts/run-context-pack.test.mjs",
+      "scripts/dependency-audit-policy.test.mjs",
+      ".signals/**",
+      ".meta/context/local/**",
+      "**/dist/**",
+      "**/node_modules/**"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  },
+  "tokenCount": {
+    "encoding": "o200k_base"
+  }
+}

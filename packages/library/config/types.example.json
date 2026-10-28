@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "vocabulary_id": "signals-kind-v0",
+  "status": "Proposed project-controlled vocabulary, not a claimed universal standard.",
+  "source_refs": ["skos", "prov"],
+  "kinds": [
+    {
+      "id": "software",
+      "definition": "Reusable computational artifact: application, library, framework, CLI, harness, plugin or skill package."
+    },
+    {
+      "id": "service",
+      "definition": "A hosted or human-delivered service with a reusable function or offering."
+    },
+    {
+      "id": "model",
+      "definition": "A named learned model or model family/version, distinct from a service exposing it."
+    },
+    {
+      "id": "dataset",
+      "definition": "A defined reusable data collection, benchmark dataset or corpus."
+    },
+    {
+      "id": "standard",
+      "definition": "A published specification, protocol or explicitly identified de facto convention; status and authority are evidence fields."
+    },
+    {
+      "id": "practice",
+      "definition": "A reusable method, technique, workflow or pattern rather than its particular implementation."
+    },
+    {
+      "id": "publication",
+      "definition": "A paper, article, report, book or other work that is itself the subject of the query."
+    },
+    {
+      "id": "learning-resource",
+      "definition": "A course, tutorial collection, curriculum or other learning resource."
+    },
+    {
+      "id": "product",
+      "definition": "A non-software tangible product or product system."
+    },
+    {
+      "id": "organization",
+      "definition": "An institution or community that is itself a relevant resource, not merely a source owner."
+    },
+    {
+      "id": "other",
+      "definition": "A justified item not yet represented; requires a proposed label and no invented certainty."
+    }
+  ],
+  "facets": [
+    "domains",
+    "capabilities",
+    "interfaces",
+    "delivery_forms",
+    "platforms",
+    "licenses",
+    "tags"
+  ],
+  "rules": [
+    "One stable entity can have many facets; a skill and a harness are delivery forms, not arbitrary top-level domains.",
+    "Evidence source type and entity kind are separate. A Reddit thread about a tool is normally evidence for software, not a second software entity.",
+    "Choose the primary kind from what the entity is; relationships cover implementations, versions, alternatives and standards conformance.",
+    "Uncertain classification is explicit and reviewable; do not select a type to gain score.",
+    "Identifiers survive renames/retyping; preserve aliases and original references."
+  ]
+}

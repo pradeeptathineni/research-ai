@@ -1,0 +1,100 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "ebe1508ccda2724cef9261d868fd88c4cc12e65a617d61f51369b18cfe305af9",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "test-isolation-containers",
+        "basis": "volatile",
+        "reviewAfterDays": 30
+      }
+    ],
+    "state": "withdrawn",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "ebe1508ccda2724cef9261d868fd88c4cc12e65a617d61f51369b18cfe305af9",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-test-isolation",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 2,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Cleanup and reuse claims are supported, but the current recommendation does not define a concrete trial boundary or pass criterion.",
+            "evidence": "Cleanup and reuse claims are supported, but the current recommendation does not define a concrete trial boundary or pass criterion.",
+            "usefulness": "Cleanup and reuse claims are supported, but the current recommendation does not define a concrete trial boundary or pass criterion.",
+            "clarity": "Cleanup and reuse claims are supported, but the current recommendation does not define a concrete trial boundary or pass criterion."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-test-isolation-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Keep the existing isolated test lifecycle when sufficient. Trial Testcontainers only if it replaces lifecycle maintenance.",
+      "concept_ids": [
+        "quality.integration_tests",
+        "quality.reproducibility",
+        "agents.isolation",
+        "data.persistence"
+      ]
+    },
+    "sources": [
+      {
+        "id": "containers",
+        "uri": "https://node.testcontainers.org/features/containers/",
+        "title": "Testcontainers for Node: containers",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "node.testcontainers.org"
+      }
+    ],
+    "claims": [
+      {
+        "id": "test-isolation-containers",
+        "text": "Testcontainers documents stop and removal controls, including container-created volumes; reuse and cleanup settings can retain state.",
+        "source_ids": ["containers"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-test-isolation",
+        "name": "Owned disposable dependency tests",
+        "canonical_uri": "https://node.testcontainers.org/features/containers/",
+        "claim_ids": ["test-isolation-containers"],
+        "disposition": "consider",
+        "reason": "Keep the existing isolated test lifecycle when sufficient. Trial Testcontainers only if it replaces lifecycle maintenance.",
+        "limitations": [
+          "No library was installed or exercised. Cleanup controls do not prove isolation from retained databases, bind mounts or external effects."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

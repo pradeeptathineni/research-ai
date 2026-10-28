@@ -1,0 +1,126 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "abc8ba3bf0733d41e95aea26a0d5616261cfaf7da7e5e11c2990e28659583437",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:23:45.405657Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary sources independently reviewed for narrow capability support, practical trial criteria and explicit privacy or provider limits. Volatile documentation requires re-observation after 90 days.",
+    "claimReviews": [
+      {
+        "claimId": "cache-prefix",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "cache-usage",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "cache-diagnostics",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "abc8ba3bf0733d41e95aea26a0d5616261cfaf7da7e5e11c2990e28659583437",
+      "researchRunId": "host-acquisition:signals-public-prefix-cache-2026-10-05",
+      "reviewRunId": "source-research-independent:prefix-cache:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:23:45.405657Z",
+      "options": [
+        {
+          "optionId": "option-claude-prefix-cache",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Directly addresses stable rendered prefixes and observable provider cache reads.",
+            "evidence": "Official Anthropic documentation supports identical-prefix requirements, cache usage counters and optional request-divergence diagnostics.",
+            "usefulness": "Offline prefix hashes plus a separately authorized controlled suffix/prefix-change trial distinguish stable rendering from actual cache reads.",
+            "clarity": "Separates diagnostics from hit verification, identifies provider and retention limits, and excludes proven savings, quality and local effectiveness."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-prefix-cache-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T22:16:05Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "How can I keep prompt prefixes stable and determine whether a provider cache was read?",
+      "concept_ids": ["cache-stable-context-layout"]
+    },
+    "sources": [
+      {
+        "id": "claude-cache",
+        "uri": "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "title": "Anthropic prompt caching",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T22:16:05Z",
+        "revision": null,
+        "independence_group": "platform.claude.com"
+      },
+      {
+        "id": "claude-diagnostics",
+        "uri": "https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics",
+        "title": "Anthropic cache diagnostics",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T22:16:05Z",
+        "revision": null,
+        "independence_group": "platform.claude.com"
+      }
+    ],
+    "claims": [
+      {
+        "id": "cache-prefix",
+        "text": "Anthropic cache hits require identical content through the breakpoint. Place the breakpoint after the stable prefix when suffixes vary; minimum lengths, lifetimes and lookback rules constrain reuse.",
+        "source_ids": ["claude-cache"],
+        "status": "supported"
+      },
+      {
+        "id": "cache-usage",
+        "text": "Usage distinguishes cache writes, reads and uncached input through cache_creation_input_tokens, cache_read_input_tokens and input_tokens. Stable rendering alone does not prove a cache hit.",
+        "source_ids": ["claude-cache"],
+        "status": "supported"
+      },
+      {
+        "id": "cache-diagnostics",
+        "text": "Opt-in diagnostics compare consecutive request structures using previous_message_id and may report divergence. Missing or pending diagnostics are inconclusive; usage counters indicate cache reads.",
+        "source_ids": ["claude-diagnostics"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-claude-prefix-cache",
+        "name": "Keep stable prefixes and verify cache reads",
+        "canonical_uri": "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+        "claim_ids": ["cache-prefix", "cache-usage", "cache-diagnostics"],
+        "disposition": "consider",
+        "reason": "First compare rendered prefix hashes offline. After separate API authorization, use public synthetic content above the selected model minimum, change only the suffix, then deliberately change the prefix. Record request hashes, complete usage counters and optional diagnostics.",
+        "limitations": [
+          "Provider-specific contract. Diagnostics are best effort, Claude API only and retain fingerprints briefly. No API calls or paid services were used. Cache hits do not establish answer quality, net savings or local effectiveness; estimated missed tokens are not billing measurements."
+        ]
+      }
+    ],
+    "limitations": [
+      "Primary-source capability evidence; usefulness and comparative trial results are unmeasured. Cataloging grants no execution or upload authority."
+    ]
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "8190e1260c662810c98af8f06381d36818ff4fca9e9231d8b3fcd09c8d0e10f2",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:12:31.614558Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary material independently challenged for relevance, support, actionable usefulness and limits. Changing documentation is due for re-observation after 90 days; this cadence is review policy, not a guarantee.",
+    "claimReviews": [
+      {
+        "claimId": "selective-context-lost-middle",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "selective-context-bazel",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "8190e1260c662810c98af8f06381d36818ff4fca9e9231d8b3fcd09c8d0e10f2",
+      "researchRunId": "host-acquisition:signals-public-selective-context-2026-10-05-revision2",
+      "reviewRunId": "source-research-independent:selective-context-revision2:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:12:31.614558Z",
+      "options": [
+        {
+          "optionId": "option-selective-context-revision2",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "The revised finding supplies narrow design references for task-scoped context, rather than claiming a validated Context implementation.",
+            "evidence": "Bazel documentation and the research paper support scoped analogies; transfer to agent loadouts is explicitly inference.",
+            "usefulness": "Two task comparisons record selected closure, omissions and extra reads without requiring measured cache or model benefits.",
+            "clarity": "It excludes unproved Context behavior, token savings, ranking, caching and removal of licensing requirements."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-selective-context-2026-10-05-revision2",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:46:22Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Which primary evidence informs explicit dependency declarations and bounded instruction-context design?",
+      "concept_ids": [
+        "context.retrieval",
+        "context.budget",
+        "context.loadouts",
+        "architecture.contracts"
+      ]
+    },
+    "sources": [
+      {
+        "id": "lost-middle",
+        "uri": "https://arxiv.org/abs/2307.03172v3",
+        "title": "Lost in the Middle",
+        "source_class": "research",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": "v3",
+        "independence_group": "arxiv.org"
+      },
+      {
+        "id": "bazel",
+        "uri": "https://bazel.build/concepts/dependencies",
+        "title": "Bazel dependency model",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "bazel.build"
+      }
+    ],
+    "claims": [
+      {
+        "id": "selective-context-lost-middle",
+        "text": "Studied models often performed worse when relevant information appeared in the middle of long inputs in multi-document question answering and key-value retrieval.",
+        "source_ids": ["lost-middle"],
+        "status": "supported"
+      },
+      {
+        "id": "selective-context-bazel",
+        "text": "Bazel distinguishes actual from declared dependencies, requires explicit direct dependencies, and resolves their transitive closure; excessive declarations carry costs.",
+        "source_ids": ["bazel"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-selective-context-revision2",
+        "name": "Selective context with explicit dependencies",
+        "canonical_uri": "https://bazel.build/concepts/dependencies",
+        "claim_ids": ["selective-context-lost-middle", "selective-context-bazel"],
+        "disposition": "consider",
+        "reason": "Use the sources as design references, then test a proposed instruction policy on two real tasks. Declare selected instructions and required dependencies separately from informational links; inspect closure, omitted requirements and source reads. This transfer is a design inference, not a result established by the cited studies.",
+        "limitations": [
+          "The paper studied particular models and tasks; it does not establish current-model savings.",
+          "The Bazel precedent does not prove Context's implementation or justify removing required licenses.",
+          "Bazel addresses build dependencies; the position-effect study addresses particular model tasks. Neither validates an instruction-selection implementation, task ranking, cache benefit or token savings."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

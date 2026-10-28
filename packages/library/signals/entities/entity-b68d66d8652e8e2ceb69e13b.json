@@ -1,0 +1,211 @@
+{
+  "recordVersion": 2,
+  "entity": {
+    "uri": "https://www.first.org/cvss/v4.0/specification-document",
+    "name": "Common Vulnerability Scoring System v4.0",
+    "kind": "standard",
+    "identity": "resolved",
+    "aliases": ["CVSS v4.0", "https://www.first.org/cvss/v4-0/specification-document"],
+    "description": "FIRST's current CVSS edition for expressing vulnerability characteristics and severity, with Base, Threat, Environmental and Supplemental metrics.",
+    "facets": {
+      "domains": ["vulnerability assessment"],
+      "capabilities": ["severity assessment", "environmental assessment", "severity communication"],
+      "interfaces": ["vector string", "numerical score"],
+      "deliveryForms": ["specification"],
+      "platforms": [],
+      "licenses": [],
+      "tags": ["CVSS", "v4.0", "specification document version 1.2"]
+    },
+    "observations": [
+      {
+        "feature": "defining",
+        "indicator": "defines",
+        "statement": "CVSS communicates software vulnerability characteristics and severity.",
+        "quote": "communicating the characteristics and severity of software vulnerabilities",
+        "independent": false,
+        "origin": "first",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-7084f6aec87d84b4c55cb8ef",
+        "id": "observation-06a6e06d1a0be01986a89079",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-84c75a0841147c5e53d253c9",
+        "verified": true
+      },
+      {
+        "feature": "authority",
+        "indicator": "formal-current",
+        "statement": "The issuing SIG identifies the published standard's current edition as 4.0.",
+        "quote": "CVSS is currently at version 4.0.",
+        "independent": false,
+        "origin": "first",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-f838f06bc60d602dedd820f2",
+        "id": "observation-1aa7780127cb1ccd749197cd",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-03d641e638f36e2302e4952e",
+        "verified": true
+      },
+      {
+        "feature": "verification",
+        "indicator": "inspectable",
+        "statement": "The supplied specification exposes a concrete normative criterion for valid vector ordering.",
+        "quote": "every other ordering is invalid",
+        "independent": false,
+        "origin": "first",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-a119620b8e5c47e318dc7af0",
+        "id": "observation-45af6a0ffc769a7130546167",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-84c75a0841147c5e53d253c9",
+        "verified": true
+      },
+      {
+        "feature": "currentness",
+        "indicator": "current",
+        "statement": "The issuing SIG explicitly identifies 4.0 as the current CVSS edition.",
+        "quote": "CVSS is currently at version 4.0.",
+        "independent": false,
+        "origin": "first",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-0e231355dae505c96032deb9",
+        "id": "observation-b04b365ca28d8bddcc9b661f",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-03d641e638f36e2302e4952e",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "stable-interface",
+        "statement": "The specification imposes normative ordering requirements on vector strings.",
+        "quote": "A vector string must contain metrics in the order shown in Table 23",
+        "independent": false,
+        "origin": "first",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-1f2ade8c66c7f0ffe8ea28fb",
+        "id": "observation-d1b8911786a19cb5f5d5b6bc",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-84c75a0841147c5e53d253c9",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "supported-or-complete",
+        "statement": "CVSS v4.0 has been officially published.",
+        "quote": "official publication of CVSS v4.0",
+        "independent": false,
+        "origin": "first",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-8e041966be6ab810607810ec",
+        "id": "observation-f90b7f0314286e6e8b685455",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-03d641e638f36e2302e4952e",
+        "verified": true
+      }
+    ],
+    "limits": [
+      "Severity does not by itself establish exploitation likelihood or remediation priority.",
+      "Independent implementation evidence and edition-specific operational outcomes were not inspected.",
+      "Linked examples and implementation guides were not inspected.",
+      "Document version 1.2 is visible, but its publication date and latest document-revision status remain unverified."
+    ],
+    "id": "entity-b68d66d8652e8e2ceb69e13b",
+    "acquisition": "configured-live",
+    "evidence": [
+      {
+        "uri": "https://www.first.org/cvss",
+        "title": "Common Vulnerability Scoring System SIG",
+        "publisher": "FIRST",
+        "family": "standards",
+        "publishedAt": null,
+        "origin": "first",
+        "id": "evidence-03d641e638f36e2302e4952e",
+        "fetchedAt": "2026-10-06T09:50:30.704Z",
+        "digest": "bed47b9ee07bff7877f54902ef8dd778767a8def684fc37f85f652f2a0ba5f0b",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "CVSS is currently at version 4.0. … official publication of CVSS v4.0",
+        "normalizer": "text-v2",
+        "excerptDigest": "37d7da629d7c1ab6183857fa6c5f738c02d7e78b593277182da95b9cf029ded3"
+      },
+      {
+        "uri": "https://www.first.org/cvss/v4.0/specification-document",
+        "title": "CVSS v4.0 Specification Document, document version 1.2",
+        "publisher": "FIRST",
+        "family": "standards",
+        "publishedAt": null,
+        "origin": "first",
+        "id": "evidence-84c75a0841147c5e53d253c9",
+        "fetchedAt": "2026-10-06T09:50:31.217Z",
+        "digest": "c790b6fa26999a439ae3456b2e0e9ff1a891bd40e3929a659ae5dd6eeb8f0916",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "A vector string must contain metrics in the order shown in Table 23 … communicating the characteristics and severity of software vulnerabilities … every other ordering is invalid",
+        "normalizer": "text-v2",
+        "excerptDigest": "49cb536f2ce5667569d64f0a56afad405a41a6c51b0262758e6d59ec34ecf9a2"
+      }
+    ],
+    "currentEvidence": ["evidence-03d641e638f36e2302e4952e", "evidence-84c75a0841147c5e53d253c9"],
+    "currentChecks": {
+      "https://www.first.org/cvss": "2026-10-06T09:50:30.704Z",
+      "https://www.first.org/cvss/v4.0/specification-document": "2026-10-06T09:50:31.217Z"
+    },
+    "assessment": {
+      "policy": "signal-strength-v6",
+      "asOf": "2026-10-06T09:51:31.636Z",
+      "score": 75,
+      "features": {
+        "corroboration": { "value": 0, "contribution": 0, "observations": [], "state": "unknown" },
+        "adoption": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "not-applicable"
+        },
+        "maturity": {
+          "value": 0.5,
+          "contribution": 7.5,
+          "observations": [
+            "observation-d1b8911786a19cb5f5d5b6bc",
+            "observation-f90b7f0314286e6e8b685455"
+          ],
+          "state": "observed"
+        },
+        "currentness": {
+          "value": 1,
+          "contribution": 25,
+          "observations": ["observation-b04b365ca28d8bddcc9b661f"],
+          "state": "observed"
+        },
+        "authority": {
+          "value": 1,
+          "contribution": 40,
+          "observations": ["observation-1aa7780127cb1ccd749197cd"],
+          "state": "observed"
+        },
+        "verification": {
+          "value": 0.25,
+          "contribution": 2.5,
+          "observations": ["observation-45af6a0ffc769a7130546167"],
+          "state": "observed"
+        }
+      },
+      "risk": 0,
+      "coverage": 0.8,
+      "missing": ["corroboration"],
+      "state": "assessed"
+    }
+  },
+  "state": "eligible-saved"
+}

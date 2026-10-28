@@ -1,0 +1,115 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "d2ea519ec1f795a790dca8014cc36bcb132fb9ce7517276c406aad32fbd5bd7c",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:12:31.614558Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary material independently challenged for relevance, support, actionable usefulness and limits. Changing documentation is due for re-observation after 90 days; this cadence is review policy, not a guarantee.",
+    "claimReviews": [
+      {
+        "claimId": "map-definitions",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      },
+      {
+        "claimId": "map-budget",
+        "basis": "volatile",
+        "reviewAfterDays": 90
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "d2ea519ec1f795a790dca8014cc36bcb132fb9ce7517276c406aad32fbd5bd7c",
+      "researchRunId": "host-acquisition:signals-public-repository-maps-2026-10-05",
+      "reviewRunId": "source-research-independent:repository-maps:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:12:31.614558Z",
+      "options": [
+        {
+          "optionId": "option-aider-map",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Task-influenced graph ranking addresses repository code context; rules and tests remain outside the supported scope.",
+            "evidence": "Official map and FAQ pages support definitions, adaptive map sizing and export; they do not establish embeddings or hard caps.",
+            "usefulness": "The proposed map-only comparison records useful definitions, omissions, actual size and additional source reads on two tasks.",
+            "clarity": "Limitations explicitly separate documented behavior, unrun trials, implementation omissions and unmeasured ranking quality."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-repository-maps-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:46:22Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Which maintained approach ranks repository code context for my current task?",
+      "concept_ids": ["task-ranked-repository-context", "semantic-code-context-retrieval"]
+    },
+    "sources": [
+      {
+        "id": "aider-map",
+        "uri": "https://aider.chat/docs/repomap.html",
+        "title": "Aider repository maps",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": null,
+        "independence_group": "aider.chat"
+      },
+      {
+        "id": "aider-faq",
+        "uri": "https://aider.chat/docs/faq.html",
+        "title": "Aider FAQ: show repository map",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": null,
+        "independence_group": "aider.chat"
+      }
+    ],
+    "claims": [
+      {
+        "id": "map-definitions",
+        "text": "Aider maps repository files and selected definitions such as classes, functions and signatures. Its source-file dependency graph supplies ranking influenced by the current chat and map token budget.",
+        "source_ids": ["aider-map"],
+        "status": "supported"
+      },
+      {
+        "id": "map-budget",
+        "text": "The map token setting influences size but can expand adaptively; the FAQ documents map export with --show-repo-map.",
+        "source_ids": ["aider-map", "aider-faq"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-aider-map",
+        "name": "Inspect a graph-ranked code map",
+        "canonical_uri": "https://aider.chat/docs/repomap.html",
+        "claim_ids": ["map-definitions", "map-budget"],
+        "disposition": "consider",
+        "reason": "For a future authorized trial, use map-only output on a pinned public fixture and two real tasks. Record useful definitions, omitted dependencies, actual size and further source reads; compare with narrow file search without edits or model calls.",
+        "limitations": [
+          "No candidate was executed. Maps omit implementation details and do not establish ranking of rules, commands or warnings. Token settings are not a guaranteed hard cap; graph ranking is not embedding-based semantic retrieval."
+        ]
+      }
+    ],
+    "limitations": [
+      "Documented capabilities acquired through primary-source research. Proposed trials have not been run; source support is separate from usefulness or comparative superiority."
+    ]
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "1c079e3afe26fd0f8d56a4bfb3331bf3c720457c615036024c3ad54627fc213c",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T22:12:31.614558Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary material independently challenged for relevance, support, actionable usefulness and limits. Changing documentation is due for re-observation after 90 days; this cadence is review policy, not a guarantee.",
+    "claimReviews": [
+      {
+        "claimId": "cca-recovery",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "cca-normalization",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "cca-fallback",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "1c079e3afe26fd0f8d56a4bfb3331bf3c720457c615036024c3ad54627fc213c",
+      "researchRunId": "host-acquisition:signals-public-recoverable-output-2026-10-05",
+      "reviewRunId": "source-research-independent:recoverable-output:2026-10-05",
+      "reviewer": "independent-source-research-agent",
+      "reviewedAt": "2026-10-05T22:12:31.614558Z",
+      "options": [
+        {
+          "optionId": "option-cca-output",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Recoverable observations directly address verbose agent context while keeping critical build and test facts available.",
+            "evidence": "Pinned CCA 0.2 source supports normalization, redaction and recovery references; original stream bytes are not promised.",
+            "usefulness": "Three saved log checks cover completion, failure and recovery, allowing a concrete bounded observation-retention trial.",
+            "clarity": "Private storage, normalized recovery and unmeasured token or billing savings are stated without exaggerating the evidence."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-recoverable-output-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:46:22Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "3c99cbaf57bc62c24ce419aa6a643e40bb856d89",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "How can I keep verbose build/test output out of agent context while preserving recoverable logs?",
+      "concept_ids": ["context-output-optimization", "command-output-rewriting"]
+    },
+    "sources": [
+      {
+        "id": "cca-readme",
+        "uri": "https://github.com/linger-alpha/command-compressor-agent/blob/fd9c022d364643fd80413201fb51a537c9020a86/README.md",
+        "title": "CCA 0.2.0 README",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "fd9c022d364643fd80413201fb51a537c9020a86",
+        "independence_group": "github.com"
+      },
+      {
+        "id": "cca-compressor",
+        "uri": "https://github.com/linger-alpha/command-compressor-agent/blob/fd9c022d364643fd80413201fb51a537c9020a86/src/compression/compressor.js",
+        "title": "CCA 0.2.0 compressor",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "fd9c022d364643fd80413201fb51a537c9020a86",
+        "independence_group": "github.com"
+      },
+      {
+        "id": "cca-formatter",
+        "uri": "https://github.com/linger-alpha/command-compressor-agent/blob/fd9c022d364643fd80413201fb51a537c9020a86/src/compression/format.js",
+        "title": "CCA 0.2.0 formatter",
+        "source_class": "first-party",
+        "observed_at": "2026-10-05T21:46:22Z",
+        "revision": "fd9c022d364643fd80413201fb51a537c9020a86",
+        "independence_group": "github.com"
+      }
+    ],
+    "claims": [
+      {
+        "id": "cca-recovery",
+        "text": "The compressor stores a formatted observation before choosing compressed output; changed output carries a local raw_ref.",
+        "source_ids": ["cca-compressor"],
+        "status": "supported"
+      },
+      {
+        "id": "cca-normalization",
+        "text": "Formatting records command, exit code, stdout and stderr while stripping ANSI, applying redaction and trimming trailing whitespace. Recovery therefore concerns the normalized observation, not byte-exact original streams.",
+        "source_ids": ["cca-formatter"],
+        "status": "supported"
+      },
+      {
+        "id": "cca-fallback",
+        "text": "The README describes inspection/fallback passthrough and adapter failure returning the original tool result.",
+        "source_ids": ["cca-readme"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-cca-output",
+        "name": "Keep recoverable normalized command observations",
+        "canonical_uri": "https://github.com/linger-alpha/command-compressor-agent/blob/fd9c022d364643fd80413201fb51a537c9020a86/README.md",
+        "claim_ids": ["cca-recovery", "cca-normalization", "cca-fallback"],
+        "disposition": "consider",
+        "reason": "Replay three saved nonsensitive logs containing repetition, a failure trace and dense structured output. Check diagnostic retention, omitted-text recovery, passthrough and fallback-read overhead. Keep estimates separate from provider billing.",
+        "limitations": [
+          "No general token-saving or task-success benefit follows from the documentation. Preserve source logs separately when byte-exact streams matter; recovery files belong in private storage."
+        ]
+      }
+    ],
+    "limitations": [
+      "Documented capabilities acquired through primary-source research. Proposed trials have not been run; source support is separate from usefulness or comparative superiority."
+    ]
+  }
+}

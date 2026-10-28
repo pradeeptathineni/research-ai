@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "repo_root=\"$(git rev-parse --show-toplevel 2>/dev/null)\" && cd \"$repo_root\" && CCA_CONFIG_PATH=\"$repo_root/.meta/context/compression.json\" node \"$repo_root/node_modules/@linger-alpha/cca/bin/cca-hook.js\" codex # command-compressor-agent managed",
+            "timeout": 30,
+            "statusMessage": "Compressing noisy command output"
+          }
+        ]
+      }
+    ]
+  }
+}

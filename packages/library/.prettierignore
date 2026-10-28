@@ -1,0 +1,10 @@
+node_modules
+.signals/
+private-query-probe/
+dist
+coverage
+playwright-report
+test-results
+package-lock.json
+packages/contracts/src/evidence-bundle-v1.schema.json
+.meta/context/local/

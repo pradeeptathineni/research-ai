@@ -1,0 +1,115 @@
+{
+  "recordVersion": 1,
+  "encoding": "pretty-json-v1",
+  "review": {
+    "digest": "cf3bb1e32afc5090a9d6d42b0af0a6b5bee9d95a3b882a9fc33247023be93834",
+    "category": "Gardening",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Revalidated primary source claims and their applicability; examples are not universal settings or measured outcomes. Attribution and original dates retained; public-only paraphrases, no private context or reproduced content.",
+    "claimReviews": [
+      {
+        "claimId": "pothos-rooting",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "pothos-care",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "cf3bb1e32afc5090a9d6d42b0af0a6b5bee9d95a3b882a9fc33247023be93834",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-pothos-water",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Preparation, water changes and root-based transplant timing form a usable procedure; transplant stress is separated from measured success.",
+            "evidence": "Preparation, water changes and root-based transplant timing form a usable procedure; transplant stress is separated from measured success.",
+            "usefulness": "Preparation, water changes and root-based transplant timing form a usable procedure; transplant stress is separated from measured success.",
+            "clarity": "Preparation, water changes and root-based transplant timing form a usable procedure; transplant stress is separated from measured success."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-pothos-water-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T21:23:29Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "78d7f1c4e35bed6e3a0dce61cece04479c95f41e",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "propagating pothos cuttings in water",
+      "concept_ids": ["gardening.propagation", "plants.houseplants"]
+    },
+    "sources": [
+      {
+        "id": "uw-extension",
+        "uri": "https://hort.extension.wisc.edu/articles/pothos-epipremmum-aureum/",
+        "title": "UW Extension: Pothos — Susan Mahr, revised Bruce Spangenberg",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T21:23:29Z",
+        "revision": "2025 revision",
+        "independence_group": "wisc.edu"
+      },
+      {
+        "id": "isu-extension",
+        "uri": "https://yardandgarden.extension.iastate.edu/how-to/how-propagate-houseplants-stem-tip-cuttings",
+        "title": "Iowa State Extension: Stem-tip cuttings — Aaron Steil",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T21:23:29Z",
+        "revision": "reviewed January 2025",
+        "independence_group": "iastate.edu"
+      }
+    ],
+    "claims": [
+      {
+        "id": "pothos-rooting",
+        "text": "UW Extension describes rooting pothos vines in water or vermiculite, taking approximately three to four weeks under warm conditions.",
+        "source_ids": ["uw-extension"],
+        "status": "supported"
+      },
+      {
+        "id": "pothos-care",
+        "text": "Iowa State lists pothos among houseplants propagated by stem-tip cuttings: prepare a three-to-six-inch stem with at least two nodes and remove lower leaves. For water rooting, change water once or twice weekly, keep developing roots submerged and pot around one-inch root length. Water-rooted cuttings may show stress after transfer to soil.",
+        "source_ids": ["isu-extension"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-pothos-water",
+        "name": "Root pothos cuttings in water",
+        "canonical_uri": "https://hort.extension.wisc.edu/articles/pothos-epipremmum-aureum/",
+        "claim_ids": ["pothos-rooting", "pothos-care"],
+        "disposition": "consider",
+        "reason": "Prepare and maintain a small water-rooting attempt; record root development and survival after transfer to potting mix. Use root development rather than calendar age alone to choose transfer timing.",
+        "limitations": [
+          "Rooting time depends on indoor conditions, cutting health and cultivar. The general houseplant preparation guidance includes pothos; it is not a measured success rate."
+        ]
+      }
+    ],
+    "limitations": [
+      "Primary-source guidance acquired by the host agent after a peer identified a retrieval gap. No consumer trial, success rate or human usefulness has been established."
+    ]
+  }
+}

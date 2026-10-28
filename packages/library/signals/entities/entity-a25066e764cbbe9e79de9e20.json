@@ -1,0 +1,243 @@
+{
+  "recordVersion": 2,
+  "entity": {
+    "uri": "https://www.w3.org/TR/prov-o",
+    "name": "PROV-O (2013 Recommendation)",
+    "kind": "standard",
+    "identity": "resolved",
+    "aliases": ["PROV Ontology", "http://www.w3.org/ns/prov#"],
+    "description": "An OWL2 provenance vocabulary with quotation, derivation and primary-source relationships.",
+    "facets": {
+      "domains": ["provenance", "linked data"],
+      "capabilities": ["quotation provenance", "derivation chains", "primary-source attribution"],
+      "interfaces": ["RDF", "OWL2"],
+      "deliveryForms": ["specification", "ontology"],
+      "platforms": ["Web"],
+      "licenses": [],
+      "tags": ["wasQuotedFrom", "hadPrimarySource", "qualifiedQuotation"]
+    },
+    "observations": [
+      {
+        "feature": "maturity",
+        "indicator": "track-record",
+        "statement": "The history records published working drafts preceding the Recommendation.",
+        "quote": "13 December 2011 Working Draft",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-15b2d1845a57c2b06c053351",
+        "id": "observation-380f086cf8bab866739837a7",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-90fe898bb101b64d06b9ce96",
+        "verified": true
+      },
+      {
+        "feature": "currentness",
+        "indicator": "current",
+        "statement": "The issuing authority's history identifies the 2013 Recommendation as the latest published edition; this does not establish recent revision.",
+        "quote": "30 April 2013 Recommendation",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-da215197e0ee9d21d7750ce9",
+        "id": "observation-413227603212ec6b8b3aec1c",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-90fe898bb101b64d06b9ce96",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "stable-interface",
+        "statement": "The quotation property has published entity domain and range constraints.",
+        "quote": "has domain prov:Entity has range prov:Entity",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-ee54f71ee281d45f40d3cf5e",
+        "id": "observation-57f9285ea0a546d42f2cc983",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-0d3046820588c0fea11f097b",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "documented",
+        "statement": "The document supplies serialized examples for its vocabulary cross reference.",
+        "quote": "Turtle RDF serialization",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-e614ad3af2e94f4bc34eafa5",
+        "id": "observation-77ebe2ba41bd50a4423d7f5a",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-0d3046820588c0fea11f097b",
+        "verified": true
+      },
+      {
+        "feature": "defining",
+        "indicator": "defines",
+        "statement": "Quotation represents derivation by copying some or all of an original entity.",
+        "quote": "by copying, or 'quoting', some or all of it.",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-0b2c09c6b1f8d30fce0e2ddb",
+        "id": "observation-92b584226b49ced7f76cb033",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-0d3046820588c0fea11f097b",
+        "verified": true
+      },
+      {
+        "feature": "maturity",
+        "indicator": "supported-or-complete",
+        "statement": "The publication history establishes completed Recommendation status.",
+        "quote": "30 April 2013 Recommendation",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-ef3443b001a31d99f9a7aaa1",
+        "id": "observation-9ff4e0c38c47e9e869e2f853",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-90fe898bb101b64d06b9ce96",
+        "verified": true
+      },
+      {
+        "feature": "verification",
+        "indicator": "worked-example",
+        "statement": "A concrete RDF example represents an influence relationship and its qualified description.",
+        "quote": ":stomach_ache prov:wasInfluencedBy :spoon;",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-7c17d40b2ab313c06765bce8",
+        "id": "observation-f02e76fe14c9c59184ba920d",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-0d3046820588c0fea11f097b",
+        "verified": true
+      },
+      {
+        "feature": "authority",
+        "indicator": "formal-current",
+        "statement": "The issuing authority's supplied publication history lists Recommendation as the latest status.",
+        "quote": "30 April 2013 Recommendation",
+        "independent": false,
+        "origin": "w3c-prov",
+        "status": "supported",
+        "identityVersion": 2,
+        "basisId": "basis-c18e13088286590bdf31a837",
+        "id": "observation-fe7834ca9f0f72021596370c",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-90fe898bb101b64d06b9ce96",
+        "verified": true
+      }
+    ],
+    "limits": [
+      "An application must supply accurate provenance assertions.",
+      "Precise passage anchoring needs additional location metadata or selectors."
+    ],
+    "id": "entity-a25066e764cbbe9e79de9e20",
+    "acquisition": "configured-live",
+    "evidence": [
+      {
+        "uri": "https://www.w3.org/TR/prov-o",
+        "title": "PROV-O: The PROV Ontology",
+        "publisher": "W3C",
+        "family": "standards",
+        "publishedAt": "2013-04-30",
+        "origin": "w3c-prov",
+        "id": "evidence-0d3046820588c0fea11f097b",
+        "fetchedAt": "2026-10-06T06:08:41.706Z",
+        "digest": "6b96671ab84faf12ce3f041aca12c3f93a6df2ed242348810743179a68e69555",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": ":stomach_ache prov:wasInfluencedBy :spoon; … Turtle RDF serialization … by copying, or 'quoting', some or all of it. … has domain prov:Entity has range prov:Entity",
+        "normalizer": "text-v2",
+        "excerptDigest": "af911dfe492ecc3bef8c5da925a29ea4ef4a9672db2566e7fdb4901bd39a8f51"
+      },
+      {
+        "uri": "https://www.w3.org/standards/history/prov-o",
+        "title": "PROV-O publication history",
+        "publisher": "W3C",
+        "family": "standards",
+        "publishedAt": null,
+        "origin": "w3c-prov",
+        "id": "evidence-90fe898bb101b64d06b9ce96",
+        "fetchedAt": "2026-10-06T06:08:41.833Z",
+        "digest": "6d3e14474582dabef4efd5a70ea45577c13cecdfdb4714a451b1e122a2b7eac3",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "13 December 2011 Working Draft … 30 April 2013 Recommendation",
+        "normalizer": "text-v2",
+        "excerptDigest": "502b26f003561f36828cbaa2f4b49f072dd9c4bae07fa0c8106a918c00295b7c"
+      }
+    ],
+    "currentEvidence": ["evidence-0d3046820588c0fea11f097b", "evidence-90fe898bb101b64d06b9ce96"],
+    "currentChecks": {
+      "https://www.w3.org/TR/prov-o": "2026-10-06T06:08:41.706Z",
+      "https://www.w3.org/standards/history/prov-o": "2026-10-06T06:08:41.833Z"
+    },
+    "assessment": {
+      "policy": "signal-strength-v4",
+      "asOf": "2026-10-06T06:09:46.891Z",
+      "score": 85,
+      "features": {
+        "corroboration": { "value": 0, "contribution": 0, "observations": [], "state": "unknown" },
+        "adoption": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "not-applicable"
+        },
+        "maturity": {
+          "value": 1,
+          "contribution": 15,
+          "observations": [
+            "observation-380f086cf8bab866739837a7",
+            "observation-57f9285ea0a546d42f2cc983",
+            "observation-77ebe2ba41bd50a4423d7f5a",
+            "observation-9ff4e0c38c47e9e869e2f853"
+          ],
+          "state": "observed"
+        },
+        "currentness": {
+          "value": 1,
+          "contribution": 25,
+          "observations": ["observation-413227603212ec6b8b3aec1c"],
+          "state": "observed"
+        },
+        "authority": {
+          "value": 1,
+          "contribution": 40,
+          "observations": ["observation-fe7834ca9f0f72021596370c"],
+          "state": "observed"
+        },
+        "verification": {
+          "value": 0.5,
+          "contribution": 5,
+          "observations": ["observation-f02e76fe14c9c59184ba920d"],
+          "state": "observed"
+        }
+      },
+      "risk": 0,
+      "coverage": 0.8,
+      "missing": ["corroboration"],
+      "state": "assessed"
+    }
+  },
+  "state": "eligible-saved"
+}

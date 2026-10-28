@@ -1,0 +1,187 @@
+schema_version: 4
+project: signals-ai
+mission:
+  Discover, explain, retain, and keep current worthwhile knowledge for personal interests and projects,
+  so useful possibilities and better decisions become easier to find.
+scope:
+  All listed features are required. Role describes contribution, not priority or optionality. Required
+  support does not mean enabled by default.
+roles:
+  core: Direct product capability.
+  supporting: Required access, integration, operation, or maintenance.
+  guardrail: Mandatory boundary for acceptable operation.
+features:
+  - id: signal-search
+    name: Search Signals
+    role: core
+    type: discovery
+    intent:
+      Research a question or interest, discover and type worthwhile findings, assess their evidence,
+      score signal strength, and rank and explain their relevance—including unfamiliar options beyond supplied
+      names and sources.
+  - id: interests
+    name: Interests & query lists
+    role: core
+    type: configuration
+    intent:
+      Define personal, project, and exploratory interests, their constraints, and when they deserve
+      new research.
+  - id: source-settings
+    name: Source settings
+    role: supporting
+    type: configuration
+    intent:
+      Manage suggested websites, communities, feeds, and scopes per user or interest without restricting
+      all discovery to that list.
+  - id: source-discovery
+    name: Source discovery & following
+    role: core
+    type: discovery
+    intent:
+      Find productive new sources, follow selected ones, and track their usefulness while continuing
+      to explore elsewhere.
+  - id: evidence
+    name: Evidence & cross-referencing
+    role: core
+    type: assessment
+    intent:
+      Check important claims, connect supporting and conflicting evidence, distinguish independent
+      origins, and expose gaps and limitations.
+  - id: classification
+    name: Classification & relationships
+    role: core
+    type: organization
+    intent:
+      Organize findings across domains and resource kinds, linking alternatives, related ideas, and
+      the needs they address.
+  - id: ranking
+    name: Scoring & ranking
+    role: core
+    type: assessment
+    intent:
+      Explain supported signal strength separately from relevance, novelty, and suitability; keep
+      promising low-evidence and older options discoverable.
+      Distinguish evidence sufficiency and confidence in the assessment itself; unknown confidence
+      and unproven cross-domain accuracy must remain explicit rather than becoming probabilities
+      from heuristic scores.
+  - id: briefs
+    name: Briefs & comparisons
+    role: core
+    type: ui
+    intent:
+      Show why findings matter, what they could enable, how alternatives differ, and a sensible next
+      action.
+  - id: local-corpus
+    name: Local corpus
+    role: core
+    type: storage
+    intent:
+      Own and retain findings, sources, assessments, project links, and personal notes locally in
+      portable, searchable records. Let people explicitly import private local documents, reopen
+      readable pages, and select bounded page text for frozen research.
+  - id: inbox
+    name: Capture & inbox
+    role: core
+    type: ui
+    intent:
+      Accept manual links and automated discoveries; let the user inspect, save, annotate, dismiss,
+      or mute them.
+  - id: corpus-search
+    name: Corpus search & follow-ups
+    role: core
+    type: retrieval
+    intent:
+      Retrieve retained knowledge through immediate literal matching and, when permitted, one bounded
+      no-web meaning match; distinguish local retrieval from explicit new research and grounded
+      follow-ups over selected evidence.
+  - id: refresh
+    name: Refresh & change tracking
+    role: core
+    type: automation
+    intent:
+      Recheck retained knowledge and distinguish meaningful updates, unchanged material, superseded
+      information, and unresolved claims.
+  - id: feedback
+    name: Feedback & personalization
+    role: core
+    type: assessment
+    intent:
+      Use explicit feedback and observed outcomes to improve suggestions without confusing new-to-corpus
+      findings with personal novelty or usefulness.
+  - id: local-portal
+    name: Local portal
+    role: supporting
+    type: ui
+    intent:
+      Provide a clear workspace for Search, Projects, Library and Following, with evidence, costs,
+      progress, jobs and settings revealed where they matter.
+  - id: public-corpus
+    name: Public corpus
+    role: supporting
+    type: publishing
+    intent:
+      Publish only approved canonical findings through a read-only searchable site with no paid inference
+      for ordinary browsing and no private project or runtime information.
+  - id: interfaces
+    name: CLI & tool interfaces
+    role: supporting
+    type: integration
+    intent:
+      Expose search, capture, retrieval, refresh, and export to people, agents, and scripts without
+      requiring the portal.
+  - id: ai-runtime
+    name: BYO-AI & runtime routing
+    role: supporting
+    type: integration
+    intent:
+      Use the invoking AI or an authorized headless host, choosing available tools, models, effort,
+      and research depth appropriate to the task.
+  - id: jobs
+    name: Scheduled & batch research
+    role: core
+    type: automation
+    intent:
+      Run query lists, source following, and refresh on demand or on schedule, sharing compatible
+      research without merging incompatible conclusions.
+  - id: exchange
+    name: Context & project integration
+    role: core
+    type: integration
+    intent:
+      Supply findings, evidence, and changes to Context and other projects, preserving their purpose
+      without granting execution authority.
+  - id: history
+    name: History & recovery
+    role: supporting
+    type: storage
+    intent:
+      Preserve identities, user annotations, meaningful revisions, and older evidence across export,
+      migration, restoration, and implementation changes.
+  - id: method-evolution
+    name: Research improvement
+    role: core
+    type: evaluation
+    intent:
+      Compare discovery routes and operating choices, retain useful specializations, and replace costly
+      or ineffective behavior using actual results.
+  - id: safeguards
+    name: Safeguards
+    role: guardrail
+    type: security
+    intent:
+      Enforce privacy, safe access, data integrity, authority, resource limits, cancellation, and
+      overlap controls; report failures and uncertainty honestly.
+  - id: projects
+    name: Projects
+    role: core
+    type: configuration
+    intent:
+      Register selected GitHub repositories, VCS checkouts or local folders and maintain editable,
+      permission-scoped project context for useful corpus-backed recommendations.
+  - id: project-opportunities
+    name: Project opportunities
+    role: core
+    type: assessment
+    intent:
+      Connect actual project needs to retained or newly researched knowledge, tools, practices and ideas,
+      with evidence, constraints, decisions and next actions in the local portal.

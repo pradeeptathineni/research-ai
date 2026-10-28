@@ -1,0 +1,124 @@
+{
+  "recordVersion": 2,
+  "entity": {
+    "uri": "https://github.com/vercel-labs/agent-skills",
+    "name": "Vercel Agent Skills",
+    "kind": "software",
+    "identity": "resolved",
+    "aliases": ["vercel-labs/agent-skills"],
+    "description": "Task-focused coding skills for React, Next.js, web design and Vercel workflows, packaged in the common skill format.",
+    "facets": {
+      "domains": ["frontend development", "Vercel"],
+      "capabilities": ["performance review", "web design review", "deployment guidance"],
+      "interfaces": ["SKILL.md"],
+      "deliveryForms": ["Git repository skill collection"],
+      "platforms": ["skills-compatible coding assistants"],
+      "licenses": [],
+      "tags": ["domain-specific expertise"]
+    },
+    "observations": [
+      {
+        "source": 9,
+        "feature": "maturity",
+        "indicator": "documented",
+        "statement": "Documents the instruction file included in each skill.",
+        "quote": "SKILL.md - Instructions for the agent",
+        "independent": false,
+        "origin": "https://github.com/vercel-labs/agent-skills",
+        "status": "supported",
+        "basisId": "basis-21bff1cc78ec1fd96ee58fda",
+        "id": "observation-63cea42c4f57f29332345338",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-15b5f18fd03a36d3cc2ad0f7",
+        "verified": true
+      },
+      {
+        "source": 9,
+        "feature": "defining",
+        "indicator": "defines",
+        "statement": "Identifies itself as Vercel's official skill collection.",
+        "quote": "Vercel's official collection of agent skills",
+        "independent": false,
+        "origin": "https://github.com/vercel-labs/agent-skills",
+        "status": "supported",
+        "basisId": "basis-c29a6480dd720697563e6031",
+        "id": "observation-d69a88a40626cc01d50f3e11",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-15b5f18fd03a36d3cc2ad0f7",
+        "verified": true
+      }
+    ],
+    "limits": [
+      "No independent outcome measurement for this collection was verified.",
+      "Registry counters share the Vercel origin and do not establish broad independent adoption.",
+      "Use only the subset relevant to the project's technology."
+    ],
+    "id": "entity-de98fd0a04b14786783fdcd4",
+    "evidence": [
+      {
+        "uri": "https://github.com/vercel-labs/agent-skills",
+        "title": "Vercel agent-skills README",
+        "publisher": "Vercel Labs",
+        "family": "github",
+        "publishedAt": null,
+        "origin": "vercel-agent-skills",
+        "id": "evidence-15b5f18fd03a36d3cc2ad0f7",
+        "fetchedAt": "2026-10-06T01:51:08.512Z",
+        "digest": "215bed50123c761572c9e423d6daa31b065640ee6cd348d6d91d32b85537977f",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "Skills follow the Agent Skills format. … Vercel's official collection of agent skills … SKILL.md - Instructions for the agent"
+      }
+    ],
+    "assessment": {
+      "policy": "signal-strength-v0",
+      "asOf": "2026-10-06T01:51:08.512Z",
+      "score": 5,
+      "features": {
+        "corroboration": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "adoption": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "maturity": {
+          "value": 0.25,
+          "contribution": 5,
+          "observations": ["observation-63cea42c4f57f29332345338"],
+          "state": "observed"
+        },
+        "currentness": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "authority": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "verification": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        }
+      },
+      "risk": 0,
+      "coverage": 0.16666666666666666,
+      "missing": ["corroboration", "adoption", "currentness", "authority", "verification"],
+      "state": "assessed"
+    }
+  },
+  "state": "user-saved"
+}

@@ -1,0 +1,115 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "6eefcce2c06067efdeb601376502391f57a07690dc5904fb58f0abf9e164818f",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "git-history-workflow",
+        "basis": "stable",
+        "reviewAfterDays": null
+      },
+      {
+        "claimId": "git-history-revert",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "6eefcce2c06067efdeb601376502391f57a07690dc5904fb58f0abf9e164818f",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-git-history",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Coherent commits and successor corrections are usable actions; merge-revert consequences and retained-history limits are explicit.",
+            "evidence": "Coherent commits and successor corrections are usable actions; merge-revert consequences and retained-history limits are explicit.",
+            "usefulness": "Coherent commits and successor corrections are usable actions; merge-revert consequences and retained-history limits are explicit.",
+            "clarity": "Coherent commits and successor corrections are usable actions; merge-revert consequences and retained-history limits are explicit."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-git-history-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Stage one coherent change and preserve published history through reviewed successor commits or a tested revert.",
+      "concept_ids": ["delivery.git", "delivery.rollback", "quality.review"]
+    },
+    "sources": [
+      {
+        "id": "workflow",
+        "uri": "https://git-scm.com/docs/gitworkflows/2.35.0",
+        "title": "Git workflow guide",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": "2.35.0",
+        "independence_group": "git-scm.com"
+      },
+      {
+        "id": "revert",
+        "uri": "https://git-scm.com/docs/git-revert/2.54.0",
+        "title": "Git revert manual",
+        "source_class": "documentation",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": "2.54.0",
+        "independence_group": "git-scm.com"
+      }
+    ],
+    "claims": [
+      {
+        "id": "git-history-workflow",
+        "text": "The Git workflow guide recommends small logical commits that work independently and pass checks; the full Git project workflow is rarely needed for smaller projects.",
+        "source_ids": ["workflow"],
+        "status": "supported"
+      },
+      {
+        "id": "git-history-revert",
+        "text": "git revert records new commits reversing earlier patches. Merge reverts require a mainline choice and affect later merge behavior.",
+        "source_ids": ["revert"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-git-history",
+        "name": "Coherent commits and reversible corrections",
+        "canonical_uri": "https://git-scm.com/docs/gitworkflows/2.35.0",
+        "claim_ids": ["git-history-workflow", "git-history-revert"],
+        "disposition": "consider",
+        "reason": "Stage one coherent change and preserve published history through reviewed successor commits or a tested revert.",
+        "limitations": [
+          "Documentation does not authorize destructive Git commands, retained-data deletion or release withdrawal."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

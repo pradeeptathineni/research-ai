@@ -1,0 +1,95 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "9f357f51e3fb7a81537344b0e56de47966b10b6589e89ac2ea7bfbc413a7bdf3",
+    "category": "Development",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "review-understanding-review-study",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "9f357f51e3fb7a81537344b0e56de47966b10b6589e89ac2ea7bfbc413a7bdf3",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-review-understanding",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "Trigger, behavior, constraints and evidence address change understanding; the older human study does not prove AI-review effectiveness.",
+            "evidence": "Trigger, behavior, constraints and evidence address change understanding; the older human study does not prove AI-review effectiveness.",
+            "usefulness": "Trigger, behavior, constraints and evidence address change understanding; the older human study does not prove AI-review effectiveness.",
+            "clarity": "Trigger, behavior, constraints and evidence address change understanding; the older human study does not prove AI-review effectiveness."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-review-understanding-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Give the reviewer the trigger, intended behavior, constraints and reachable evidence. Ask for actionable findings about consequences.",
+      "concept_ids": ["quality.review", "communication.clarity", "agents.handoff"]
+    },
+    "sources": [
+      {
+        "id": "review-study",
+        "uri": "https://www.microsoft.com/en-us/research/publication/expectations-outcomes-and-challenges-of-modern-code-review/",
+        "title": "Expectations, Outcomes, and Challenges of Modern Code Review",
+        "source_class": "research",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": "ICSE 2013",
+        "independence_group": "www.microsoft.com"
+      }
+    ],
+    "claims": [
+      {
+        "id": "review-understanding-review-study",
+        "text": "The Microsoft study found change understanding central to modern code review; knowledge transfer, team awareness and alternative solutions were also observed outcomes.",
+        "source_ids": ["review-study"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-review-understanding",
+        "name": "Review the change and its consequences",
+        "canonical_uri": "https://www.microsoft.com/en-us/research/publication/expectations-outcomes-and-challenges-of-modern-code-review/",
+        "claim_ids": ["review-understanding-review-study"],
+        "disposition": "consider",
+        "reason": "Give the reviewer the trigger, intended behavior, constraints and reachable evidence. Ask for actionable findings about consequences.",
+        "limitations": [
+          "Older human organizational research does not prove that AI review or additional reviewers improves this repository."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}

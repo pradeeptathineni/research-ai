@@ -1,0 +1,140 @@
+{
+  "recordVersion": 2,
+  "entity": {
+    "uri": "https://agents.md/",
+    "name": "AGENTS.md",
+    "kind": "standard",
+    "identity": "resolved",
+    "aliases": ["https://github.com/agentsmd/agents.md"],
+    "description": "Proposed lightweight repository entrypoint for essential build/test commands, local constraints and links to task-specific guidance; nested files can scope instructions to subprojects.",
+    "facets": {
+      "domains": ["repository guidance"],
+      "capabilities": ["shared project conventions", "directory-scoped instructions"],
+      "interfaces": ["Markdown"],
+      "deliveryForms": ["repository file"],
+      "platforms": ["compatible coding assistants"],
+      "licenses": [],
+      "tags": ["keep concise", "complement to skills"]
+    },
+    "observations": [
+      {
+        "source": 1,
+        "feature": "adoption",
+        "indicator": "broad",
+        "statement": "The format's own site claims use by over 60,000 open-source projects.",
+        "quote": "used by over 60k open-source projects",
+        "independent": false,
+        "origin": "https://agents.md/",
+        "status": "supported",
+        "basisId": "basis-a3747549a51d100e5136fca4",
+        "id": "observation-9863569aa0ecbca2a2bc6ea4",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-2418fbdc6a69c8b61c926501",
+        "verified": true
+      },
+      {
+        "source": 1,
+        "feature": "maturity",
+        "indicator": "documented",
+        "statement": "Documents that the format uses standard Markdown.",
+        "quote": "AGENTS.md is just standard Markdown.",
+        "independent": false,
+        "origin": "https://agents.md/",
+        "status": "supported",
+        "basisId": "basis-5020c795d44b6c57aa31ff6a",
+        "id": "observation-a471714149bfd3187f290c5a",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-2418fbdc6a69c8b61c926501",
+        "verified": true
+      },
+      {
+        "source": 1,
+        "feature": "defining",
+        "indicator": "defines",
+        "statement": "Defines an open format for guiding coding agents.",
+        "quote": "A simple, open format for guiding coding agents",
+        "independent": false,
+        "origin": "https://agents.md/",
+        "status": "supported",
+        "basisId": "basis-e2768e1dee76292dd3ef2060",
+        "id": "observation-c0cc8b8174e30fce13f53a5d",
+        "supersedes": [],
+        "derivation": "model-assessment",
+        "evidenceId": "evidence-2418fbdc6a69c8b61c926501",
+        "verified": true
+      }
+    ],
+    "limits": [
+      "The ecosystem list is an upstream compatibility claim, not independent proof of identical support.",
+      "Do not move entire skill manuals into this file.",
+      "Concise entrypoint plus linked skills is a proposal inferred from the two formats; its exact token benefit was not measured here."
+    ],
+    "id": "entity-e7c64f1131461e39323ca1a2",
+    "evidence": [
+      {
+        "uri": "https://agents.md/",
+        "title": "AGENTS.md",
+        "publisher": "AGENTS.md / LF Projects",
+        "family": "standards",
+        "publishedAt": null,
+        "origin": "agents-md",
+        "id": "evidence-2418fbdc6a69c8b61c926501",
+        "fetchedAt": "2026-10-06T01:51:08.512Z",
+        "digest": "dca4c135414a655e07e3a24c74114b7e670872c0fe1e29143802cc75b27b9a8c",
+        "state": "fetched",
+        "reason": "",
+        "excerpt": "A simple, open format for guiding coding agents … used by over 60k open-source projects … AGENTS.md is just standard Markdown."
+      }
+    ],
+    "assessment": {
+      "policy": "signal-strength-v0",
+      "asOf": "2026-10-06T01:51:08.512Z",
+      "score": 10,
+      "features": {
+        "corroboration": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "adoption": {
+          "value": 0.25,
+          "contribution": 5,
+          "observations": ["observation-9863569aa0ecbca2a2bc6ea4"],
+          "state": "observed"
+        },
+        "maturity": {
+          "value": 0.25,
+          "contribution": 5,
+          "observations": ["observation-a471714149bfd3187f290c5a"],
+          "state": "observed"
+        },
+        "currentness": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "authority": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        },
+        "verification": {
+          "value": 0,
+          "contribution": 0,
+          "observations": [],
+          "state": "unknown"
+        }
+      },
+      "risk": 0,
+      "coverage": 0.3333333333333333,
+      "missing": ["corroboration", "currentness", "authority", "verification"],
+      "state": "assessed"
+    }
+  },
+  "state": "user-saved"
+}

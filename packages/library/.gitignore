@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.env
+.signals/
+private-query-probe/
+.meta/context/local/
+*.log
+.DS_Store

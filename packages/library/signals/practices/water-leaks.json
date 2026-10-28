@@ -1,0 +1,94 @@
+{
+  "recordVersion": 1,
+  "encoding": "interchange-v1",
+  "review": {
+    "digest": "ac4b98e022b0a45fe30ae395f92b83a71f51f3b2b8823c94e4bb14d1a6b9a95a",
+    "category": "Household",
+    "reviewedAt": "2026-10-05T21:33:40Z",
+    "reviewer": "agent-reviewed",
+    "rationale": "Primary source supports each paraphrased claim within the stated scope; recommendation and unobserved benefit are explicit. No private fields or reproduced source content admitted.",
+    "claimReviews": [
+      {
+        "claimId": "water-leaks-epa",
+        "basis": "stable",
+        "reviewAfterDays": null
+      }
+    ],
+    "state": "admitted",
+    "quality": {
+      "policyVersion": "signal-review-v1",
+      "evidenceDigest": "ac4b98e022b0a45fe30ae395f92b83a71f51f3b2b8823c94e4bb14d1a6b9a95a",
+      "researchRunId": "host-agent-acquisition-20261005",
+      "reviewRunId": "source-research-quality-review-20261005",
+      "reviewer": "agent:source_research",
+      "reviewedAt": "2026-10-05T21:33:40Z",
+      "options": [
+        {
+          "optionId": "option-water-leaks",
+          "ratings": {
+            "relevance": 3,
+            "evidence": 3,
+            "usefulness": 3,
+            "clarity": 3
+          },
+          "reasons": {
+            "relevance": "The two-hour meter check and fixture inspection are concrete; detection is separated from locating leaks or forecasting savings.",
+            "evidence": "The two-hour meter check and fixture inspection are concrete; detection is separated from locating leaks or forecasting savings.",
+            "usefulness": "The two-hour meter check and fixture inspection are concrete; detection is separated from locating leaks or forecasting savings.",
+            "clarity": "The two-hour meter check and fixture inspection are concrete; detection is separated from locating leaks or forecasting savings."
+          },
+          "blockers": []
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "schema_version": 1,
+    "bundle_id": "signals-public-water-leaks-2026-10-05",
+    "mode": "agent-assisted",
+    "created_at": "2026-10-05T20:08:28Z",
+    "producer": {
+      "repository": "pradeeptathineni/signals-ai",
+      "commit": "4588ec88ed174bfb2874a991d2aeb47bf51fd10d",
+      "protocol": "research-protocol-v2"
+    },
+    "need": {
+      "query": "Record a meter check and inspect fixtures before buying monitoring equipment. Use the observations to choose a repair or further investigation."
+    },
+    "sources": [
+      {
+        "id": "epa",
+        "uri": "https://www.epa.gov/watersense/fix-leak-week",
+        "title": "EPA WaterSense leak checks",
+        "source_class": "guidance",
+        "observed_at": "2026-10-05T20:00:00Z",
+        "revision": null,
+        "independence_group": "www.epa.gov"
+      }
+    ],
+    "claims": [
+      {
+        "id": "water-leaks-epa",
+        "text": "EPA recommends comparing water-meter readings across two hours with no water use; a change probably indicates a leak. It also describes a toilet dye test and fixture checklist.",
+        "source_ids": ["epa"],
+        "status": "supported"
+      }
+    ],
+    "candidates": [
+      {
+        "id": "option-water-leaks",
+        "name": "Check for household water leaks",
+        "canonical_uri": "https://www.epa.gov/watersense/fix-leak-week",
+        "claim_ids": ["water-leaks-epa"],
+        "disposition": "consider",
+        "reason": "Record a meter check and inspect fixtures before buying monitoring equipment. Use the observations to choose a repair or further investigation.",
+        "limitations": [
+          "No household was inspected. A meter change does not locate the leak; aggregate savings are not a household forecast."
+        ]
+      }
+    ],
+    "limitations": [
+      "Source-backed advice acquired by the host agent. Local benefit and human usefulness have not been established."
+    ]
+  }
+}
