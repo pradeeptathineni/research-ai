@@ -1,16 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { fetchEvidence, normalizeText } from '../search-fetch.js';
-import { publicLink } from '../search-document.js';
+import { extractHtml, publicLink } from '../search-document.js';
 import { scanSources } from '../search-sources.js';
 import { loadSettings, updateSettingsForBriefingOpml } from '../search-settings.js';
 import type { SearchSettings } from '../search-settings.js';
-import type { AllDayEvent, Item, Source, Story, TimedEvent } from './schema.js';
+import type { AllDayEvent, Item, MetricObservation, Source, Story, TimedEvent } from './schema.js';
 import {
   beginBriefingRefresh,
   completeBriefingRefresh,
   createBriefingApi,
   isHackerNewsIndexUri,
   listSourceTerms,
+  mastodonTagTimeline,
   retainBriefingRecords,
   type BriefingRefreshSummary,
 } from './store.js';
@@ -27,6 +28,9 @@ const hackerNewsItemUrl = (itemId: number) =>
   `https://hacker-news.firebaseio.com/v0/item/${itemId}.json`;
 const hackerNewsDiscussionUrl = (itemId: number) =>
   `https://news.ycombinator.com/item?id=${itemId}`;
+const mastodonTimelineLimit = 10;
+
+type MetricSnapshot = Omit<MetricObservation, 'id' | 'itemId'> & { item: Item };
 
 function deterministicUuid(value: string) {
   const bytes = Buffer.from(createHash('sha256').update(value).digest().subarray(0, 16));
@@ -44,6 +48,181 @@ function hackerNewsMetrics(value: unknown) {
     if (typeof metric !== 'number' || !Number.isSafeInteger(metric) || metric < 0) return [];
     return [{ name: field === 'descendants' ? 'comments' : 'score', value: metric }];
   });
+}
+
+function mastodonMetrics(value: Record<string, unknown>) {
+  const fields: Array<[string, unknown]> = [
+    ['replies', value.replies_count],
+    ['boosts', value.reblogs_count],
+    ['favourites', value.favourites_count],
+  ];
+  return fields.flatMap(([name, count]) =>
+    typeof count === 'number' && Number.isSafeInteger(count) && count >= 0
+      ? [{ name, value: count }]
+      : [],
+  );
+}
+
+function mastodonPlatform(origin: string) {
+  const host = new URL(origin).hostname
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 32);
+  return `mastodon-${host || 'instance'}-${hash(origin).slice(0, 8)}`;
+}
+
+function parseMastodonTagTimeline(
+  value: unknown,
+  source: Source,
+  tag: string,
+  observedAt: string,
+  sourceRef: string,
+): { items: Item[]; stories: Story[]; metrics: MetricSnapshot[]; summary: Record<string, number> } {
+  if (!Array.isArray(value) || value.length > mastodonTimelineLimit)
+    throw new Error('invalid_mastodon_timeline');
+  const instance = mastodonTagTimeline(source.url);
+  if (!instance) throw new Error('invalid_mastodon_source');
+  const items: Item[] = [];
+  const metrics: MetricSnapshot[] = [];
+  const seenStatusIds = new Set<string>();
+  const summary = {
+    returned: value.length,
+    retained: 0,
+    wrongTag: 0,
+    nonPublic: 0,
+    sensitiveOrWarned: 0,
+    reblog: 0,
+    empty: 0,
+    duplicate: 0,
+  };
+  const platform = mastodonPlatform(instance.origin);
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      throw new Error('invalid_mastodon_status');
+    const status = entry as Record<string, unknown>;
+    if (
+      typeof status.id !== 'string' ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(status.id) ||
+      typeof status.visibility !== 'string' ||
+      typeof status.sensitive !== 'boolean' ||
+      typeof status.spoiler_text !== 'string' ||
+      !Array.isArray(status.tags)
+    )
+      throw new Error('invalid_mastodon_status');
+    if (seenStatusIds.has(status.id)) {
+      summary.duplicate++;
+      continue;
+    }
+    seenStatusIds.add(status.id);
+    if (status.visibility !== 'public') {
+      summary.nonPublic++;
+      continue;
+    }
+    if (
+      status.sensitive === true ||
+      (typeof status.spoiler_text === 'string' && status.spoiler_text.trim())
+    ) {
+      summary.sensitiveOrWarned++;
+      continue;
+    }
+    if (status.reblog !== null && status.reblog !== undefined) {
+      summary.reblog++;
+      continue;
+    }
+    const tags = status.tags.flatMap((entry) =>
+      entry &&
+      typeof entry === 'object' &&
+      !Array.isArray(entry) &&
+      typeof (entry as Record<string, unknown>).name === 'string'
+        ? [(entry as Record<string, unknown>).name as string]
+        : [],
+    );
+    if (!tags.some((value) => value.toLowerCase() === tag.toLowerCase())) {
+      summary.wrongTag++;
+      continue;
+    }
+    if (typeof status.content !== 'string' || typeof status.created_at !== 'string')
+      throw new Error('invalid_mastodon_status');
+    const timestamp = Date.parse(status.created_at);
+    if (!Number.isFinite(timestamp)) throw new Error('invalid_mastodon_status_date');
+    const canonicalUrl =
+      (typeof status.url === 'string' ? publicLink(status.url, sourceRef) : null) ??
+      (typeof status.uri === 'string' ? publicLink(status.uri, sourceRef) : null);
+    if (!canonicalUrl) throw new Error('invalid_mastodon_status_url');
+    const visibleText = extractHtml(
+      `<html><body><main>${status.content}</main></body></html>`,
+      canonicalUrl,
+    ).text;
+    if (!visibleText) {
+      summary.empty++;
+      continue;
+    }
+    const account =
+      status.account && typeof status.account === 'object' && !Array.isArray(status.account)
+        ? (status.account as Record<string, unknown>)
+        : null;
+    const author =
+      typeof account?.acct === 'string' ? normalizeText(account.acct).slice(0, 300) : null;
+    const publishedAt = new Date(timestamp).toISOString();
+    const excerpt = visibleText.slice(0, 5000);
+    const contentDigest = hash(
+      JSON.stringify({ statusId: status.id, canonicalUrl, author, publishedAt, visibleText }),
+    );
+    const item: Item = {
+      id: id('item', `${source.id}\n${canonicalUrl}\n${contentDigest}`),
+      sourceId: source.id,
+      canonicalUrl,
+      title: excerpt.slice(0, 500),
+      author,
+      publishedAt,
+      observedAt,
+      contentDigest,
+      excerpt,
+      metrics: [],
+      interestIds: source.interestIds,
+      storyId: null,
+    };
+    item.storyId = id('story', item.id);
+    items.push(item);
+    summary.retained++;
+    metrics.push(
+      ...mastodonMetrics(status).map(({ name, value }) => ({
+        item,
+        platform,
+        name,
+        value,
+        observedAt,
+        scope: 'instance-view counts; not cross-instance totals',
+        method: 'public-adapter' as const,
+        sourceRef,
+      })),
+    );
+  }
+  const stories = items.map((item) => ({
+    id: item.storyId!,
+    itemIds: [item.id],
+    representativeItemId: item.id,
+    firstSeen: observedAt,
+    lastSeen: observedAt,
+    relation: 'single' as const,
+    groupingEvidence: [],
+    interestMatches: [],
+  }));
+  return { items, stories, metrics, summary };
+}
+
+async function recordMetricSnapshots(root: string, batchId: string, snapshots: MetricSnapshot[]) {
+  const api = createBriefingApi(root);
+  for (const snapshot of snapshots) {
+    const { item, ...observation } = snapshot;
+    const identity = `${batchId}\n${item.id}\n${observation.name}`;
+    await api.recordMetricObservation({
+      requestId: deterministicUuid(`request\n${identity}`),
+      observation: { id: id('metric', identity), itemId: item.id, ...observation },
+    });
+  }
 }
 
 function parseHackerNewsIndex(value: unknown): number[] {
@@ -372,8 +551,15 @@ export async function refreshBriefing(
         source?.kind === 'api:hacker-news'
           ? { includeBytes: true }
           : { ...fetchOptions, includeBytes: true };
+      let requestUri = uri;
+      if (source?.kind === 'api:mastodon-tag') {
+        if (!mastodonTagTimeline(uri)) throw new Error('invalid_mastodon_source');
+        const boundedRequest = new URL(uri);
+        boundedRequest.searchParams.set('limit', String(mastodonTimelineLimit));
+        requestUri = boundedRequest.toString();
+      }
       let document = await (options.fetch ?? fetchEvidence)(
-        uri,
+        requestUri,
         signal,
         redirects,
         allowPdf,
@@ -385,12 +571,7 @@ export async function refreshBriefing(
         const observedAt = (options.clock ?? (() => new Date()))().toISOString();
         const observationBatchId = options.requestId ?? randomUUID();
         const items: Item[] = [];
-        const observations: Array<{
-          item: Item;
-          name: string;
-          value: number;
-          sourceRef: string;
-        }> = [];
+        const observations: MetricSnapshot[] = [];
         for (const itemId of itemIds.slice(0, hackerNewsItemLimit)) {
           const detail = await (options.fetch ?? fetchEvidence)(
             hackerNewsItemUrl(itemId),
@@ -407,6 +588,10 @@ export async function refreshBriefing(
               ...hackerNewsMetrics(detail.json).map((metric) => ({
                 item,
                 ...metric,
+                platform: 'hacker-news',
+                observedAt,
+                scope: 'public Hacker News item detail snapshot',
+                method: 'public-adapter' as const,
                 sourceRef: hackerNewsItemUrl(itemId),
               })),
             );
@@ -423,24 +608,7 @@ export async function refreshBriefing(
           interestMatches: [],
         }));
         await retainBriefingRecords(root, { items, stories });
-        const briefingApi = createBriefingApi(root);
-        for (const observation of observations) {
-          const identity = `${observationBatchId}\n${observation.item.id}\n${observation.name}`;
-          await briefingApi.recordMetricObservation({
-            requestId: deterministicUuid(`request\n${identity}`),
-            observation: {
-              id: id('metric', identity),
-              itemId: observation.item.id,
-              platform: 'hacker-news',
-              name: observation.name,
-              value: observation.value,
-              observedAt,
-              scope: 'public Hacker News item detail snapshot',
-              method: 'public-adapter',
-              sourceRef: observation.sourceRef,
-            },
-          });
-        }
+        await recordMetricSnapshots(root, observationBatchId, observations);
         document = {
           ...document,
           text: JSON.stringify({
@@ -464,6 +632,54 @@ export async function refreshBriefing(
             })),
             sections: [],
             extractor: 'hacker-news-public-api-v0',
+          },
+        };
+      }
+      if (document.response?.status !== 304 && source?.kind === 'api:mastodon-tag') {
+        const timeline = mastodonTagTimeline(uri);
+        if (!timeline) throw new Error('invalid_mastodon_source');
+        if (!document.uri || new URL(document.uri).origin !== timeline.origin)
+          throw new Error('mastodon_instance_redirected');
+        const observedAt = (options.clock ?? (() => new Date()))().toISOString();
+        const observationBatchId = options.requestId ?? randomUUID();
+        const requestedUrl = new URL(uri);
+        requestedUrl.searchParams.set('limit', String(mastodonTimelineLimit));
+        const sourceRef = requestedUrl.toString();
+        const parsed = parseMastodonTagTimeline(
+          document.json,
+          source,
+          timeline.tag,
+          observedAt,
+          sourceRef,
+        );
+        await retainBriefingRecords(root, { items: parsed.items, stories: parsed.stories });
+        await recordMetricSnapshots(root, observationBatchId, parsed.metrics);
+        document = {
+          ...document,
+          text: JSON.stringify({
+            source: uri,
+            scope: 'instance-view-only',
+            tag: timeline.tag,
+            ...parsed.summary,
+            statuses: parsed.items.map((item) => ({
+              itemId: item.id,
+              contentDigest: item.contentDigest,
+              metrics: parsed.metrics
+                .filter((metric) => metric.item.id === item.id)
+                .map(({ name, value }) => ({ name, value })),
+            })),
+          }),
+          material: {
+            text: `Mastodon #${timeline.tag} public tag timeline; instance view from ${timeline.origin}.`,
+            title: `#${timeline.tag} · ${new URL(timeline.origin).host} instance view`,
+            author: null,
+            publishedAt: null,
+            links: parsed.items.map((item) => ({ uri: item.canonicalUrl, title: item.title })),
+            sections: parsed.items.map((item, index) => ({
+              locator: `status:${index + 1}`,
+              text: item.excerpt,
+            })),
+            extractor: 'mastodon-public-tag-v1',
           },
         };
       }

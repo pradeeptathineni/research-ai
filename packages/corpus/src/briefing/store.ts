@@ -189,6 +189,28 @@ export function isHackerNewsIndexUri(uri: string): boolean {
   }
 }
 
+/** Exact user-followed Mastodon hashtag timeline URL; transport adds its own fixed limit. */
+export function mastodonTagTimeline(uri: string): { origin: string; tag: string } | null {
+  try {
+    const url = new URL(uri);
+    const match = /^\/api\/v1\/timelines\/tag\/([A-Za-z0-9_]{1,80})$/.exec(url.pathname);
+    if (
+      url.protocol !== 'https:' ||
+      !url.hostname ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !match
+    )
+      return null;
+    return { origin: url.origin, tag: match[1]! };
+  } catch {
+    return null;
+  }
+}
+
 async function projectedInterests(root: string, state: State): Promise<Interest[]> {
   const settings = await loadSettings(root);
   const overrides = new Map(state.interestPreferences.map((item) => [item.id, item]));
@@ -284,15 +306,17 @@ async function projectedSources(root: string, state: State): Promise<Source[]> {
       id,
       kind: isHackerNewsIndexUri(configured.uri)
         ? 'api:hacker-news'
-        : /\.ics(?:$|\?)/i.test(configured.uri)
-        ? 'ics'
-        : /\.json(?:$|\?)/i.test(configured.uri)
-          ? 'jsonfeed'
-          : /(?:\.rss|\.atom|\.xml|\/feed|\/rss)(?:$|[/?#])/i.test(configured.uri)
-            ? /\.atom(?:$|\?)/i.test(configured.uri)
-              ? 'atom'
-              : 'rss'
-            : 'web',
+        : mastodonTagTimeline(configured.uri)
+          ? 'api:mastodon-tag'
+          : /\.ics(?:$|\?)/i.test(configured.uri)
+            ? 'ics'
+            : /\.json(?:$|\?)/i.test(configured.uri)
+              ? 'jsonfeed'
+              : /(?:\.rss|\.atom|\.xml|\/feed|\/rss)(?:$|[/?#])/i.test(configured.uri)
+                ? /\.atom(?:$|\?)/i.test(configured.uri)
+                  ? 'atom'
+                  : 'rss'
+                : 'web',
       url: configured.uri,
       attribution: configured.label,
       termsRef: terms?.id ?? null,
