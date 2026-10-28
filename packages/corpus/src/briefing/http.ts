@@ -2,6 +2,7 @@ import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { isStoryHidden } from '../briefing-feedback.js';
 import { rankBriefingStory } from '../briefing-rank.js';
+import { eventCalendar } from '../briefing-calendar.js';
 import {
   importBriefingOpml,
   previewBriefingOpml,
@@ -123,6 +124,38 @@ export async function briefingRoute(
   query?: URLSearchParams,
 ) {
   const api = createBriefingApi(root);
+  if (!mutation && route === 'briefing/events/calendar') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    if (
+      queryCount !== 1 ||
+      entries.length !== 1 ||
+      entries[0]![0] !== 'eventId' ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(entries[0]![1])
+    )
+      throw new Error('invalid_briefing_event_calendar_query');
+    const [events, items] = await Promise.all([
+      api.listEvents(),
+      api.listItems(),
+    ]);
+    const retained = events.find((entry) => entry.record.id === entries[0]![1]);
+    if (!retained) throw new Error('unknown_briefing_event');
+    const item = retained.record.itemId
+      ? items.find((entry) => entry.record.id === retained.record.itemId)
+      : undefined;
+    const title = item?.record.title ?? 'Briefing event';
+    const ics = eventCalendar(retained.record, title);
+    if (ics.length > 16_384) throw new Error('briefing_event_calendar_too_large');
+    return {
+      status: 200,
+      body: {
+        schema: 'signals.briefing-event-calendar.v1',
+        reference: retained.reference,
+        title,
+        filename: `briefing-event-${retained.record.id}.ics`,
+        ics,
+      },
+    };
+  }
   if (!mutation && route === 'briefing/opml/import-status') {
     const entries = [...(query ?? new URLSearchParams()).entries()];
     if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')

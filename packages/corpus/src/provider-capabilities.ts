@@ -204,7 +204,7 @@ export async function providerCapabilities(
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
       { id: 'private-document-intake', versions: ['1.0'] },
-      { id: 'briefing-sources-and-workbench', versions: ['1.1', '1.2', '1.3'] },
+      { id: 'briefing-sources-and-workbench', versions: ['1.1', '1.2', '1.3', '1.4'] },
       { id: 'smart-collections', versions: ['1.0'] },
       { id: 'frozen-followup-request', versions: ['1.0', '2.0'] },
       { id: 'research-activity', versions: ['1.0'] },
@@ -213,6 +213,12 @@ export async function providerCapabilities(
       {
         name: 'preview_briefing_ranking',
         target_kinds: ['briefing-story'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'export_briefing_event_calendar',
+        target_kinds: ['briefing-event'],
         mutating: false,
         authority_required: false,
       },
