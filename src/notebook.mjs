@@ -121,7 +121,7 @@ function briefingSourceOrigin(value, document) {
       || !(health.expectedIntervalSec === null || (Number.isFinite(health.expectedIntervalSec) && health.expectedIntervalSec > 0)))
     invalid("invalid Briefing source health qualification");
   if (document.pages.length !== 1 || hash(document.pages[0].text) !== value.excerptSha256
-      || document.id !== `briefing-item-${hash(canonical(value.itemReference))}`)
+      || document.id !== `briefing-item-${hash(canonical([value.itemReference, value.sourceReference]))}`)
     invalid("Briefing item excerpt or exact item identity does not match its retained source");
   return { schemaVersion: 1, kind: value.kind, itemReference: clone(value.itemReference),
     sourceReference: clone(value.sourceReference), contentDigest: value.contentDigest,

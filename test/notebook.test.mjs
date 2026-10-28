@@ -218,7 +218,7 @@ test("Briefing notebook sources retain exact item/source refs and only the owner
     sourceHealth: { status: "unknown", lastGoodAt: null, lastAttemptAt: null, lastAttemptStatus: null,
       lastSuccessfulLinkCount: null, failureClass: null, expectedIntervalSec: null },
   };
-  const document = { id: `briefing-item-${sha(canonical(itemReference))}`, title: "Synthetic Briefing item",
+  const document = { id: `briefing-item-${sha(canonical([itemReference, sourceReference]))}`, title: "Synthetic Briefing item",
     sha256: sha("caller asserted document header"), pages: [page(1, excerpt)] };
   const notebook = reviseResearchNotebook(createResearchNotebook("Briefing handoff"), {
     type: "add-briefing-source", document, origin,
