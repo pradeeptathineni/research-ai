@@ -19,7 +19,7 @@ export const InterestSchema = Type.Object(
     label: Type.String({ minLength: 1, maxLength: 200 }),
     enabled: Type.Boolean(),
     weight: Type.Number({ minimum: 0, maximum: 2 }),
-    halfLifeDays: Type.Number({ minimum: 1, maximum: 3650 }),
+    halfLifeDays: Type.Number({ minimum: 0.75, maximum: 3650 }),
     sourceUris: Type.Array(Type.String({ maxLength: 2048 }), { maxItems: 50, uniqueItems: true }),
   },
   closed,
@@ -219,7 +219,7 @@ export const InterestPreferenceSchema = Type.Object(
   {
     interestId: Type.String({ pattern: '^[a-z0-9-]{1,80}$' }),
     weight: Type.Number({ minimum: 0, maximum: 2 }),
-    halfLifeDays: Type.Number({ minimum: 1, maximum: 3650 }),
+    halfLifeDays: Type.Number({ minimum: 0.75, maximum: 3650 }),
     updatedAt: instant,
   },
   closed,
@@ -362,4 +362,5 @@ export function isRankingExplanation(value: unknown): value is RankingExplanatio
 
 export const BRIEFING_SCHEMA_VERSION = 1 as const;
 export const FEEDBACK_API_CONTRACT = 'briefing-feedback/1' as const;
-export const DEFAULT_VELOCITY_WEIGHT = 0.1 as const;
+export const DEFAULT_VELOCITY_WEIGHT = 0.05 as const;
+export const DEFAULT_INTEREST_HALF_LIFE_DAYS = 0.75 as const;

@@ -22,7 +22,7 @@ export const interestFixture = {
   label: 'Climate data',
   enabled: true,
   weight: 1,
-  halfLifeDays: 30,
+  halfLifeDays: 0.75,
   sourceUris: ['https://example.test/feed.xml'],
 } satisfies Interest;
 
@@ -154,7 +154,7 @@ export const unknownSeenStateFixture = {
 export const interestPreferenceFixture = {
   interestId: interestFixture.id,
   weight: 1,
-  halfLifeDays: 30,
+  halfLifeDays: 0.75,
   updatedAt: '2026-10-28T00:00:00.000Z',
 } satisfies InterestPreference;
 
@@ -165,7 +165,7 @@ export const sourcePreferenceFixture = {
 } satisfies SourcePreference;
 
 export const rankingPreferencesFixture = {
-  velocityWeight: 0.1,
+  velocityWeight: 0.05,
   updatedAt: '2026-10-28T00:00:00.000Z',
 } satisfies RankingPreferences;
 

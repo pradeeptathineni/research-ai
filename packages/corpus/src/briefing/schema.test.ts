@@ -13,6 +13,8 @@ import {
   MetricObservationSchema,
   RankingExplanationSchema,
   RankingPreferencesSchema,
+  DEFAULT_VELOCITY_WEIGHT,
+  DEFAULT_INTEREST_HALF_LIFE_DAYS,
   SeenStateSchema,
   SourceSchema,
   SourcePreferenceSchema,
@@ -62,6 +64,8 @@ describe('Briefing S0 schemas', () => {
   });
 
   it('retains the exact ranking inputs and explanation components', () => {
+    expect(DEFAULT_VELOCITY_WEIGHT).toBe(0.05);
+    expect(DEFAULT_INTEREST_HALF_LIFE_DAYS * 24).toBe(18);
     expect(Value.Check(BriefingRankInputSchema, rankInputFixture)).toBe(true);
     expect(Value.Check(MetricObservationSchema, metricObservationFixture)).toBe(true);
     expect(Value.Check(SeenStateSchema, seenStateFixture)).toBe(true);
