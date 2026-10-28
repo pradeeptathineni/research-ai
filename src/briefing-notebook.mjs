@@ -26,9 +26,9 @@ function sourceTerms(workbench, source) {
   let policy = null;
   if (source.termsRef !== null) {
     const exact = matching.filter((candidate) => candidate.id === source.termsRef);
-    if (exact.length > 1 || (matching.length > 0 && exact.length !== 1))
+    if (exact.length !== 1)
       invalid("source terms policy does not match the exact source reference");
-    policy = exact[0] ?? null;
+    policy = exact[0];
   } else if (matching.length > 0) {
     invalid("source has a terms policy but no matching terms reference");
   }

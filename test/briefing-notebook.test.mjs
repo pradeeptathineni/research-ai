@@ -123,4 +123,10 @@ test("Briefing seed includes only explicit members and refuses unresolved or blo
     storyReference: value.storyReference,
     itemReferences: [value.secondItemReference],
   }), /terms policy blocks/);
+  const detachedPolicy = structuredClone(value.workbench);
+  detachedPolicy.sourceTerms = [];
+  assert.throws(() => createResearchNotebookFromBriefingSelection(detachedPolicy, {
+    storyReference: value.storyReference,
+    itemReferences: [value.secondItemReference],
+  }), /does not match the exact source reference/);
 });
