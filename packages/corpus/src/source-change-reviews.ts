@@ -4,7 +4,12 @@ import { resolve } from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
 import { atomicJson, withWriter } from './search-store.js';
-import { openSourceCapture, type RecordRef } from './source-captures.js';
+import {
+  openSourceCapture,
+  sourceCaptureScopeSchema,
+  type RecordRef,
+  type SourceCaptureScope,
+} from './source-captures.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
 
 const closed = { additionalProperties: false };
@@ -44,6 +49,15 @@ const requestSchema = Type.Object(
 );
 type Request = Static<typeof requestSchema>;
 type Assertion = Static<typeof assertionSchema>;
+const versionCoverageSchema = Type.Object(
+  {
+    text_sha256: digest,
+    raw_digest: Type.Union([digest, Type.Null()]),
+    scope: sourceCaptureScopeSchema,
+  },
+  closed,
+);
+type VersionCoverage = Static<typeof versionCoverageSchema>;
 
 const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const canonical = (value: unknown): string => {
@@ -176,6 +190,7 @@ type Review = {
   source_id: string;
   prior_capture_ref: RecordRef;
   new_capture_ref: RecordRef;
+  version_coverage?: { prior: VersionCoverage; next: VersionCoverage };
   observed_change: BoundedSourceTextDiff;
   meaningfulness: Request['meaningfulness'];
   change_rationale: string;
@@ -192,6 +207,9 @@ const reviewSchema = Type.Object(
     source_id: Type.String({ pattern: '^source-[a-f0-9]{64}$' }),
     prior_capture_ref: refSchema,
     new_capture_ref: refSchema,
+    version_coverage: Type.Optional(
+      Type.Object({ prior: versionCoverageSchema, next: versionCoverageSchema }, closed),
+    ),
     observed_change: Type.Object(
       {
         state: Type.Enum(['changed', 'unchanged']),
@@ -342,12 +360,25 @@ export async function previewSourceChange(root: string, priorId: string, newId: 
     invalid('Comparison requires two versions of the same immutable source identity.');
   if (next.capture.supersedes === null || !sameRef(next.capture.supersedes, prior.ref))
     changed('The selected newer capture must directly supersede the exact prior capture.');
+  const versionCoverage = {
+    prior: {
+      text_sha256: prior.capture.text_sha256,
+      raw_digest: prior.capture.raw_digest,
+      scope: prior.capture.scope as SourceCaptureScope,
+    },
+    next: {
+      text_sha256: next.capture.text_sha256,
+      raw_digest: next.capture.raw_digest,
+      scope: next.capture.scope as SourceCaptureScope,
+    },
+  } satisfies { prior: VersionCoverage; next: VersionCoverage };
   return {
     schema_version: 'source-change-preview-v1',
     source_id: next.capture.source_id,
     prior_capture_ref: prior.ref,
     new_capture_ref: next.ref,
     observed_change: boundedSourceTextDiff(prior.capture.text, next.capture.text),
+    version_coverage: versionCoverage,
     provenance: {
       prior_observed_at: prior.capture.observed_at,
       new_observed_at: next.capture.observed_at,
@@ -395,6 +426,18 @@ export async function createSourceChangeReview(root: string, input: unknown) {
   if (prior.capture.source_id !== next.capture.source_id)
     changed('The selected versions do not share one immutable source identity.');
   const observedChange = boundedSourceTextDiff(prior.capture.text, next.capture.text);
+  const versionCoverage = {
+    prior: {
+      text_sha256: prior.capture.text_sha256,
+      raw_digest: prior.capture.raw_digest,
+      scope: prior.capture.scope as SourceCaptureScope,
+    },
+    next: {
+      text_sha256: next.capture.text_sha256,
+      raw_digest: next.capture.raw_digest,
+      scope: next.capture.scope as SourceCaptureScope,
+    },
+  } satisfies { prior: VersionCoverage; next: VersionCoverage };
   if ((observedChange.state === 'unchanged') !== (request.meaningfulness === 'unchanged'))
     invalid(
       'The human change classification must match the deterministic unchanged/changed observation.',
@@ -413,6 +456,7 @@ export async function createSourceChangeReview(root: string, input: unknown) {
     source_id: next.capture.source_id,
     prior_capture_ref: prior.ref,
     new_capture_ref: next.ref,
+    version_coverage: versionCoverage,
     observed_change: observedChange,
     meaningfulness: request.meaningfulness,
     change_rationale: request.change_rationale,

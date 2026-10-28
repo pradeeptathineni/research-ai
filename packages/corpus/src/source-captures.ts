@@ -12,6 +12,35 @@ import { materialOmissions } from './search-document.js';
 const closed = { additionalProperties: false };
 const sha = Type.String({ pattern: '^[a-f0-9]{64}$' });
 const uuid = Type.String({ pattern: '^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$' });
+export const sourceCaptureScopeSchema = Type.Object(
+  {
+    capture: Type.Object(
+      {
+        mode: Type.Enum(['fetch', 'paste']),
+        original_utf16_units: Type.Integer({ minimum: 1 }),
+        retained_utf16_units: Type.Integer({ minimum: 1, maximum: 48000 }),
+        omitted_utf16_units: Type.Integer({ minimum: 0 }),
+        original_utf8_bytes: Type.Integer({ minimum: 1 }),
+        retained_utf8_bytes: Type.Integer({ minimum: 1, maximum: 96000 }),
+        omitted_utf8_bytes: Type.Integer({ minimum: 0 }),
+      },
+      closed,
+    ),
+    extraction: Type.Object(
+      {
+        kind: Type.Enum(['html-layout-v1', 'unmeasured', 'operator-text-v1']),
+        extractor: Type.Union([Type.String({ minLength: 1, maxLength: 100 }), Type.Null()]),
+        omissions: Type.Array(Type.String({ minLength: 1, maxLength: 800 }), {
+          minItems: 1,
+          maxItems: 8,
+        }),
+      },
+      closed,
+    ),
+  },
+  closed,
+);
+export type SourceCaptureScope = Static<typeof sourceCaptureScopeSchema>;
 export const recordRefSchema = Type.Object(
   {
     owner: Type.Literal('signals-ai'),
@@ -45,34 +74,7 @@ const captureSchema = Type.Object(
     text_sha256: sha,
     raw_digest: Type.Union([sha, Type.Null()]),
     normalizer: Type.String({ minLength: 1, maxLength: 80 }),
-    scope: Type.Object(
-      {
-        capture: Type.Object(
-          {
-            mode: Type.Enum(['fetch', 'paste']),
-            original_utf16_units: Type.Integer({ minimum: 1 }),
-            retained_utf16_units: Type.Integer({ minimum: 1, maximum: 48000 }),
-            omitted_utf16_units: Type.Integer({ minimum: 0 }),
-            original_utf8_bytes: Type.Integer({ minimum: 1 }),
-            retained_utf8_bytes: Type.Integer({ minimum: 1, maximum: 96000 }),
-            omitted_utf8_bytes: Type.Integer({ minimum: 0 }),
-          },
-          closed,
-        ),
-        extraction: Type.Object(
-          {
-            kind: Type.Enum(['html-layout-v1', 'unmeasured', 'operator-text-v1']),
-            extractor: Type.Union([Type.String({ minLength: 1, maxLength: 100 }), Type.Null()]),
-            omissions: Type.Array(Type.String({ minLength: 1, maxLength: 800 }), {
-              minItems: 1,
-              maxItems: 8,
-            }),
-          },
-          closed,
-        ),
-      },
-      closed,
-    ),
+    scope: sourceCaptureScopeSchema,
     qualification: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), {
       minItems: 1,
       maxItems: 8,
