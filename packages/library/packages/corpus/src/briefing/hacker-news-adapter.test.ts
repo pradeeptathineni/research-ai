@@ -55,6 +55,7 @@ function hnItem(id: number) {
     url: `https://publisher.example.test/releases/${id}`,
     text: '<p>New climate data is now available.</p>',
     score: 12,
+    descendants: 4,
   };
 }
 
@@ -227,5 +228,78 @@ describe('Hacker News public API Following adapter', () => {
     expect(blocked.result?.sources).toEqual([]);
     expect(calls).toEqual([]);
     expect((await api.listSources())[0]?.record.termsRef).not.toBeNull();
+  });
+
+  it('retains request-identified score snapshots and exposes velocity only after a later observation', async () => {
+    const root = await sourceRoot();
+    const calls: string[] = [];
+    let score = 12;
+    let descendants = 4;
+    const fetch: typeof fetchEvidence = async (uri) => {
+      calls.push(uri);
+      return response(uri, uri === indexUri ? [901] : { ...hnItem(901), score, descendants });
+    };
+    const firstId = 'f7db905b-12c9-4e7b-9a4e-a1b716a10d01';
+    const first = await refreshDue(
+      root,
+      { once: true, requestId: firstId },
+      { fetch, clock: () => new Date('2026-10-28T00:00:00.000Z') },
+    );
+    expect(first).toMatchObject({ status: 'complete', replayed: false });
+    const api = createBriefingApi(root);
+    const firstInputs = await api.listRankInputs();
+    expect(firstInputs).toHaveLength(1);
+    expect(firstInputs[0]?.metrics).toHaveLength(2);
+    expect(firstInputs[0]?.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          platform: 'hacker-news',
+          name: 'score',
+          value: 12,
+          observedAt: '2026-10-28T00:00:00.000Z',
+          sourceRef: 'https://hacker-news.firebaseio.com/v0/item/901.json',
+          method: 'public-adapter',
+        }),
+        expect.objectContaining({ name: 'comments', value: 4 }),
+      ]),
+    );
+    const firstWorkbench = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
+      .body as {
+        ranked: Array<{
+          explanation: {
+            components: { velocity: { status: string; reason: string; refs: string[] } };
+          };
+        }>;
+      };
+    expect(firstWorkbench.ranked[0]?.explanation.components.velocity).toMatchObject({
+      status: 'insufficient-observations',
+      refs: [],
+    });
+
+    const callsAfterFirst = calls.length;
+    score = 99;
+    const replay = await refreshDue(root, { once: true, requestId: firstId }, { fetch });
+    expect(replay).toMatchObject({ status: 'complete', replayed: true });
+    expect(calls).toHaveLength(callsAfterFirst);
+    expect((await api.listRankInputs())[0]?.metrics).toHaveLength(2);
+
+    score = 24;
+    descendants = 8;
+    const second = await refreshDue(
+      root,
+      { once: true, requestId: 'f7db905b-12c9-4e7b-9a4e-a1b716a10d02' },
+      { fetch, clock: () => new Date('2026-10-28T01:00:00.000Z') },
+    );
+    expect(second.result?.sources[0]?.delta).toBe('content-changed-meaning-unassessed');
+    const coldInputs = await api.listRankInputs();
+    expect(coldInputs[0]?.metrics).toHaveLength(4);
+    expect(new Set(coldInputs[0]?.metrics.map((metric) => metric.id)).size).toBe(4);
+    const secondWorkbench = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
+      .body as typeof firstWorkbench;
+    const velocity = secondWorkbench.ranked[0]?.explanation.components.velocity;
+    expect(velocity?.status).toBe('available');
+    expect(velocity?.refs).toHaveLength(2);
+    expect(velocity?.reason).toContain('hacker-news:score');
+    expect((await api.listSources())[0]?.record.termsRef).toBeNull();
   });
 });
