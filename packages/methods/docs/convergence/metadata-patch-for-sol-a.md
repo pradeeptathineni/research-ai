@@ -26,4 +26,3 @@ The field values for future capabilities should be set by the contributor who au
 - File: `src/owner-tools/capability-types.ts`
 - Add optional `component?: string` and `formerOwner?: string` to `OwnerCapabilityMetadata` as shown above.
 - No `server/main.ts` registration, manifest, pin, catalog, receipt, or package-lock line is required for this type extension.
-
