@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, realpath, rm, mkdir, copyFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, mkdir, copyFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { saveLibraryLead } from './library-leads.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
@@ -12,6 +12,7 @@ import {
   previewSourceChange,
   readSourceChangeReview,
 } from './source-change-reviews.js';
+import { openSourceCapture } from './source-captures.js';
 
 const resolveRef = async (root: string, ref: RecordRef) => {
   const exact = await exactOwnerRecord(root, ref);
@@ -72,18 +73,40 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
       root,
       {
         source_ref: sourceRef,
-        mode: 'paste',
-        text: 'A retained statement.\nNew condition.',
-        observed_at: '2026-10-23T13:00:00Z',
+        mode: 'fetch',
         supersedes: first.ref,
       },
       (ref) => resolveRef(root, ref),
+      {
+        fetcher: async () => ({
+          text: 'A retained statement.\nNew condition.',
+          digest: createHash('sha256').update('synthetic fetched bytes').digest('hex'),
+          uri: 'https://example.org/retained-source',
+          normalizer: 'text-v2',
+        }),
+      },
     );
     const preview = await previewSourceChange(root, first.capture.id, second.capture.id);
     expect(preview.observed_change).toMatchObject({
       state: 'changed',
       removed: ['Old condition.'],
       added: ['New condition.'],
+    });
+    expect(preview.version_coverage.prior).toMatchObject({
+      text_sha256: first.capture.text_sha256,
+      raw_digest: null,
+      scope: {
+        capture: { mode: 'paste', omitted_utf16_units: 0 },
+        extraction: { kind: 'operator-text-v1' },
+      },
+    });
+    expect(preview.version_coverage.next).toMatchObject({
+      text_sha256: second.capture.text_sha256,
+      raw_digest: second.capture.raw_digest,
+      scope: {
+        capture: { mode: 'fetch', omitted_utf16_units: 0 },
+        extraction: { kind: 'unmeasured' },
+      },
     });
     const request = {
       request_id: randomUUID(),
@@ -110,6 +133,7 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     });
     expect(created.review.prior_capture_ref).toEqual(first.ref);
     expect(created.review.new_capture_ref).toEqual(second.ref);
+    expect(created.review.version_coverage).toEqual(preview.version_coverage);
     const exactReview = await exactOwnerRecord(root, created.ref);
     expect(JSON.parse(exactReview.bytes.toString('utf8'))).toEqual(created.review);
     const replay = await createSourceChangeReview(root, request);
@@ -190,7 +214,16 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     expect(reopened.cold_read).toBe(true);
     expect(reopened.ref).toEqual(created.ref);
     expect(reopened.review).toEqual(created.review);
+    expect((await openSourceCapture(root, first.capture.id)).capture.text).toBe(
+      'A retained statement.\nOld condition.',
+    );
     await expect(readSourceChangeReview(root, randomUUID())).rejects.toMatchObject({ status: 404 });
+    const reviewStorePath = join(root, '.signals/source-change-reviews.json');
+    const legacyStore = JSON.parse(await readFile(reviewStorePath, 'utf8')) as any;
+    delete legacyStore.reviews[0].version_coverage;
+    await writeFile(reviewStorePath, JSON.stringify(legacyStore));
+    const legacyRead = await readSourceChangeReview(root, created.review.id);
+    expect(legacyRead.review).not.toHaveProperty('version_coverage');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -1,16 +1,19 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { fetchEvidence, normalizeText } from '../search-fetch.js';
-import { publicLink } from '../search-document.js';
+import { extractHtml, publicLink } from '../search-document.js';
 import { scanSources } from '../search-sources.js';
 import { loadSettings, updateSettingsForBriefingOpml } from '../search-settings.js';
 import type { SearchSettings } from '../search-settings.js';
-import type { AllDayEvent, Item, Source, Story, TimedEvent } from './schema.js';
+import type { AllDayEvent, Item, MetricObservation, Source, Story, TimedEvent } from './schema.js';
 import {
   beginBriefingRefresh,
   completeBriefingRefresh,
   createBriefingApi,
+  githubPublicRepositoryList,
   isHackerNewsIndexUri,
+  lobstersPublicFeed,
   listSourceTerms,
+  mastodonTagTimeline,
   retainBriefingRecords,
   type BriefingRefreshSummary,
 } from './store.js';
@@ -27,6 +30,9 @@ const hackerNewsItemUrl = (itemId: number) =>
   `https://hacker-news.firebaseio.com/v0/item/${itemId}.json`;
 const hackerNewsDiscussionUrl = (itemId: number) =>
   `https://news.ycombinator.com/item?id=${itemId}`;
+const mastodonTimelineLimit = 10;
+
+type MetricSnapshot = Omit<MetricObservation, 'id' | 'itemId'> & { item: Item };
 
 function deterministicUuid(value: string) {
   const bytes = Buffer.from(createHash('sha256').update(value).digest().subarray(0, 16));
@@ -46,11 +52,296 @@ function hackerNewsMetrics(value: unknown) {
   });
 }
 
+function mastodonMetrics(value: Record<string, unknown>) {
+  const fields: Array<[string, unknown]> = [
+    ['replies', value.replies_count],
+    ['boosts', value.reblogs_count],
+    ['favourites', value.favourites_count],
+  ];
+  return fields.flatMap(([name, count]) =>
+    typeof count === 'number' && Number.isSafeInteger(count) && count >= 0
+      ? [{ name, value: count }]
+      : [],
+  );
+}
+
+function mastodonPlatform(origin: string) {
+  const host = new URL(origin).hostname
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 32);
+  return `mastodon-${host || 'instance'}-${hash(origin).slice(0, 8)}`;
+}
+
+const githubListLimit = 20;
+
+function parseGitHubPublicList(
+  value: unknown,
+  source: Source,
+  observedAt: string,
+): { items: Item[]; stories: Story[]; summary: { returned: number; retained: number } } {
+  const repository = githubPublicRepositoryList(source.url);
+  if (!repository || !Array.isArray(value) || value.length > githubListLimit)
+    throw new Error('invalid_github_public_list');
+  const items: Item[] = [];
+  const identities = new Set<string>();
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      throw new Error('invalid_github_public_record');
+    const record = entry as Record<string, unknown>;
+    let identity: string;
+    let title: string;
+    let excerpt: string;
+    let canonicalUrl: string;
+    let author: string | null = null;
+    let publishedAt: string | null = null;
+    if (repository.collection === 'releases') {
+      if (
+        typeof record.id !== 'number' ||
+        !Number.isSafeInteger(record.id) ||
+        record.id < 1 ||
+        typeof record.tag_name !== 'string' ||
+        !record.tag_name.trim() ||
+        record.tag_name.length > 256 ||
+        typeof record.draft !== 'boolean'
+      )
+        throw new Error('invalid_github_release');
+      if (record.draft) continue;
+      const tag = record.tag_name;
+      identity = `release:${record.id}:${tag}`;
+      title = normalizeText(typeof record.name === 'string' ? record.name : '') || tag;
+      if (typeof record.body === 'string') excerpt = normalizeText(record.body).slice(0, 5000);
+      else excerpt = '';
+      canonicalUrl = `https://github.com/${repository.owner}/${repository.repository}/releases/tag/${encodeURIComponent(tag)}`;
+      const releaseAuthor =
+        record.author && typeof record.author === 'object' && !Array.isArray(record.author)
+          ? (record.author as Record<string, unknown>).login
+          : null;
+      if (typeof releaseAuthor === 'string') author = normalizeText(releaseAuthor).slice(0, 300);
+      const dateValue = record.published_at ?? record.created_at;
+      if (typeof dateValue === 'string' && Number.isFinite(Date.parse(dateValue)))
+        publishedAt = new Date(dateValue).toISOString();
+    } else {
+      const commit =
+        record.commit && typeof record.commit === 'object' && !Array.isArray(record.commit)
+          ? (record.commit as Record<string, unknown>)
+          : null;
+      if (
+        typeof record.name !== 'string' ||
+        !record.name.trim() ||
+        record.name.length > 256 ||
+        typeof commit?.sha !== 'string' ||
+        !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(commit.sha)
+      )
+        throw new Error('invalid_github_tag');
+      identity = `tag:${record.name}:${commit.sha.toLowerCase()}`;
+      title = `${repository.owner}/${repository.repository} · tag ${record.name}`;
+      excerpt = `Git tag ${record.name} points to commit ${commit.sha.toLowerCase()}.`;
+      canonicalUrl = `https://github.com/${repository.owner}/${repository.repository}/tree/${encodeURIComponent(record.name)}`;
+    }
+    if (identities.has(identity)) throw new Error('duplicate_github_public_identity');
+    identities.add(identity);
+    const contentDigest = hash(
+      JSON.stringify({
+        collection: repository.collection,
+        identity,
+        canonicalUrl,
+        title,
+        author,
+        publishedAt,
+        excerpt,
+      }),
+    );
+    items.push({
+      id: id('item', `${source.id}\n${identity}\n${contentDigest}`),
+      sourceId: source.id,
+      canonicalUrl,
+      title: title.slice(0, 500),
+      author,
+      publishedAt,
+      observedAt,
+      contentDigest,
+      excerpt,
+      metrics: [],
+      interestIds: source.interestIds,
+      storyId: null,
+    });
+  }
+  const stories = items.map((item) => ({
+    id: id('story', item.id),
+    itemIds: [item.id],
+    representativeItemId: item.id,
+    firstSeen: observedAt,
+    lastSeen: observedAt,
+    relation: 'single' as const,
+    groupingEvidence: [],
+    interestMatches: [],
+  }));
+  items.forEach((item, index) => (item.storyId = stories[index]!.id));
+  return { items, stories, summary: { returned: value.length, retained: items.length } };
+}
+
+function parseMastodonTagTimeline(
+  value: unknown,
+  source: Source,
+  tag: string,
+  observedAt: string,
+  sourceRef: string,
+): { items: Item[]; stories: Story[]; metrics: MetricSnapshot[]; summary: Record<string, number> } {
+  if (!Array.isArray(value) || value.length > mastodonTimelineLimit)
+    throw new Error('invalid_mastodon_timeline');
+  const instance = mastodonTagTimeline(source.url);
+  if (!instance) throw new Error('invalid_mastodon_source');
+  const items: Item[] = [];
+  const metrics: MetricSnapshot[] = [];
+  const seenStatusIds = new Set<string>();
+  const summary = {
+    returned: value.length,
+    retained: 0,
+    wrongTag: 0,
+    nonPublic: 0,
+    sensitiveOrWarned: 0,
+    reblog: 0,
+    empty: 0,
+    duplicate: 0,
+  };
+  const platform = mastodonPlatform(instance.origin);
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      throw new Error('invalid_mastodon_status');
+    const status = entry as Record<string, unknown>;
+    if (
+      typeof status.id !== 'string' ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(status.id) ||
+      typeof status.visibility !== 'string' ||
+      typeof status.sensitive !== 'boolean' ||
+      typeof status.spoiler_text !== 'string' ||
+      !Array.isArray(status.tags)
+    )
+      throw new Error('invalid_mastodon_status');
+    if (seenStatusIds.has(status.id)) {
+      summary.duplicate++;
+      continue;
+    }
+    seenStatusIds.add(status.id);
+    if (status.visibility !== 'public') {
+      summary.nonPublic++;
+      continue;
+    }
+    if (
+      status.sensitive === true ||
+      (typeof status.spoiler_text === 'string' && status.spoiler_text.trim())
+    ) {
+      summary.sensitiveOrWarned++;
+      continue;
+    }
+    if (status.reblog !== null && status.reblog !== undefined) {
+      summary.reblog++;
+      continue;
+    }
+    const tags = status.tags.flatMap((entry) =>
+      entry &&
+      typeof entry === 'object' &&
+      !Array.isArray(entry) &&
+      typeof (entry as Record<string, unknown>).name === 'string'
+        ? [(entry as Record<string, unknown>).name as string]
+        : [],
+    );
+    if (!tags.some((value) => value.toLowerCase() === tag.toLowerCase())) {
+      summary.wrongTag++;
+      continue;
+    }
+    if (typeof status.content !== 'string' || typeof status.created_at !== 'string')
+      throw new Error('invalid_mastodon_status');
+    const timestamp = Date.parse(status.created_at);
+    if (!Number.isFinite(timestamp)) throw new Error('invalid_mastodon_status_date');
+    const canonicalUrl =
+      (typeof status.url === 'string' ? publicLink(status.url, sourceRef) : null) ??
+      (typeof status.uri === 'string' ? publicLink(status.uri, sourceRef) : null);
+    if (!canonicalUrl) throw new Error('invalid_mastodon_status_url');
+    const visibleText = extractHtml(
+      `<html><body><main>${status.content}</main></body></html>`,
+      canonicalUrl,
+    ).text;
+    if (!visibleText) {
+      summary.empty++;
+      continue;
+    }
+    const account =
+      status.account && typeof status.account === 'object' && !Array.isArray(status.account)
+        ? (status.account as Record<string, unknown>)
+        : null;
+    const author =
+      typeof account?.acct === 'string' ? normalizeText(account.acct).slice(0, 300) : null;
+    const publishedAt = new Date(timestamp).toISOString();
+    const excerpt = visibleText.slice(0, 5000);
+    const contentDigest = hash(
+      JSON.stringify({ statusId: status.id, canonicalUrl, author, publishedAt, visibleText }),
+    );
+    const item: Item = {
+      id: id('item', `${source.id}\n${canonicalUrl}\n${contentDigest}`),
+      sourceId: source.id,
+      canonicalUrl,
+      title: excerpt.slice(0, 500),
+      author,
+      publishedAt,
+      observedAt,
+      contentDigest,
+      excerpt,
+      metrics: [],
+      interestIds: source.interestIds,
+      storyId: null,
+    };
+    item.storyId = id('story', item.id);
+    items.push(item);
+    summary.retained++;
+    metrics.push(
+      ...mastodonMetrics(status).map(({ name, value }) => ({
+        item,
+        platform,
+        name,
+        value,
+        observedAt,
+        scope: 'instance-view counts; not cross-instance totals',
+        method: 'public-adapter' as const,
+        sourceRef,
+      })),
+    );
+  }
+  const stories = items.map((item) => ({
+    id: item.storyId!,
+    itemIds: [item.id],
+    representativeItemId: item.id,
+    firstSeen: observedAt,
+    lastSeen: observedAt,
+    relation: 'single' as const,
+    groupingEvidence: [],
+    interestMatches: [],
+  }));
+  return { items, stories, metrics, summary };
+}
+
+async function recordMetricSnapshots(root: string, batchId: string, snapshots: MetricSnapshot[]) {
+  const api = createBriefingApi(root);
+  for (const snapshot of snapshots) {
+    const { item, ...observation } = snapshot;
+    const identity = `${batchId}\n${item.id}\n${observation.name}`;
+    await api.recordMetricObservation({
+      requestId: deterministicUuid(`request\n${identity}`),
+      observation: { id: id('metric', identity), itemId: item.id, ...observation },
+    });
+  }
+}
+
 function parseHackerNewsIndex(value: unknown): number[] {
   if (
     !Array.isArray(value) ||
     value.length > 500 ||
-    value.some((itemId) => !Number.isSafeInteger(itemId) || typeof itemId !== 'number' || itemId < 1)
+    value.some(
+      (itemId) => !Number.isSafeInteger(itemId) || typeof itemId !== 'number' || itemId < 1,
+    )
   )
     throw new Error('invalid_hacker_news_index');
   return [...new Set(value as number[])];
@@ -74,7 +365,9 @@ function parseHackerNewsItem(
   if (!title) return null;
   const discussionUrl = hackerNewsDiscussionUrl(expectedId);
   const canonicalUrl =
-    typeof record.url === 'string' ? publicLink(record.url, discussionUrl) ?? discussionUrl : discussionUrl;
+    typeof record.url === 'string'
+      ? (publicLink(record.url, discussionUrl) ?? discussionUrl)
+      : discussionUrl;
   const author = typeof record.by === 'string' ? normalizeText(record.by).slice(0, 300) : null;
   const seconds = record.time;
   const publishedAt =
@@ -372,25 +665,72 @@ export async function refreshBriefing(
         source?.kind === 'api:hacker-news'
           ? { includeBytes: true }
           : { ...fetchOptions, includeBytes: true };
+      let requestUri = uri;
+      if (source?.kind === 'api:mastodon-tag') {
+        if (!mastodonTagTimeline(uri)) throw new Error('invalid_mastodon_source');
+        const boundedRequest = new URL(uri);
+        boundedRequest.searchParams.set('limit', String(mastodonTimelineLimit));
+        requestUri = boundedRequest.toString();
+      }
+      const githubList = source ? githubPublicRepositoryList(uri) : null;
+      if (source?.kind === 'api:github-releases' || source?.kind === 'api:github-tags') {
+        if (
+          !githubList ||
+          (githubList.collection === 'releases') !== (source.kind === 'api:github-releases')
+        )
+          throw new Error('invalid_github_public_source');
+        const boundedRequest = new URL(uri);
+        boundedRequest.searchParams.set('per_page', String(githubListLimit));
+        boundedRequest.searchParams.set('page', '1');
+        requestUri = boundedRequest.toString();
+      }
       let document = await (options.fetch ?? fetchEvidence)(
-        uri,
+        requestUri,
         signal,
         redirects,
         allowPdf,
-        documentOptions,
+        githubList ? { ...documentOptions, githubPublicApi: true } : documentOptions,
       );
+      if (document.response?.status !== 304 && githubList) {
+        if (
+          !document.uri ||
+          new URL(document.uri).origin !== 'https://api.github.com' ||
+          new URL(document.uri).pathname !== new URL(requestUri).pathname
+        )
+          throw new Error('github_api_redirected');
+        const observedAt = (options.clock ?? (() => new Date()))().toISOString();
+        const parsed = parseGitHubPublicList(document.json, source!, observedAt);
+        await retainBriefingRecords(root, { items: parsed.items, stories: parsed.stories });
+        document = {
+          ...document,
+          text: JSON.stringify({
+            collection: githubList.collection,
+            repository: `${githubList.owner}/${githubList.repository}`,
+            ...parsed.summary,
+            records: parsed.items.map((item) => ({
+              id: item.id,
+              contentDigest: item.contentDigest,
+              canonicalUrl: item.canonicalUrl,
+            })),
+          }),
+          material: {
+            text: parsed.items.map(({ title, excerpt }) => `${title} ${excerpt}`).join('\n'),
+            title: `${githubList.owner}/${githubList.repository} ${githubList.collection}`,
+            author: null,
+            publishedAt: null,
+            links: parsed.items.map((item) => ({ uri: item.canonicalUrl, title: item.title })),
+            sections: parsed.items.map((item) => ({ locator: item.id, text: item.excerpt })),
+            extractor: 'github-public-repository-list-v1',
+          },
+        };
+      }
       if (document.response?.status !== 304 && source?.kind === 'api:hacker-news') {
         if (!isHackerNewsIndexUri(uri)) throw new Error('invalid_hacker_news_source');
         const itemIds = parseHackerNewsIndex(document.json);
         const observedAt = (options.clock ?? (() => new Date()))().toISOString();
         const observationBatchId = options.requestId ?? randomUUID();
         const items: Item[] = [];
-        const observations: Array<{
-          item: Item;
-          name: string;
-          value: number;
-          sourceRef: string;
-        }> = [];
+        const observations: MetricSnapshot[] = [];
         for (const itemId of itemIds.slice(0, hackerNewsItemLimit)) {
           const detail = await (options.fetch ?? fetchEvidence)(
             hackerNewsItemUrl(itemId),
@@ -407,6 +747,10 @@ export async function refreshBriefing(
               ...hackerNewsMetrics(detail.json).map((metric) => ({
                 item,
                 ...metric,
+                platform: 'hacker-news',
+                observedAt,
+                scope: 'public Hacker News item detail snapshot',
+                method: 'public-adapter' as const,
                 sourceRef: hackerNewsItemUrl(itemId),
               })),
             );
@@ -423,24 +767,7 @@ export async function refreshBriefing(
           interestMatches: [],
         }));
         await retainBriefingRecords(root, { items, stories });
-        const briefingApi = createBriefingApi(root);
-        for (const observation of observations) {
-          const identity = `${observationBatchId}\n${observation.item.id}\n${observation.name}`;
-          await briefingApi.recordMetricObservation({
-            requestId: deterministicUuid(`request\n${identity}`),
-            observation: {
-              id: id('metric', identity),
-              itemId: observation.item.id,
-              platform: 'hacker-news',
-              name: observation.name,
-              value: observation.value,
-              observedAt,
-              scope: 'public Hacker News item detail snapshot',
-              method: 'public-adapter',
-              sourceRef: observation.sourceRef,
-            },
-          });
-        }
+        await recordMetricSnapshots(root, observationBatchId, observations);
         document = {
           ...document,
           text: JSON.stringify({
@@ -467,6 +794,54 @@ export async function refreshBriefing(
           },
         };
       }
+      if (document.response?.status !== 304 && source?.kind === 'api:mastodon-tag') {
+        const timeline = mastodonTagTimeline(uri);
+        if (!timeline) throw new Error('invalid_mastodon_source');
+        if (!document.uri || new URL(document.uri).origin !== timeline.origin)
+          throw new Error('mastodon_instance_redirected');
+        const observedAt = (options.clock ?? (() => new Date()))().toISOString();
+        const observationBatchId = options.requestId ?? randomUUID();
+        const requestedUrl = new URL(uri);
+        requestedUrl.searchParams.set('limit', String(mastodonTimelineLimit));
+        const sourceRef = requestedUrl.toString();
+        const parsed = parseMastodonTagTimeline(
+          document.json,
+          source,
+          timeline.tag,
+          observedAt,
+          sourceRef,
+        );
+        await retainBriefingRecords(root, { items: parsed.items, stories: parsed.stories });
+        await recordMetricSnapshots(root, observationBatchId, parsed.metrics);
+        document = {
+          ...document,
+          text: JSON.stringify({
+            source: uri,
+            scope: 'instance-view-only',
+            tag: timeline.tag,
+            ...parsed.summary,
+            statuses: parsed.items.map((item) => ({
+              itemId: item.id,
+              contentDigest: item.contentDigest,
+              metrics: parsed.metrics
+                .filter((metric) => metric.item.id === item.id)
+                .map(({ name, value }) => ({ name, value })),
+            })),
+          }),
+          material: {
+            text: `Mastodon #${timeline.tag} public tag timeline; instance view from ${timeline.origin}.`,
+            title: `#${timeline.tag} · ${new URL(timeline.origin).host} instance view`,
+            author: null,
+            publishedAt: null,
+            links: parsed.items.map((item) => ({ uri: item.canonicalUrl, title: item.title })),
+            sections: parsed.items.map((item, index) => ({
+              locator: `status:${index + 1}`,
+              text: item.excerpt,
+            })),
+            extractor: 'mastodon-public-tag-v1',
+          },
+        };
+      }
       if (
         document.response?.status !== 304 &&
         ((document.material && /xml/i.test(document.contentType ?? '')) ||
@@ -474,7 +849,7 @@ export async function refreshBriefing(
           source?.kind === 'jsonfeed')
       ) {
         if (source) {
-          const now = new Date().toISOString();
+          const now = (options.clock ?? (() => new Date()))().toISOString();
           if (source.kind === 'ics') {
             const parsed = parseIcs(document.text, source, now);
             const stories: Story[] = parsed.map(({ item }) => ({
@@ -512,16 +887,39 @@ export async function refreshBriefing(
             });
             await retainBriefingRecords(root, { items, stories });
           } else {
+            const lobsters = lobstersPublicFeed(uri);
+            if (lobsters && document.uri !== uri) throw new Error('lobsters_feed_identity_changed');
+            const feedEntries = document.material!.feedEntries;
+            if (
+              lobsters &&
+              (!feedEntries || feedEntries.length !== document.material!.links.length)
+            )
+              throw new Error('public_feed_entry_identity_missing');
             const items: Item[] = document.material!.links.map((link, index) => {
               const excerpt = document.material!.sections[index]?.text.slice(0, 5000) ?? '';
-              const contentDigest = hash(`${link.uri}\n${link.title}\n${excerpt}`);
+              const entry = feedEntries?.[index];
+              const contentDigest = lobsters
+                ? hash(
+                    JSON.stringify({
+                      canonicalUrl: link.uri,
+                      title: link.title,
+                      excerpt,
+                      feedIdentity: entry?.identity ?? link.uri,
+                      author: entry?.author ?? null,
+                      publishedAt: entry?.publishedAt ?? null,
+                    }),
+                  )
+                : hash(`${link.uri}\n${link.title}\n${excerpt}`);
               return {
-                id: id('item', `${source.id}\n${link.uri}\n${contentDigest}`),
+                id: id(
+                  'item',
+                  `${source.id}\n${lobsters ? (entry?.identity ?? link.uri) : link.uri}\n${contentDigest}`,
+                ),
                 sourceId: source.id,
                 canonicalUrl: link.uri,
                 title: link.title || document.material!.title || link.uri,
-                author: null,
-                publishedAt: null,
+                author: lobsters ? (entry?.author ?? null) : null,
+                publishedAt: lobsters ? (entry?.publishedAt ?? null) : null,
                 observedAt: now,
                 contentDigest,
                 excerpt,
@@ -596,12 +994,13 @@ export async function refreshDue(
       if (!sourceId) throw new Error('briefing_refresh_source_identity_changed');
       return {
         sourceId,
-        state: source.state === 'failed' ? 'failed' as const : 'fetched' as const,
-        delta: (source.state === 'failed' ? null : source.delta ?? null) as
-          BriefingRefreshSummary['sources'][number]['delta'],
+        state: source.state === 'failed' ? ('failed' as const) : ('fetched' as const),
+        delta: (source.state === 'failed'
+          ? null
+          : (source.delta ?? null)) as BriefingRefreshSummary['sources'][number]['delta'],
         newLinkCount: source.newLinks.length,
         checkedAt: source.health?.lastAttempt?.checkedAt ?? null,
-        failureReason: source.state === 'failed' ? source.reason ?? null : null,
+        failureReason: source.state === 'failed' ? (source.reason ?? null) : null,
       };
     }),
   };

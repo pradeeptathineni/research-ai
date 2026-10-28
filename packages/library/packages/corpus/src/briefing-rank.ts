@@ -10,28 +10,51 @@ const DAY = 86_400_000;
 const clamp = (value: number, low = 0, high = 100) => Math.max(low, Math.min(high, value));
 const normalized = (value: string) => value.normalize('NFKC').toLocaleLowerCase();
 
-function relevance(input: BriefingRankInput): RankingExplanation['components']['relevance'] {
-  const candidates = input.items.filter(({ item, interests, source }) =>
-    interests.some(
-      (interest) =>
-        interest.enabled &&
-        (!interest.sources.length || interest.sources.includes(source.id)) &&
-        !interest.excludeTerms.some((term) =>
-          normalized(`${item.title} ${item.excerpt}`).includes(normalized(term)),
-        ),
-    ),
-  );
-  const weighted = new Map<string, { points: number; weight: number; interestId: string }>();
-  for (const { item, interests, source } of candidates) {
-    const text = normalized(`${item.title} ${item.excerpt}`);
+export type BriefingMatchedTerms = { interestId: string; terms: string[] };
+
+function itemInterestTerms(
+  item: BriefingRankInput['items'][number]['item'],
+  interest: BriefingRankInput['items'][number]['interests'][number],
+  sourceId: string,
+) {
+  if (!interest.enabled || (interest.sources.length > 0 && !interest.sources.includes(sourceId)))
+    return [];
+  const text = normalized(`${item.title} ${item.excerpt}`);
+  if (interest.excludeTerms.some((term) => text.includes(normalized(term)))) return [];
+  return interest.includeTerms.filter((term) => text.includes(normalized(term)));
+}
+
+/** Read-time term matches use the same exact retained inputs as the score and never rewrite Story records. */
+export function briefingMatchedTerms(input: BriefingRankInput): BriefingMatchedTerms[] {
+  const matches = new Map<string, Set<string>>();
+  for (const match of input.story.interestMatches) {
+    const prior = matches.get(match.interestId) ?? new Set<string>();
+    for (const term of match.matchedTerms) prior.add(term);
+    matches.set(match.interestId, prior);
+  }
+  for (const { item, source, interests } of input.items) {
     for (const interest of interests) {
-      if (!interest.enabled || (interest.sources.length && !interest.sources.includes(source.id)))
-        continue;
-      if (interest.excludeTerms.some((term) => text.includes(normalized(term)))) continue;
-      const matched = interest.includeTerms.filter((term) =>
-        text.includes(normalized(term)),
-      ).length;
-      if (matched) {
+      const terms = itemInterestTerms(item, interest, source.id);
+      if (!terms.length) continue;
+      const prior = matches.get(interest.id) ?? new Set<string>();
+      for (const term of terms) prior.add(term);
+      matches.set(interest.id, prior);
+    }
+  }
+  return [...matches]
+    .map(([interestId, terms]) => ({
+      interestId,
+      terms: [...terms].sort((left, right) => left.localeCompare(right)),
+    }))
+    .sort((left, right) => left.interestId.localeCompare(right.interestId));
+}
+
+function relevance(input: BriefingRankInput): RankingExplanation['components']['relevance'] {
+  const weighted = new Map<string, { points: number; weight: number; interestId: string }>();
+  for (const { item, interests, source } of input.items) {
+    for (const interest of interests) {
+      const matched = itemInterestTerms(item, interest, source.id).length;
+      if (matched > 0) {
         const candidate = {
           points: (matched / interest.includeTerms.length) * 100,
           weight: interest.weight,

@@ -125,7 +125,7 @@ Projects reads an explicitly selected public GitHub repository or local folder t
 
 ## Interests and jobs
 
-Settings and Following manage editable interests, query lists, supplemental sites and followed feeds/pages. Setup adds starter interests without enabling recurrence. One-shot lists select enabled interests, or the IDs supplied after `--once`; `--limit` overrides the configured batch size.
+Settings and Following manage editable interests, query lists, supplemental sites and followed feeds/pages. Setup adds starter interests without enabling recurrence. One-shot lists select enabled interests, or the IDs supplied after `--once`; `--limit` overrides the configured batch size. Briefing can read [public GitHub releases and tags](docs/briefing-github-public-sources.md) and [Lobsters feeds](docs/briefing-public-feeds.md) through the same manual refresh and source-policy owner. Ranked story rows include the exact [matched interest terms for feedback](docs/briefing-interest-feedback.md) alongside the score explanation.
 
 ```sh
 npm run discovery -- setup

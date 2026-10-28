@@ -19,6 +19,12 @@ export interface DocumentMaterial {
   author: string | null;
   publishedAt: string | null;
   links: { uri: string; title: string }[];
+  /** Optional per-entry feed identity. Absent on older cached material. */
+  feedEntries?: {
+    identity: string | null;
+    author: string | null;
+    publishedAt: string | null;
+  }[];
   sections: { locator: string; text: string; provenance?: unknown[] }[];
   extractor: string;
   scope?: Omit<
@@ -40,6 +46,19 @@ const materialSchema = Type.Object(
     author: Type.Union([bounded, Type.Null()]),
     publishedAt: Type.Union([bounded, Type.Null()]),
     links: Type.Array(Type.Object({ uri: bounded, title: bounded }), { maxItems: 200 }),
+    feedEntries: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            identity: Type.Union([Type.String({ maxLength: 1000 }), Type.Null()]),
+            author: Type.Union([Type.String({ maxLength: 300 }), Type.Null()]),
+            publishedAt: Type.Union([Type.String({ maxLength: 100 }), Type.Null()]),
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 100 },
+      ),
+    ),
     sections: Type.Array(
       Type.Object({
         locator: bounded,
@@ -75,6 +94,8 @@ const materialSchema = Type.Object(
 export function cachedMaterial(value: unknown): DocumentMaterial | undefined {
   if (value === undefined) return undefined;
   if (!Value.Check(materialSchema, value)) throw new Error('invalid_cached_document');
+  if (value.feedEntries && value.feedEntries.length !== value.links.length)
+    throw new Error('invalid_cached_feed_entries');
   for (const link of value.links) normalizeConsiderUrl(link.uri);
   if (value.scope && value.scope.textDigest !== digest(value.text))
     throw new Error('invalid_document_layout_digest');
@@ -207,9 +228,26 @@ export function extractHtml(
 export async function extractFeed(raw: string, uri: string): Promise<DocumentMaterial> {
   if (/<!DOCTYPE|<!ENTITY/i.test(raw)) throw new Error('feed_external_entity_denied');
   const feed = await new Parser().parseString(raw);
-  const links = feed.items.slice(0, 100).flatMap((item) => {
+  const entries = feed.items.slice(0, 100).flatMap((item, index) => {
     const link = publicLink(item.link ?? '', uri);
-    return link ? [{ uri: link, title: (item.title ?? '').slice(0, 200) }] : [];
+    if (!link) return [];
+    const parsed = item as typeof item & { id?: string; author?: string };
+    return [
+      {
+        link: { uri: link, title: (item.title ?? '').slice(0, 200) },
+        feedEntry: {
+          identity: normalizeSpan(item.guid ?? parsed.id ?? '').slice(0, 1000) || null,
+          author: normalizeSpan(parsed.author ?? item.creator ?? '').slice(0, 300) || null,
+          publishedAt: date(item.isoDate ?? item.pubDate),
+        },
+        section: {
+          locator: `item:${index + 1}`,
+          text: normalizeSpan(
+            `${item.title ?? ''} ${item.contentSnippet ?? ''} ${date(item.isoDate) ?? ''}`,
+          ),
+        },
+      },
+    ];
   });
   return {
     text: normalizeSpan(
@@ -221,13 +259,9 @@ export async function extractFeed(raw: string, uri: string): Promise<DocumentMat
     title: feed.title ?? '',
     author: null,
     publishedAt: date(typeof feed.lastBuildDate === 'string' ? feed.lastBuildDate : null),
-    links,
-    sections: feed.items.slice(0, 100).map((item, index) => ({
-      locator: `item:${index + 1}`,
-      text: normalizeSpan(
-        `${item.title ?? ''} ${item.contentSnippet ?? ''} ${date(item.isoDate) ?? ''}`,
-      ),
-    })),
+    links: entries.map(({ link }) => link),
+    feedEntries: entries.map(({ feedEntry }) => feedEntry),
+    sections: entries.map(({ section }) => section),
     extractor: 'rss-parser-3.13.0',
   };
 }
