@@ -23,10 +23,11 @@ import {
   type DisplayOpportunity,
 } from './experience-projects.js';
 import type { Project } from '../../../packages/corpus/src/project-contract.js';
+import BriefingPage from './briefing/BriefingPage.js';
 
 const base = import.meta.env.BASE_URL;
 const local = (window as Window & { __SIGNALS_LOCAL__?: boolean }).__SIGNALS_LOCAL__ === true;
-const primaryViews = ['Home', 'Search', 'Projects', 'Library', 'Following'] as const;
+const primaryViews = ['Home', 'Search', 'Projects', 'Library', 'Following', 'Briefing'] as const;
 type View = (typeof primaryViews)[number] | 'Activity' | 'Settings';
 type LocationState = {
   view: View;
@@ -1198,6 +1199,25 @@ export function Experience() {
               <button>Save personal preferences</button>
             </form>
           </section>
+        )}
+        {local && state.view === 'Briefing' && (
+          <BriefingPage
+            api={api}
+            onFollowThrough={(intent) => {
+              if (intent.action !== 'investigate') return false;
+              navigate({
+                view: 'Search',
+                mode: 'research',
+                query: intent.title,
+                run: '',
+                detail: '',
+              });
+              setMessage(
+                'Research preparation opened. Exact Briefing item and source references are pending qualification against the existing Research context contract; no research run was started.',
+              );
+              return true;
+            }}
+          />
         )}
         {local && workbenchStarted && (
           <div hidden={!powered} className="desk-powered">
