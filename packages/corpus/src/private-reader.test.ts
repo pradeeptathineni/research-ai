@@ -6,8 +6,11 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { researchQuestion } from '@pradeeptathineni/research-ai';
 import {
+  correctPrivateDocument,
   importPrivateDocument,
   listPrivateDocuments,
+  openPrivateDocument,
+  previewPrivateDocumentCorrection,
   readPrivatePdfBytes,
 } from './private-documents.js';
 import {
@@ -409,6 +412,241 @@ it('refuses non-PDF bytes and code-point-splitting offsets', async () => {
       ],
     }),
   ).rejects.toMatchObject({ status: 400 });
+});
+
+it('keeps exact text evidence bound to immutable correction predecessors and successors', async () => {
+  const workspace = await root();
+  const originalText = 'The final review must be completed before release.';
+  const imported = await importPrivateDocument(workspace, {
+    name: 'review.md',
+    media_type: 'text/markdown',
+    bytes_base64: Buffer.from(originalText).toString('base64'),
+  });
+  const originalReaderId = 'a32db7a3-56e4-48d0-85f1-ef1e15a6b2ea';
+  const originalReader = await createPrivateReader(workspace, {
+    id: originalReaderId,
+    document_ref: imported.ref,
+    raw_sha256: imported.document.raw_sha256,
+    page: 1,
+  });
+  const oldQuote = 'completed before release';
+  const oldStart = originalText.indexOf(oldQuote);
+  const annotatedOriginal = await revisePrivateReader(workspace, {
+    id: originalReaderId,
+    expected_revision: originalReader.reader.revision,
+    expected_digest: originalReader.reader.digest,
+    add_annotations: [
+      {
+        id: 'b32db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+        page: 1,
+        start: oldStart,
+        end: oldStart + oldQuote.length,
+        quote: oldQuote,
+        page_sha256: originalReader.document.pages[0]!.text_sha256,
+        note: 'Original retained wording',
+      },
+    ],
+  });
+  const correction = {
+    document_ref: imported.ref,
+    page_corrections: [
+      {
+        number: 1,
+        prior_text_sha256: imported.document.pages[0]!.text_sha256,
+        text: 'The final review must be signed before release.',
+      },
+    ],
+    impact: 'meaningful' as const,
+    rationale: 'Synthetic correction of the retained extraction text.',
+  };
+  await previewPrivateDocumentCorrection(workspace, correction);
+  const corrected = await correctPrivateDocument(workspace, {
+    ...correction,
+    request_id: 'c32db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+  });
+  expect(corrected.document.supersedes_ref).toEqual(imported.ref);
+  expect(corrected.document.raw_sha256).toBe(imported.document.raw_sha256);
+
+  const reopenedOriginal = await openPrivateReader(workspace, originalReaderId);
+  expect(reopenedOriginal.reader.document_ref).toEqual(imported.ref);
+  expect(reopenedOriginal.reader).toEqual(annotatedOriginal.reader);
+  expect(reopenedOriginal.document.pages[0]!.text).toBe(originalText);
+  const originalSelection = await selectPrivateReaderAnnotations(
+    workspace,
+    {
+      id: originalReaderId,
+      expected_revision: reopenedOriginal.reader.revision,
+      expected_digest: reopenedOriginal.reader.digest,
+      annotation_ids: ['b32db7a3-56e4-48d0-85f1-ef1e15a6b2ea'],
+    },
+    'http://127.0.0.1:5178',
+  );
+  expect(originalSelection.sources[0]?.text).toBe(oldQuote);
+  expect(originalSelection.manifest).toMatchObject({ selections: [{ quote: oldQuote }] });
+
+  const successorReaderId = 'd32db7a3-56e4-48d0-85f1-ef1e15a6b2ea';
+  const successorReader = await createPrivateReader(workspace, {
+    id: successorReaderId,
+    document_ref: corrected.ref,
+    raw_sha256: corrected.document.raw_sha256,
+    page: 1,
+  });
+  const newQuote = 'must be signed before release';
+  const newStart = corrected.document.pages[0]!.text.indexOf(newQuote);
+  const annotatedSuccessor = await revisePrivateReader(workspace, {
+    id: successorReaderId,
+    expected_revision: successorReader.reader.revision,
+    expected_digest: successorReader.reader.digest,
+    add_annotations: [
+      {
+        id: 'e32db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+        page: 1,
+        start: newStart,
+        end: newStart + newQuote.length,
+        quote: newQuote,
+        page_sha256: successorReader.document.pages[0]!.text_sha256,
+        note: 'Human-corrected wording',
+      },
+    ],
+  });
+  const reopenedSuccessor = await openPrivateReader(workspace, successorReaderId);
+  expect(reopenedSuccessor.reader).toEqual(annotatedSuccessor.reader);
+  expect(reopenedSuccessor.reader.document_ref).toEqual(corrected.ref);
+  expect(reopenedSuccessor.document.pages[0]!.text).toBe(
+    'The final review must be signed before release.',
+  );
+  const successorSelection = await selectPrivateReaderAnnotations(
+    workspace,
+    {
+      id: successorReaderId,
+      expected_revision: reopenedSuccessor.reader.revision,
+      expected_digest: reopenedSuccessor.reader.digest,
+      annotation_ids: ['e32db7a3-56e4-48d0-85f1-ef1e15a6b2ea'],
+    },
+    'http://127.0.0.1:5178',
+  );
+  expect(successorSelection.sources[0]?.text).toBe(newQuote);
+  expect(successorSelection.manifest).toMatchObject({ selections: [{ quote: newQuote }] });
+  expect((await openPrivateDocument(workspace, imported.document.id, imported.ref)).ref).toEqual(
+    imported.ref,
+  );
+});
+
+it('retains exact text citations across a correction successor and cold reopen', async () => {
+  const workspace = await root();
+  const originalText = 'The final review must be completed before release.';
+  const imported = await importPrivateDocument(workspace, {
+    name: 'review.md',
+    media_type: 'text/markdown',
+    bytes_base64: Buffer.from(originalText).toString('base64'),
+  });
+  const originalReaderId = 'a32db7a3-56e4-48d0-85f1-ef1e15a6b2ea';
+  const originalReader = await createPrivateReader(workspace, {
+    id: originalReaderId,
+    document_ref: imported.ref,
+    raw_sha256: imported.document.raw_sha256,
+    page: 1,
+  });
+  const oldQuote = 'completed before release';
+  const oldStart = originalText.indexOf(oldQuote);
+  const annotatedOriginal = await revisePrivateReader(workspace, {
+    id: originalReaderId,
+    expected_revision: originalReader.reader.revision,
+    expected_digest: originalReader.reader.digest,
+    add_annotations: [
+      {
+        id: 'b32db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+        page: 1,
+        start: oldStart,
+        end: oldStart + oldQuote.length,
+        quote: oldQuote,
+        page_sha256: originalReader.document.pages[0]!.text_sha256,
+        note: 'Original retained wording',
+      },
+    ],
+  });
+  const correction = {
+    document_ref: imported.ref,
+    page_corrections: [
+      {
+        number: 1,
+        prior_text_sha256: imported.document.pages[0]!.text_sha256,
+        text: 'The final review must be signed before release.',
+      },
+    ],
+    impact: 'meaningful' as const,
+    rationale: 'Synthetic correction of the retained extraction text.',
+  };
+  await previewPrivateDocumentCorrection(workspace, correction);
+  const corrected = await correctPrivateDocument(workspace, {
+    ...correction,
+    request_id: 'c32db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+  });
+  expect(corrected.document.supersedes_ref).toEqual(imported.ref);
+  expect(corrected.document.raw_sha256).toBe(imported.document.raw_sha256);
+
+  const reopenedOriginal = await openPrivateReader(workspace, originalReaderId);
+  expect(reopenedOriginal.reader.document_ref).toEqual(imported.ref);
+  expect(reopenedOriginal.reader).toEqual(annotatedOriginal.reader);
+  expect(reopenedOriginal.document.pages[0]!.text).toBe(originalText);
+  const originalSelection = await selectPrivateReaderAnnotations(
+    workspace,
+    {
+      id: originalReaderId,
+      expected_revision: reopenedOriginal.reader.revision,
+      expected_digest: reopenedOriginal.reader.digest,
+      annotation_ids: ['b32db7a3-56e4-48d0-85f1-ef1e15a6b2ea'],
+    },
+    'http://127.0.0.1:5178',
+  );
+  expect(originalSelection.sources[0]?.text).toBe(oldQuote);
+  expect(originalSelection.manifest).toMatchObject({ selections: [{ quote: oldQuote }] });
+
+  const successorReaderId = 'd32db7a3-56e4-48d0-85f1-ef1e15a6b2ea';
+  const successorReader = await createPrivateReader(workspace, {
+    id: successorReaderId,
+    document_ref: corrected.ref,
+    raw_sha256: corrected.document.raw_sha256,
+    page: 1,
+  });
+  const newQuote = 'must be signed before release';
+  const newStart = corrected.document.pages[0]!.text.indexOf(newQuote);
+  await revisePrivateReader(workspace, {
+    id: successorReaderId,
+    expected_revision: successorReader.reader.revision,
+    expected_digest: successorReader.reader.digest,
+    add_annotations: [
+      {
+        id: 'e32db7a3-56e4-48d0-85f1-ef1e15a6b2ea',
+        page: 1,
+        start: newStart,
+        end: newStart + newQuote.length,
+        quote: newQuote,
+        page_sha256: successorReader.document.pages[0]!.text_sha256,
+        note: 'Human-corrected wording',
+      },
+    ],
+  });
+  const reopenedSuccessor = await openPrivateReader(workspace, successorReaderId);
+  expect(reopenedSuccessor.reader.document_ref).toEqual(corrected.ref);
+  expect(reopenedSuccessor.document.pages[0]!.text).toBe(
+    'The final review must be signed before release.',
+  );
+  const successorSelection = await selectPrivateReaderAnnotations(
+    workspace,
+    {
+      id: successorReaderId,
+      expected_revision: reopenedSuccessor.reader.revision,
+      expected_digest: reopenedSuccessor.reader.digest,
+      annotation_ids: ['e32db7a3-56e4-48d0-85f1-ef1e15a6b2ea'],
+    },
+    'http://127.0.0.1:5178',
+  );
+  expect(successorSelection.sources[0]?.text).toBe(newQuote);
+  expect(successorSelection.manifest).toMatchObject({ selections: [{ quote: newQuote }] });
+  expect((await openPrivateDocument(workspace, imported.document.id, imported.ref)).ref).toEqual(
+    imported.ref,
+  );
 });
 
 it('rejects whitespace-only quotes before storage and when reopening retained annotations', async () => {
