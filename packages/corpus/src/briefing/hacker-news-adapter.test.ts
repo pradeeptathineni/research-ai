@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings, saveSettings } from '../search-settings.js';
-import { refreshBriefing } from './ingest.js';
+import { refreshDue } from './ingest.js';
 import { createBriefingApi } from './store.js';
 import { briefingRoute } from './http.js';
 import { type fetchEvidence } from '../search-fetch.js';
@@ -73,21 +73,32 @@ describe('Hacker News public API Following adapter', () => {
   it('retains a bounded top-story pass with exact source/item/story identity and ranking', async () => {
     const root = await sourceRoot();
     const ids = Array.from({ length: 21 }, (_, index) => index + 101);
-    const calls: string[] = [];
-    const fetch: typeof fetchEvidence = async (uri) => {
-      calls.push(uri);
+    const calls: Array<{
+      uri: string;
+      conditional?: { etag?: string; lastModified?: string };
+      allowNotModified?: boolean;
+    }> = [];
+    const fetch: typeof fetchEvidence = async (uri, _signal, _redirects, _allowPdf, options) => {
+      calls.push({
+        uri,
+        conditional: options?.conditional,
+        allowNotModified: options?.allowNotModified,
+      });
       if (uri === indexUri) return response(uri, ids);
       const itemId = Number(uri.split('/').at(-1)?.replace('.json', ''));
       return response(uri, hnItem(itemId));
     };
 
-    const pass = await refreshBriefing(root, { fetch });
-    expect(pass.sources).toHaveLength(1);
-    expect(pass.sources[0]?.state).toBe('fetched');
+    const firstRequestId = '131c32fd-b456-4cf3-866c-2e036524d901';
+    const pass = await refreshDue(root, { once: true, requestId: firstRequestId }, { fetch });
+    expect(pass).toMatchObject({ status: 'complete', replayed: false });
+    expect(pass.result?.sources[0]?.state).toBe('fetched');
     expect(calls).toHaveLength(21);
-    expect(calls[0]).toBe(indexUri);
-    expect(calls.at(-1)).toBe('https://hacker-news.firebaseio.com/v0/item/120.json');
-    expect(calls).not.toContain('https://hacker-news.firebaseio.com/v0/item/121.json');
+    expect(calls[0]?.uri).toBe(indexUri);
+    expect(calls.at(-1)?.uri).toBe('https://hacker-news.firebaseio.com/v0/item/120.json');
+    expect(calls.map(({ uri }) => uri)).not.toContain(
+      'https://hacker-news.firebaseio.com/v0/item/121.json',
+    );
 
     const api = createBriefingApi(root);
     const [source] = await api.listSources();
@@ -121,10 +132,26 @@ describe('Hacker News public API Following adapter', () => {
     expect(ranked).toHaveLength(20);
     expect(ranked.some(({ input }) => input.story.id === stories[0]?.record.id)).toBe(true);
 
+    const firstReplay = await refreshDue(
+      root,
+      { once: true, requestId: firstRequestId },
+      { fetch },
+    );
+    expect(firstReplay).toMatchObject({ status: 'complete', replayed: true });
+    expect(calls).toHaveLength(21);
+    expect((await api.listItems({ limit: 100 })).length).toBe(20);
+
     const priorItemRevision = item.reference.revision;
-    const repeated = await refreshBriefing(root, { fetch });
-    expect(repeated.sources[0]?.delta).toBe('unchanged');
+    const repeated = await refreshDue(
+      root,
+      { once: true, requestId: '131c32fd-b456-4cf3-866c-2e036524d902' },
+      { fetch },
+    );
+    expect(repeated.result?.sources[0]?.delta).toBe('unchanged');
     expect(calls).toHaveLength(42);
+    expect(calls[21]?.uri).toBe(indexUri);
+    expect(calls[21]?.conditional).toBeUndefined();
+    expect(calls[21]?.allowNotModified).toBeUndefined();
     expect(
       (await api.listItems({ limit: 100 })).find(({ record }) => record.id === item.record.id)
         ?.reference.revision,
@@ -140,8 +167,12 @@ describe('Hacker News public API Following adapter', () => {
           : hnItem(itemId),
       );
     };
-    const changed = await refreshBriefing(root, { fetch: changedFetch });
-    expect(changed.sources[0]?.delta).toBe('content-changed-meaning-unassessed');
+    const changed = await refreshDue(
+      root,
+      { once: true, requestId: '131c32fd-b456-4cf3-866c-2e036524d903' },
+      { fetch: changedFetch },
+    );
+    expect(changed.result?.sources[0]?.delta).toBe('content-changed-meaning-unassessed');
     const successors = (await api.listItems({ limit: 100 })).filter(
       ({ record }) => record.canonicalUrl === item.record.canonicalUrl,
     );
@@ -157,8 +188,12 @@ describe('Hacker News public API Following adapter', () => {
       calls.push(uri);
       return response(uri, [101, '102']);
     };
-    const failed = await refreshBriefing(root, { fetch: invalidFetch });
-    expect(failed.sources[0]?.state).toBe('failed');
+    const failed = await refreshDue(
+      root,
+      { once: true, requestId: 'ae631bb4-3110-4b29-9382-190020280002' },
+      { fetch: invalidFetch },
+    );
+    expect(failed.result?.sources[0]?.state).toBe('failed');
     expect(calls).toEqual([indexUri]);
     const api = createBriefingApi(root);
     expect((await api.listSources())[0]?.record.health.status).toBe('failed');
@@ -173,9 +208,13 @@ describe('Hacker News public API Following adapter', () => {
       status: 'blocked',
     });
     calls.length = 0;
-    const blocked = await refreshBriefing(root, { fetch: invalidFetch });
-    expect(blocked.briefing.blockedSources).toEqual([indexUri]);
-    expect(blocked.sources).toEqual([]);
+    const blocked = await refreshDue(
+      root,
+      { once: true, requestId: 'ae631bb4-3110-4b29-9382-190020280003' },
+      { fetch: invalidFetch },
+    );
+    expect(blocked.result?.blockedSourceIds).toEqual([sourceId]);
+    expect(blocked.result?.sources).toEqual([]);
     expect(calls).toEqual([]);
     expect((await api.listSources())[0]?.record.termsRef).not.toBeNull();
   });
