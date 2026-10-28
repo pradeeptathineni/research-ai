@@ -1,11 +1,17 @@
 import type {
   AllDayEvent,
   BriefingRecordReference,
+  BriefingRankInput,
   Feedback,
+  InterestPreference,
   Interest,
   Item,
+  MetricObservation,
   RankingExplanation,
+  SeenState,
   Source,
+  Story,
+  SourcePreference,
   Story,
   TimedEvent,
 } from './schema.js';
@@ -15,6 +21,8 @@ export const interestFixture = {
   query: 'climate data releases',
   label: 'Climate data',
   enabled: true,
+  weight: 1,
+  halfLifeDays: 30,
   sourceUris: ['https://example.test/feed.xml'],
 } satisfies Interest;
 
@@ -23,6 +31,7 @@ export const sourceFixture = {
   uri: 'https://example.test/feed.xml',
   label: 'Example feed',
   kind: 'rss',
+  priority: 0,
   interestIds: ['climate-data'],
   policy: { termsUrl: null, reviewedAt: null, status: 'unknown' },
   health: {
@@ -119,3 +128,47 @@ export const itemReferenceFixture = {
   id: itemFixture.id,
   revision: `sha256:${'a'.repeat(64)}`,
 } satisfies BriefingRecordReference;
+
+export const metricObservationFixture = {
+  id: 'metric-1',
+  itemId: itemFixture.id,
+  platform: 'example-platform',
+  metric: 'views',
+  value: 40,
+  observedAt: '2026-10-28T00:00:00.000Z',
+  method: 'public-adapter',
+  sourceRef: 'https://example.test/story/1',
+} satisfies MetricObservation;
+
+export const seenStateFixture = {
+  status: 'not-seen-since-capture',
+  trackingStartedAt: itemFixture.capturedAt,
+  capturedAt: itemFixture.capturedAt,
+} satisfies SeenState;
+
+export const unknownSeenStateFixture = {
+  status: 'unknown',
+  reason: 'before-tracking',
+} satisfies SeenState;
+
+export const interestPreferenceFixture = {
+  interestId: interestFixture.id,
+  weight: 1,
+  halfLifeDays: 30,
+  updatedAt: '2026-10-28T00:00:00.000Z',
+} satisfies InterestPreference;
+
+export const sourcePreferenceFixture = {
+  sourceId: sourceFixture.id,
+  priority: 0,
+  updatedAt: '2026-10-28T00:00:00.000Z',
+} satisfies SourcePreference;
+
+export const rankInputFixture = {
+  item: itemFixture,
+  source: sourceFixture,
+  interests: [interestFixture],
+  metrics: [metricObservationFixture],
+  seen: seenStateFixture,
+  feedback: [feedbackFixture],
+} satisfies BriefingRankInput;

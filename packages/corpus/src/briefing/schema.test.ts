@@ -5,11 +5,16 @@ import {
   BriefingRecordReferenceSchema,
   EventSchema,
   FeedbackSchema,
+  BriefingRankInputSchema,
   InterestSchema,
+  InterestPreferenceSchema,
   ItemSchema,
   isRankingExplanation,
+  MetricObservationSchema,
   RankingExplanationSchema,
+  SeenStateSchema,
   SourceSchema,
+  SourcePreferenceSchema,
   StorySchema,
   TimedEventSchema,
   scoreFromContributions,
@@ -17,14 +22,20 @@ import {
 import {
   allDayEventFixture,
   feedbackFixture,
+  interestPreferenceFixture,
   interestFixture,
   itemFixture,
   itemReferenceFixture,
+  metricObservationFixture,
   rankingExplanationFixture,
+  rankInputFixture,
+  seenStateFixture,
   sourceFixture,
+  sourcePreferenceFixture,
   storyFixture,
   timedEventFixture,
   undoFixture,
+  unknownSeenStateFixture,
 } from './fixtures.js';
 
 describe('Briefing S0 schemas', () => {
@@ -49,6 +60,12 @@ describe('Briefing S0 schemas', () => {
   });
 
   it('retains the exact ranking inputs and explanation components', () => {
+    expect(Value.Check(BriefingRankInputSchema, rankInputFixture)).toBe(true);
+    expect(Value.Check(MetricObservationSchema, metricObservationFixture)).toBe(true);
+    expect(Value.Check(SeenStateSchema, seenStateFixture)).toBe(true);
+    expect(Value.Check(SeenStateSchema, unknownSeenStateFixture)).toBe(true);
+    expect(Value.Check(InterestPreferenceSchema, interestPreferenceFixture)).toBe(true);
+    expect(Value.Check(SourcePreferenceSchema, sourcePreferenceFixture)).toBe(true);
     expect(Value.Check(RankingExplanationSchema, rankingExplanationFixture)).toBe(true);
     expect(isRankingExplanation(rankingExplanationFixture)).toBe(true);
     expect(

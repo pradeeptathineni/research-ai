@@ -14,6 +14,8 @@ export const InterestSchema = Type.Object(
     query: Type.String({ minLength: 1, maxLength: 2000 }),
     label: Type.String({ minLength: 1, maxLength: 200 }),
     enabled: Type.Boolean(),
+    weight: Type.Number({ minimum: 0, maximum: 2 }),
+    halfLifeDays: Type.Number({ minimum: 1, maximum: 3650 }),
     sourceUris: Type.Array(Type.String({ maxLength: 2048 }), { maxItems: 50, uniqueItems: true }),
   },
   closed,
@@ -35,6 +37,7 @@ export const SourceSchema = Type.Object(
     uri: Type.String({ minLength: 1, maxLength: 2048 }),
     label: Type.String({ minLength: 1, maxLength: 200 }),
     kind: Type.Enum(['rss', 'atom', 'json-feed', 'opml', 'ics', 'web']),
+    priority: Type.Number({ minimum: -100, maximum: 100 }),
     interestIds: Type.Array(Type.String({ pattern: '^[a-z0-9-]{1,80}$' }), {
       maxItems: 30,
       uniqueItems: true,
@@ -169,6 +172,75 @@ export const RankingExplanationSchema = Type.Object(
   closed,
 );
 
+export const MetricObservationSchema = Type.Object(
+  {
+    id: opaqueId,
+    itemId: opaqueId,
+    platform: Type.String({ pattern: '^[a-z0-9][a-z0-9-]{0,79}$' }),
+    metric: Type.String({ pattern: '^[a-z0-9][a-z0-9-]{0,79}$' }),
+    value: Type.Integer({ minimum: 0 }),
+    observedAt: instant,
+    method: Type.Enum(['public-adapter', 'feed', 'caller-reported']),
+    sourceRef: Type.Union([Type.String({ maxLength: 2048 }), Type.Null()]),
+  },
+  closed,
+);
+
+export const SeenStateSchema = Type.Union([
+  Type.Object(
+    {
+      status: Type.Literal('seen'),
+      firstSeenAt: instant,
+      lastSeenAt: instant,
+      observations: Type.Integer({ minimum: 1 }),
+    },
+    closed,
+  ),
+  Type.Object(
+    {
+      status: Type.Literal('not-seen-since-capture'),
+      trackingStartedAt: instant,
+      capturedAt: instant,
+    },
+    closed,
+  ),
+  Type.Object(
+    { status: Type.Literal('unknown'), reason: Type.Enum(['before-tracking', 'not-recorded']) },
+    closed,
+  ),
+]);
+
+export const InterestPreferenceSchema = Type.Object(
+  {
+    interestId: Type.String({ pattern: '^[a-z0-9-]{1,80}$' }),
+    weight: Type.Number({ minimum: 0, maximum: 2 }),
+    halfLifeDays: Type.Number({ minimum: 1, maximum: 3650 }),
+    updatedAt: instant,
+  },
+  closed,
+);
+
+export const SourcePreferenceSchema = Type.Object(
+  {
+    sourceId: opaqueId,
+    priority: Type.Number({ minimum: -100, maximum: 100 }),
+    updatedAt: instant,
+  },
+  closed,
+);
+
+export const BriefingRankInputSchema = Type.Object(
+  {
+    item: ItemSchema,
+    source: SourceSchema,
+    interests: Type.Array(InterestSchema, { maxItems: 30 }),
+    metrics: Type.Array(MetricObservationSchema, { maxItems: 100 }),
+    seen: SeenStateSchema,
+    feedback: Type.Array(FeedbackSchema, { maxItems: 100 }),
+  },
+  closed,
+);
+
 /** Stable local references for consumers; opening one still reads the owning Signals record. */
 export const BriefingRecordReferenceSchema = Type.Object(
   {
@@ -190,6 +262,11 @@ export type TimedEvent = Static<typeof TimedEventSchema>;
 export type AllDayEvent = Static<typeof AllDayEventSchema>;
 export type Feedback = Static<typeof FeedbackSchema>;
 export type RankingExplanation = Static<typeof RankingExplanationSchema>;
+export type MetricObservation = Static<typeof MetricObservationSchema>;
+export type SeenState = Static<typeof SeenStateSchema>;
+export type InterestPreference = Static<typeof InterestPreferenceSchema>;
+export type SourcePreference = Static<typeof SourcePreferenceSchema>;
+export type BriefingRankInput = Static<typeof BriefingRankInputSchema>;
 export type BriefingRecordReference = Static<typeof BriefingRecordReferenceSchema>;
 
 export type BriefingReadOptions = {
@@ -209,6 +286,14 @@ export type FeedbackRequest = {
 };
 export type FeedbackUndoRequest = { requestId: string; feedbackId: string };
 export type FeedbackReceipt = { feedback: Feedback; revision: string; replayed: boolean };
+export type MetricObservationRequest = { requestId: string; observation: MetricObservation };
+export type InterestPreferenceRequest = {
+  requestId: string;
+  interestId: string;
+  weight: number;
+  halfLifeDays: number;
+};
+export type SourcePreferenceRequest = { requestId: string; sourceId: string; priority: number };
 
 /** S1 implementations use the existing Signals private store and writer lock. */
 export interface BriefingReadApi {
@@ -218,8 +303,13 @@ export interface BriefingReadApi {
   listStories(options?: BriefingReadOptions): Promise<Story[]>;
   listEvents(options?: BriefingReadOptions): Promise<Event[]>;
   listFeedback(options?: BriefingReadOptions): Promise<Feedback[]>;
+  listRankInputs(options?: BriefingReadOptions): Promise<BriefingRankInput[]>;
   recordFeedback(request: FeedbackRequest): Promise<FeedbackReceipt>;
   undoFeedback(request: FeedbackUndoRequest): Promise<FeedbackReceipt>;
+  recordMetricObservation(request: MetricObservationRequest): Promise<MetricObservation>;
+  setInterestPreference(request: InterestPreferenceRequest): Promise<InterestPreference>;
+  setSourcePreference(request: SourcePreferenceRequest): Promise<SourcePreference>;
+  markSeen(request: { requestId: string; targetKind: 'item' | 'story'; targetId: string }): Promise<SeenState>;
 }
 
 export function scoreFromContributions(
