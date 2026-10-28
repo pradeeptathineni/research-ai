@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { open, stat } from "node:fs/promises";
 import { parseArgs } from "node:util";
+import { runReuseDispatch } from "../src/reuse-dispatch.mjs";
 import {
   codexReadiness,
   profiles,
@@ -447,4 +448,5 @@ async function main() {
   }
 }
 
-process.exitCode = await main();
+const reuseExitCode = await runReuseDispatch(process.argv.slice(2));
+process.exitCode = reuseExitCode === null ? await main() : reuseExitCode;
