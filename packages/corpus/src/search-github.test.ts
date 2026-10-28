@@ -8,8 +8,40 @@ import {
   privateGitHubCache,
   parseGitHubPlans,
 } from './search-github.js';
-import { fetchEvidence, FetchHttpError } from './search-fetch.js';
+import { buildEvidenceRequestHeaders, fetchEvidence, FetchHttpError } from './search-fetch.js';
 import { directSearch } from './search-direct.js';
+
+it('builds a fixed unauthenticated GitHub JSON request only for public release and tag list routes', () => {
+  const headers = buildEvidenceRequestHeaders(
+    new URL('https://api.github.com/repos/octocat/Hello-World/releases?per_page=20&page=1'),
+    { githubPublicApi: true, conditional: { etag: '"fixture"' } },
+  );
+  expect(headers).toMatchObject({
+    accept: 'application/vnd.github+json',
+    'x-github-api-version': '2026-03-10',
+    'if-none-match': '"fixture"',
+  });
+  expect('authorization' in headers).toBe(false);
+  expect(() =>
+    buildEvidenceRequestHeaders(
+      new URL('https://api.github.com/repos/octocat/Hello-World/issues'),
+      {
+        githubPublicApi: true,
+      },
+    ),
+  ).toThrow('invalid_github_public_api_request');
+  expect(() =>
+    buildEvidenceRequestHeaders(new URL('https://github.com/octocat/Hello-World/releases.atom'), {
+      githubPublicApi: true,
+    }),
+  ).toThrow('invalid_github_public_api_request');
+  expect(() =>
+    buildEvidenceRequestHeaders(
+      new URL('https://api.github.com/repos/octocat/Hello-World/tags?per_page=20&page=1&token=x'),
+      { githubPublicApi: true },
+    ),
+  ).toThrow('invalid_github_public_api_request');
+});
 
 const row = (id: number) => ({
   id,

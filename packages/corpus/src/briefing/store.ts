@@ -182,10 +182,48 @@ export function isHackerNewsIndexUri(uri: string): boolean {
       !url.password &&
       !url.hash &&
       allowedPaths.has(url.pathname) &&
-      (query.length === 0 || (query.length === 1 && query[0]![0] === 'print' && query[0]![1] === 'pretty'))
+      (query.length === 0 ||
+        (query.length === 1 && query[0]![0] === 'print' && query[0]![1] === 'pretty'))
     );
   } catch {
     return false;
+  }
+}
+
+/** The only GitHub public list routes this adapter reads; repository releases and tags stay distinct. */
+export function githubPublicRepositoryList(uri: string): {
+  owner: string;
+  repository: string;
+  collection: 'releases' | 'tags';
+} | null {
+  try {
+    const url = new URL(uri);
+    const match =
+      /^\/repos\/([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9_.-]{1,100})\/(releases|tags)$/.exec(
+        url.pathname,
+      );
+    const collection = match?.[3];
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname !== 'api.github.com' ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !match ||
+      (collection !== 'releases' && collection !== 'tags') ||
+      match[2] === '.' ||
+      match[2] === '..'
+    )
+      return null;
+    return {
+      owner: match[1]!,
+      repository: match[2]!,
+      collection,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -302,21 +340,26 @@ async function projectedSources(root: string, state: State): Promise<Source[]> {
       failureClass: failed ? ('other' as const) : null,
       expectedIntervalSec,
     };
+    const githubSource = githubPublicRepositoryList(configured.uri);
     return {
       id,
-      kind: isHackerNewsIndexUri(configured.uri)
-        ? 'api:hacker-news'
-        : mastodonTagTimeline(configured.uri)
-          ? 'api:mastodon-tag'
-          : /\.ics(?:$|\?)/i.test(configured.uri)
-            ? 'ics'
-            : /\.json(?:$|\?)/i.test(configured.uri)
-              ? 'jsonfeed'
-              : /(?:\.rss|\.atom|\.xml|\/feed|\/rss)(?:$|[/?#])/i.test(configured.uri)
-                ? /\.atom(?:$|\?)/i.test(configured.uri)
-                  ? 'atom'
-                  : 'rss'
-                : 'web',
+      kind: githubSource
+        ? githubSource.collection === 'releases'
+          ? 'api:github-releases'
+          : 'api:github-tags'
+        : isHackerNewsIndexUri(configured.uri)
+          ? 'api:hacker-news'
+          : mastodonTagTimeline(configured.uri)
+            ? 'api:mastodon-tag'
+            : /\.ics(?:$|\?)/i.test(configured.uri)
+              ? 'ics'
+              : /\.json(?:$|\?)/i.test(configured.uri)
+                ? 'jsonfeed'
+                : /(?:\.rss|\.atom|\.xml|\/feed|\/rss)(?:$|[/?#])/i.test(configured.uri)
+                  ? /\.atom(?:$|\?)/i.test(configured.uri)
+                    ? 'atom'
+                    : 'rss'
+                  : 'web',
       url: configured.uri,
       attribution: configured.label,
       termsRef: terms?.id ?? null,

@@ -9,6 +9,7 @@ import {
   beginBriefingRefresh,
   completeBriefingRefresh,
   createBriefingApi,
+  githubPublicRepositoryList,
   isHackerNewsIndexUri,
   listSourceTerms,
   mastodonTagTimeline,
@@ -70,6 +71,114 @@ function mastodonPlatform(origin: string) {
     .replace(/^-|-$/g, '')
     .slice(0, 32);
   return `mastodon-${host || 'instance'}-${hash(origin).slice(0, 8)}`;
+}
+
+const githubListLimit = 20;
+
+function parseGitHubPublicList(
+  value: unknown,
+  source: Source,
+  observedAt: string,
+): { items: Item[]; stories: Story[]; summary: { returned: number; retained: number } } {
+  const repository = githubPublicRepositoryList(source.url);
+  if (!repository || !Array.isArray(value) || value.length > githubListLimit)
+    throw new Error('invalid_github_public_list');
+  const items: Item[] = [];
+  const identities = new Set<string>();
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      throw new Error('invalid_github_public_record');
+    const record = entry as Record<string, unknown>;
+    let identity: string;
+    let title: string;
+    let excerpt: string;
+    let canonicalUrl: string;
+    let author: string | null = null;
+    let publishedAt: string | null = null;
+    if (repository.collection === 'releases') {
+      if (
+        typeof record.id !== 'number' ||
+        !Number.isSafeInteger(record.id) ||
+        record.id < 1 ||
+        typeof record.tag_name !== 'string' ||
+        !record.tag_name.trim() ||
+        record.tag_name.length > 256 ||
+        typeof record.draft !== 'boolean'
+      )
+        throw new Error('invalid_github_release');
+      if (record.draft) continue;
+      const tag = record.tag_name;
+      identity = `release:${record.id}:${tag}`;
+      title = normalizeText(typeof record.name === 'string' ? record.name : '') || tag;
+      if (typeof record.body === 'string') excerpt = normalizeText(record.body).slice(0, 5000);
+      else excerpt = '';
+      canonicalUrl = `https://github.com/${repository.owner}/${repository.repository}/releases/tag/${encodeURIComponent(tag)}`;
+      const releaseAuthor =
+        record.author && typeof record.author === 'object' && !Array.isArray(record.author)
+          ? (record.author as Record<string, unknown>).login
+          : null;
+      if (typeof releaseAuthor === 'string') author = normalizeText(releaseAuthor).slice(0, 300);
+      const dateValue = record.published_at ?? record.created_at;
+      if (typeof dateValue === 'string' && Number.isFinite(Date.parse(dateValue)))
+        publishedAt = new Date(dateValue).toISOString();
+    } else {
+      const commit =
+        record.commit && typeof record.commit === 'object' && !Array.isArray(record.commit)
+          ? (record.commit as Record<string, unknown>)
+          : null;
+      if (
+        typeof record.name !== 'string' ||
+        !record.name.trim() ||
+        record.name.length > 256 ||
+        typeof commit?.sha !== 'string' ||
+        !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(commit.sha)
+      )
+        throw new Error('invalid_github_tag');
+      identity = `tag:${record.name}:${commit.sha.toLowerCase()}`;
+      title = `${repository.owner}/${repository.repository} · tag ${record.name}`;
+      excerpt = `Git tag ${record.name} points to commit ${commit.sha.toLowerCase()}.`;
+      canonicalUrl = `https://github.com/${repository.owner}/${repository.repository}/tree/${encodeURIComponent(record.name)}`;
+    }
+    if (identities.has(identity)) throw new Error('duplicate_github_public_identity');
+    identities.add(identity);
+    const contentDigest = hash(
+      JSON.stringify({
+        collection: repository.collection,
+        identity,
+        canonicalUrl,
+        title,
+        author,
+        publishedAt,
+        excerpt,
+      }),
+    );
+    items.push({
+      id: id('item', `${source.id}\n${identity}\n${contentDigest}`),
+      sourceId: source.id,
+      canonicalUrl,
+      title: title.slice(0, 500),
+      author,
+      publishedAt,
+      observedAt,
+      contentDigest,
+      excerpt,
+      metrics: [],
+      interestIds: source.interestIds,
+      storyId: null,
+    });
+  }
+  const stories = items.map((item) => ({
+    id: id('story', item.id),
+    itemIds: [item.id],
+    representativeItemId: item.id,
+    firstSeen: observedAt,
+    lastSeen: observedAt,
+    relation: 'single' as const,
+    groupingEvidence: [],
+    interestMatches: [],
+  }));
+  items.forEach((item, index) => (item.storyId = stories[index]!.id));
+  return { items, stories, summary: { returned: value.length, retained: items.length } };
 }
 
 function parseMastodonTagTimeline(
@@ -558,13 +667,58 @@ export async function refreshBriefing(
         boundedRequest.searchParams.set('limit', String(mastodonTimelineLimit));
         requestUri = boundedRequest.toString();
       }
+      const githubList = source ? githubPublicRepositoryList(uri) : null;
+      if (source?.kind === 'api:github-releases' || source?.kind === 'api:github-tags') {
+        if (
+          !githubList ||
+          (githubList.collection === 'releases') !== (source.kind === 'api:github-releases')
+        )
+          throw new Error('invalid_github_public_source');
+        const boundedRequest = new URL(uri);
+        boundedRequest.searchParams.set('per_page', String(githubListLimit));
+        boundedRequest.searchParams.set('page', '1');
+        requestUri = boundedRequest.toString();
+      }
       let document = await (options.fetch ?? fetchEvidence)(
         requestUri,
         signal,
         redirects,
         allowPdf,
-        documentOptions,
+        githubList ? { ...documentOptions, githubPublicApi: true } : documentOptions,
       );
+      if (document.response?.status !== 304 && githubList) {
+        if (
+          !document.uri ||
+          new URL(document.uri).origin !== 'https://api.github.com' ||
+          new URL(document.uri).pathname !== new URL(requestUri).pathname
+        )
+          throw new Error('github_api_redirected');
+        const observedAt = (options.clock ?? (() => new Date()))().toISOString();
+        const parsed = parseGitHubPublicList(document.json, source!, observedAt);
+        await retainBriefingRecords(root, { items: parsed.items, stories: parsed.stories });
+        document = {
+          ...document,
+          text: JSON.stringify({
+            collection: githubList.collection,
+            repository: `${githubList.owner}/${githubList.repository}`,
+            ...parsed.summary,
+            records: parsed.items.map((item) => ({
+              id: item.id,
+              contentDigest: item.contentDigest,
+              canonicalUrl: item.canonicalUrl,
+            })),
+          }),
+          material: {
+            text: parsed.items.map(({ title, excerpt }) => `${title} ${excerpt}`).join('\n'),
+            title: `${githubList.owner}/${githubList.repository} ${githubList.collection}`,
+            author: null,
+            publishedAt: null,
+            links: parsed.items.map((item) => ({ uri: item.canonicalUrl, title: item.title })),
+            sections: parsed.items.map((item) => ({ locator: item.id, text: item.excerpt })),
+            extractor: 'github-public-repository-list-v1',
+          },
+        };
+      }
       if (document.response?.status !== 304 && source?.kind === 'api:hacker-news') {
         if (!isHackerNewsIndexUri(uri)) throw new Error('invalid_hacker_news_source');
         const itemIds = parseHackerNewsIndex(document.json);

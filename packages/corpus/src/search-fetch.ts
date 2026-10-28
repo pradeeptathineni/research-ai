@@ -18,6 +18,8 @@ export interface FetchOptions {
   conditional?: { etag?: string; lastModified?: string };
   allowNotModified?: boolean;
   includeBytes?: boolean;
+  /** Enables the fixed, unauthenticated GitHub REST headers for exact public list routes only. */
+  githubPublicApi?: true;
 }
 export class FetchHttpError extends Error {
   constructor(
@@ -26,6 +28,36 @@ export class FetchHttpError extends Error {
   ) {
     super(message);
   }
+}
+
+export function buildEvidenceRequestHeaders(url: URL, options: FetchOptions = {}) {
+  const githubQuery = [...url.searchParams.entries()];
+  if (
+    options.githubPublicApi &&
+    (url.origin !== 'https://api.github.com' ||
+      url.port ||
+      url.hash ||
+      !/^\/repos\/[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}\/(?:releases|tags)$/.test(
+        url.pathname,
+      ) ||
+      url.username ||
+      url.password ||
+      githubQuery.length !== 2 ||
+      url.searchParams.get('per_page') !== '20' ||
+      url.searchParams.get('page') !== '1')
+  )
+    throw new Error('invalid_github_public_api_request');
+  return {
+    'user-agent': 'SignalsAI/0.3 public-evidence (+https://github.com/pradeeptathineni/signals-ai)',
+    accept: options.githubPublicApi
+      ? 'application/vnd.github+json'
+      : 'text/html,text/plain,application/json,application/feed+json',
+    ...(options.githubPublicApi ? { 'x-github-api-version': '2026-03-10' } : {}),
+    ...(options.conditional?.etag ? { 'if-none-match': options.conditional.etag } : {}),
+    ...(options.conditional?.lastModified
+      ? { 'if-modified-since': options.conditional.lastModified }
+      : {}),
+  };
 }
 
 const header = (value: string | string[] | undefined, max = 4096) => {
@@ -117,6 +149,7 @@ export async function fetchEvidence(
       throw new Error('invalid_conditional_header');
   signal?.throwIfAborted();
   const { url, address } = await resolvePublicUrl(input);
+  const headers = buildEvidenceRequestHeaders(url, options);
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const req = request(
@@ -124,15 +157,7 @@ export async function fetchEvidence(
       {
         signal,
         timeout: 15000,
-        headers: {
-          'user-agent':
-            'SignalsAI/0.3 public-evidence (+https://github.com/pradeeptathineni/signals-ai)',
-          accept: 'text/html,text/plain,application/json,application/feed+json',
-          ...(options.conditional?.etag ? { 'if-none-match': options.conditional.etag } : {}),
-          ...(options.conditional?.lastModified
-            ? { 'if-modified-since': options.conditional.lastModified }
-            : {}),
-        },
+        headers,
         lookup: (_hostname, _options, callback) =>
           callback(null, [{ address: address.address, family: address.family }]),
       },
@@ -179,7 +204,7 @@ export async function fetchEvidence(
         }
         if (
           !(allowPdf && /application\/pdf/i.test(response.headers['content-type'] ?? '')) &&
-          !/text\/|application\/(?:json|feed\+json|(?:[\w.-]+\+)?xml)/i.test(
+          !/text\/|application\/(?:[\w.-]+\+)?(?:json|xml)/i.test(
             response.headers['content-type'] ?? '',
           )
         ) {
@@ -202,8 +227,7 @@ export async function fetchEvidence(
           const received = Buffer.concat(chunks);
           const contentType = response.headers['content-type'] ?? '';
           const raw = received.toString('utf8');
-              const jsonContentType =
-                /^application\/(?:json|feed\+json)(?:\s*;|$)/i.test(contentType);
+          const jsonContentType = /^application\/(?:[\w.-]+\+)?json(?:\s*;|$)/i.test(contentType);
           void (async () => {
             try {
               if (/application\/pdf/i.test(contentType)) {
@@ -233,9 +257,7 @@ export async function fetchEvidence(
                 response: metadata,
                 ...(options.includeBytes ? { bytes: received, contentType } : {}),
                 ...(material ? { material } : {}),
-                ...(jsonContentType
-                  ? { json: JSON.parse(raw) as unknown }
-                  : {}),
+                ...(jsonContentType ? { json: JSON.parse(raw) as unknown } : {}),
               });
             } catch (error) {
               reject(error instanceof Error ? error : new Error('invalid_source_document'));
