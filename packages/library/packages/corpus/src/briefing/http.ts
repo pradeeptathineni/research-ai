@@ -1,5 +1,7 @@
 import { Type } from 'typebox';
 import { Value } from 'typebox/value';
+import { isStoryHidden } from '../briefing-feedback.js';
+import { rankBriefingStory } from '../briefing-rank.js';
 import { refreshBriefing } from './ingest.js';
 import { createBriefingApi, listBriefingPreferences, listSourceTerms } from './store.js';
 
@@ -115,6 +117,63 @@ export async function briefingRoute(
         return { status: 200, body: { events: await api.listEvents() } };
       case 'briefing/rank-inputs':
         return { status: 200, body: { inputs: await api.listRankInputs() } };
+      case 'briefing/workbench': {
+        const [inputs, events, sources, interests, feedback, sourceTerms, preferences] =
+          await Promise.all([
+            api.listRankInputs(),
+            api.listEvents(),
+            api.listSources(),
+            api.listInterests(),
+            api.listFeedback(),
+            listSourceTerms(root),
+            listBriefingPreferences(root),
+          ]);
+        const now = Date.now();
+        const ranked = (
+          await Promise.all(
+            inputs.map(async (input) => {
+              const representative = input.items.find(
+                ({ item }) => item.id === input.story.representativeItemId,
+              );
+              if (!representative || isStoryHidden(feedback, input.story, representative.item, now))
+                return null;
+              return {
+                input,
+                explanation: await rankBriefingStory(input, {
+                  now,
+                  velocityWeight: preferences.ranking.velocityWeight,
+                }),
+              };
+            }),
+          )
+        )
+          .filter((entry) => entry !== null)
+          .sort((left, right) => {
+            const leftObserved = left.input.items.find(
+              ({ item }) => item.id === left.input.story.representativeItemId,
+            )?.item.observedAt;
+            const rightObserved = right.input.items.find(
+              ({ item }) => item.id === right.input.story.representativeItemId,
+            )?.item.observedAt;
+            return (
+              right.explanation.total - left.explanation.total ||
+              (rightObserved ?? '').localeCompare(leftObserved ?? '')
+            );
+          });
+        return {
+          status: 200,
+          body: {
+            schema: 'signals.briefing-workbench.v1',
+            readAt: new Date(now).toISOString(),
+            ranked,
+            events,
+            sources,
+            interests,
+            sourceTerms,
+            preferences,
+          },
+        };
+      }
       case 'briefing/feedback':
         return { status: 200, body: { feedback: await api.listFeedback() } };
       case 'briefing/preferences':
