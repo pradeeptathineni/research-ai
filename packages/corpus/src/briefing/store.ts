@@ -527,6 +527,43 @@ function makeApi(root: string): BriefingReadApi {
         .slice(0, options.limit ?? 100)
         .map((record) => recordRef(record, 'briefing-story', record.id));
     },
+    async readStoryInspection(storyId) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(storyId))
+        throw new Error('invalid_briefing_story_id');
+      const state = await readState(root);
+      const story = state.stories.find((record) => record.id === storyId);
+      if (!story)
+        return {
+          status: 'missing' as const,
+          story: null,
+          members: [],
+          qualification:
+            'No exact story ID was found in this current retained owner read; this does not establish deletion or exhaustive absence.',
+        };
+      const [sources] = await Promise.all([projectedSources(root, state)]);
+      const sourceById = new Map(sources.map((source) => [source.id, source]));
+      const itemById = new Map(state.items.map((item) => [item.id, item]));
+      const members = story.itemIds.map((itemId) => {
+        const item = itemById.get(itemId);
+        const source = item ? sourceById.get(item.sourceId) : undefined;
+        return {
+          itemId,
+          item: item ? recordRef(item, 'briefing-item', item.id) : null,
+          itemAvailability: item ? ('retained' as const) : ('unavailable' as const),
+          source: source ? recordRef(source, 'briefing-source', source.id) : null,
+          sourceAvailability: source
+            ? ('retained' as const)
+            : ('unavailable' as const),
+        };
+      });
+      return {
+        status: 'found' as const,
+        story: recordRef(story, 'briefing-story', story.id),
+        members,
+        qualification:
+          'Exact current retained story lookup; ordered member joins are bounded by the stored story schema; missing joins are unavailable, not proof of deletion.',
+      };
+    },
     async listEvents(options = {}) {
       const state = await readState(root);
       return state.events

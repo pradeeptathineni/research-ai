@@ -181,6 +181,20 @@ export async function briefingRoute(
       },
     };
   }
+  if (!mutation && route === 'briefing/story-inspection') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    if (
+      queryCount !== 1 ||
+      entries.length !== 1 ||
+      entries[0]![0] !== 'storyId' ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(entries[0]![1])
+    )
+      throw new Error('invalid_briefing_story_inspection_query');
+    return {
+      status: 200,
+      body: await api.readStoryInspection(entries[0]![1]),
+    };
+  }
   if (!mutation && route === 'briefing/opml/import-status') {
     const entries = [...(query ?? new URLSearchParams()).entries()];
     if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')

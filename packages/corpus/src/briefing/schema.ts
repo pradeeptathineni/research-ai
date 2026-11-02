@@ -427,6 +427,18 @@ export type BriefingReadOptions = {
   before?: string;
   limit?: number;
 };
+export type BriefingStoryInspection = {
+  status: 'found' | 'missing';
+  story: BriefingRecord<Story, 'briefing-story'> | null;
+  members: Array<{
+    itemId: string;
+    item: BriefingRecord<Item, 'briefing-item'> | null;
+    itemAvailability: 'retained' | 'unavailable';
+    source: BriefingRecord<Source, 'briefing-source'> | null;
+    sourceAvailability: 'retained' | 'unavailable';
+  }>;
+  qualification: string;
+};
 export type FeedbackRequest = {
   requestId: string;
   targetKind: Feedback['targetKind'];
@@ -469,6 +481,7 @@ export interface BriefingReadApi {
   listStories(
     options?: BriefingReadOptions,
   ): Promise<Array<BriefingRecord<Story, 'briefing-story'>>>;
+  readStoryInspection(storyId: string): Promise<BriefingStoryInspection>;
   listEvents(
     options?: BriefingReadOptions,
   ): Promise<Array<BriefingRecord<Event, 'briefing-event'>>>;
