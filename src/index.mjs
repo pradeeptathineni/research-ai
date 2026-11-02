@@ -4,6 +4,9 @@ export { groundedAnswer, validateGrounding, groundedResearchQuestion, assessGrou
 export { basicFacts, perspectiveCandidates, chooseLenses, perspectiveResearch } from './perspectives.mjs';
 export { outlineResearch, validateOutline, reviseOutline, renderOutline } from './outline.mjs';
 export { mindMapLimits, createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch } from './mindmap.mjs';
+export { prepareNotebookEvidenceGraph, researchNotebookEvidenceGraph, createNotebookEvidenceGraph,
+  validateNotebookEvidenceGraph, assertNotebookEvidenceGraphEdge, checkNotebookEvidenceGraphSources,
+  renderNotebookEvidenceGraph } from './notebook-evidence-graph.mjs';
 export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, renderEvidenceTable, evidenceTableResearch } from './evidence-table.mjs';
 export { createReport, validateReport, reviseReport, draftReportSection, renderReport, projectReportClaimRegister } from './report.mjs';
 export { exportReportHtml } from './report-export.mjs';
@@ -24,6 +27,7 @@ export { researchNotebookLimits, createResearchNotebook, validateResearchNoteboo
 export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from './notebook-search.mjs';
 export { createResearchNotebookFromBriefingSelection, createResearchNotebookFromBriefingStoryInspection } from './briefing-notebook.mjs';
 export { exportResearchRetrievalArm } from './retrieval-arm.mjs';
+export { exportResearchRetrievalStrategy, openResearchRetrievalSource } from './retrieval-strategy.mjs';
 export { exportResearchAnswerCitationMap } from './answer-citation-map.mjs';
 
 export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, exportResearchStudyPlanningSource, validateResearchStudyPlanningSource, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';

@@ -816,6 +816,46 @@ export function mindMapResearch(question: string, options: {
 }): Promise<{ status: "complete" | "failed" | "cancelled"; map: ResearchMindMap | null;
   receipt: { mode: "frozen"; profile: Profile; outcome: SessionOutcome; failure?: string; reason?: string } }>;
 
+export type NotebookEvidenceGraphReference = {
+  notebookId: string; notebookSha256: string; kind: "document" | "note"; recordId: string; recordDigest: string;
+  documentId: string | null; documentSha256: string | null; page: number | null; pageSha256: string | null; version: number | null;
+};
+export interface PreparedNotebookEvidenceGraph {
+  version: "research-notebook-evidence-graph-preview-v1"; question: string;
+  notebooks: Array<{ id: string; sha256: string }>;
+  sources: Array<{ uri: string; text: string; ref: NotebookEvidenceGraphReference }>;
+  sha256: string;
+}
+export interface NotebookEvidenceGraph {
+  version: "research-notebook-evidence-graph-v1"; question: string; coverage: "partial" | "unknown"; coverageQualification: string;
+  notebooks: Array<{ id: string; sha256: string }>;
+  sources: Array<{ uri: string; reference: NotebookEvidenceGraphReference }>;
+  map: ResearchMindMap;
+  assertions: Array<{ id: string; from: string; to: string; label: string; relation: "related" | "supports" | "contrasts" | "qualifies" | "elaborates"; assertedBy: string; basis: "user-asserted"; qualification: string }>;
+  sha256: string;
+}
+/** Prepares 2-8 exact document pages/note versions from Research Notebook snapshots; no inference or writes. */
+export function prepareNotebookEvidenceGraph(question: string, notebooks: ResearchNotebook[], selections: Array<
+  | { notebookId: string; kind: "document"; recordId: string; page: number }
+  | { notebookId: string; kind: "note"; recordId: string; version: number }
+>): PreparedNotebookEvidenceGraph;
+/** Runs the existing frozen mind-map research over only the prepared Notebook material. */
+export function researchNotebookEvidenceGraph(prepared: PreparedNotebookEvidenceGraph, notebooks: ResearchNotebook[], options?: Omit<Parameters<typeof mindMapResearch>[1], "sources">): Promise<
+  | { status: "complete"; graph: NotebookEvidenceGraph; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"] }
+  | { status: "failed" | "cancelled"; graph: null; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"] }
+  | { status: "invalid"; graph: null; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"]; failure: "graph_validation_failed"; reason: string }
+>;
+/** Binds a completed model-generated map to the exact prepared Notebook page/note versions. */
+export function createNotebookEvidenceGraph(prepared: PreparedNotebookEvidenceGraph, notebooks: ResearchNotebook[], map: ResearchMindMap): NotebookEvidenceGraph;
+/** Cold-validates graph, exact Notebook references, quotations, edges and assertions. */
+export function validateNotebookEvidenceGraph(value: unknown): NotebookEvidenceGraph;
+/** Adds an explicit user-asserted edge, kept separate from model-extracted connections. */
+export function assertNotebookEvidenceGraphEdge(value: NotebookEvidenceGraph, input: { id: string; from: string; to: string; label: string; relation: "related" | "supports" | "contrasts" | "qualifies" | "elaborates"; assertedBy: string }): NotebookEvidenceGraph;
+/** Checks only whether each exact selected record remains current, changed, or missing in supplied snapshots. */
+export function checkNotebookEvidenceGraphSources(value: NotebookEvidenceGraph, notebooks: ResearchNotebook[]): { version: "research-notebook-evidence-graph-currentness-v1"; graphSha256: string; sources: Array<NotebookEvidenceGraphReference & { status: "current" | "changed" | "missing"; notebookSnapshot: "current" | "changed" | "missing"; latestVersion?: number; superseded?: boolean }>; qualification: string };
+/** Emits a cold-open graph JSON, connected-edge list projection, or readable Markdown. */
+export function renderNotebookEvidenceGraph(value: NotebookEvidenceGraph, options?: { format?: "json" | "list" | "markdown" }): string;
+
 export interface OutlinePoint { text: string; citations: OutlineCitation[] }
 export interface OutlineSection { id: string; title: string; points: OutlinePoint[]; gaps: string[] }
 export interface ResearchOutlineSource {
@@ -1390,6 +1430,27 @@ export interface ResearchRetrievalArmExport {
 export function exportResearchRetrievalArm(notebooks: ResearchNotebook[], questions: ResearchRetrievalQuestion[], options: {
   mode?: "exact" | "prefix" | "fuzzy"; researchRevision: string;
 }): ResearchRetrievalArmExport;
+export interface ResearchRetrievalStrategyExport {
+  format: "research-retrieval-strategy-1";
+  corpus: ResearchRetrievalArmExport["corpus"];
+  questions: ResearchRetrievalQuestion[];
+  arm: ResearchRetrievalArmExport["arm"];
+  diagnostics: Record<string, { requestedStrategy: "lexical" | "dense" | "hybrid"; effectiveStrategy: "lexical" | "dense" | "hybrid";
+    lexicalCandidateCount: number; denseCandidateCount: number; fallbackReason: string | null; scoreMeaning: string }>;
+  qualifications: string[];
+  sha256: string;
+}
+/** Exports an offline lexical, caller-dense, or reciprocal-rank-fused arm over exactly retained page/note-version identities. */
+export function exportResearchRetrievalStrategy(notebooks: ResearchNotebook[], questions: ResearchRetrievalQuestion[], options: {
+  mode?: "exact" | "prefix" | "fuzzy"; researchRevision: string; strategy?: "lexical" | "dense" | "hybrid";
+  denseRankings?: Record<string, Array<{ id: string; sha256: string; score: number }>>;
+}): ResearchRetrievalStrategyExport;
+/** Reopens an exact retained page or note version in a strategy export without rerunning ranking. */
+export function openResearchRetrievalSource(notebooks: ResearchNotebook[], result: ResearchRetrievalStrategyExport, sourceId: string): {
+  id: string; notebookId: string; kind: NotebookSearchKind; recordId: string; documentId: string | null; page: number | null;
+  version: number | null; title: string; sourceDigest: string; contentSha256: string; text: string;
+  corpusCurrentness: "current" | "changed"; corpusChanges: { added: number; missing: number; changed: number };
+};
 
 export interface ResearchAnswerCitationMap {
   format: "research-answer-citation-map-1";

@@ -12,6 +12,13 @@ versions. It returns deterministic lexical hits with exact UTF-16 ranges and
 digest-bound offline reopen. No persistent index, inference, source acquisition,
 or question-scope expansion is provided. See `docs/notebook-search.md`.
 
+`src/notebook-evidence-graph.mjs` composes an explicit set of Notebook page and
+note-version references through the existing frozen mind-map owner. It retains
+exact record/page digests, emits a citation-linked edge list and separates
+model-extracted relations from caller assertions. JSON is a cold-open closure;
+currentness is checked against supplied Notebook snapshots. It creates no graph
+store and does not modify Library topics. See `docs/notebook-evidence-graph.md`.
+
 `src/investigation.mjs` owns guided investigation state, identity validation,
 editable bounded question trees, explicit clarify/expand/investigate/synthesize
 actions and offline rendering. Callers retain and resume JSON state. It runs
@@ -53,6 +60,7 @@ structured output is failed, never promoted from interim narrative.
 | `src/evidence-table.mjs` | `research-evidence-table-v1`: source-indexed question columns, row-local exact spans, offline validation/revision and Markdown/JSON export |
 | `src/document-research.mjs` | `research-document-answer-v1`: complete ordered caller-extracted page input, one frozen schema-bound answer, exact document/page spans, explicit coverage/gaps and offline replay |
 | `src/notebook.mjs` | `research-notebook-v1`: portable notebook/source/note/question closure, append-only note versions, explicit selected complete-document plans, offline citation lookup and export |
+| `src/notebook-evidence-graph.mjs` | `research-notebook-evidence-graph-v1`: explicit multi-record question composition, exact source/page/note-version bindings, extracted-versus-asserted edges, cold reopen and selected-record currentness |
 | `src/report.mjs` | `research-report-v1`: table-to-outline conversion, versioned cited section writing/revision, explicit one-section frozen sessions and full report assembly |
 | `src/index.d.ts`      | The public types                                                                                                                                                                                                                                  |
 | `bin/research-ai.mjs` | The CLI: argument parsing, readiness gate, stdout answer, stderr receipt, exit codes                                                                                                                                                              |

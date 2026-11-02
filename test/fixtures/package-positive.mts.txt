@@ -2,6 +2,21 @@ import { codexReadiness, withCodexWorkspace, sessionCompleted, profiles, ordinar
 import type { ResearchActivity, ResearchResult, SessionOutcome, SessionCleanup, FrozenSource, PerspectiveResult, ResearchOutline, Investigation, InvestigationBudget, InvestigationQuestion, InvestigationPlan, ResearchEvidenceTable, EvidenceTableColumn, ResearchReport, ReportParagraph } from '@pradeeptathineni/research-ai';
 import { createLiteratureSet, addLiteraturePaper, deduplicateLiteraturePapers, prepareLiteratureQuestion, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion, checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, exportLiteratureStudyPlanningSource, validateLiteratureStudyPlanningSource, formatLiteratureSet } from '@pradeeptathineni/research-ai';
 import type { LiteraturePaper, PreparedLiteratureStudyQuestion, LiteratureStudyPlanningSource } from '@pradeeptathineni/research-ai';
+import { prepareNotebookEvidenceGraph, researchNotebookEvidenceGraph, validateNotebookEvidenceGraph,
+  assertNotebookEvidenceGraphEdge, checkNotebookEvidenceGraphSources, renderNotebookEvidenceGraph } from '@pradeeptathineni/research-ai';
+import type { PreparedNotebookEvidenceGraph, NotebookEvidenceGraph } from '@pradeeptathineni/research-ai';
+declare const graphNotebooks: ResearchNotebook[];
+const graphPreview: PreparedNotebookEvidenceGraph = prepareNotebookEvidenceGraph('Compare selected pages', graphNotebooks,
+  [{ notebookId: graphNotebooks[0]!.id, kind: 'document', recordId: graphNotebooks[0]!.sources[0]!.id, page: 1 },
+    { notebookId: graphNotebooks[1]!.id, kind: 'document', recordId: graphNotebooks[1]!.sources[0]!.id, page: 1 }]);
+const graphRun = researchNotebookEvidenceGraph(graphPreview, graphNotebooks);
+void graphRun.then(({ graph }) => { if (graph) {
+  const coldGraph: NotebookEvidenceGraph = validateNotebookEvidenceGraph(graph);
+  const assertedGraph = assertNotebookEvidenceGraphEdge(coldGraph, { id: 'assertion-fixture', from: 'n1', to: 'n2',
+    label: 'Caller relationship', relation: 'related', assertedBy: 'fixture' });
+  checkNotebookEvidenceGraphSources(assertedGraph, graphNotebooks);
+  renderNotebookEvidenceGraph(assertedGraph, { format: 'list' });
+} });
 const literaturePaper: LiteraturePaper = { id: 'paper:fixture', metadata: { title: 'Synthetic paper' }, availability: 'missing', source: null,
   statusEvidence: { kind: 'missing-source', assertedBy: 'fixture', observedAt: '2026-10-27T12:00:00Z', verification: 'asserted-unverified', detail: 'Synthetic absence.' },
   finding: null, stance: null, claimKey: null, qualification: ['Source missing from fixture.'] };
@@ -182,13 +197,16 @@ const searchHit: NotebookSearchHit | undefined = searchResult.hits[0];
 if (searchHit) openNotebookSearchHit([reopenedNotebook], searchResult, searchHit.id);
 void notebookSearchLimits.engine.sha256;
 
-import { exportResearchRetrievalArm } from '@pradeeptathineni/research-ai';
-import type { ResearchRetrievalArmExport, ResearchRetrievalQuestion } from '@pradeeptathineni/research-ai';
+import { exportResearchRetrievalArm, exportResearchRetrievalStrategy, openResearchRetrievalSource } from '@pradeeptathineni/research-ai';
+import type { ResearchRetrievalArmExport, ResearchRetrievalStrategyExport, ResearchRetrievalQuestion } from '@pradeeptathineni/research-ai';
 const retrievalQuestions: ResearchRetrievalQuestion[] = [{ id: 'question:appeal', text: 'appeal window' }];
 declare const retrievalExport: ResearchRetrievalArmExport;
 const lexicalArm: ResearchRetrievalArmExport = exportResearchRetrievalArm([reopenedNotebook], retrievalQuestions,
   { mode: 'prefix', researchRevision: 'pinned-research-revision' });
-void [retrievalExport.corpus.id, lexicalArm.arm.rankings['question:appeal']];
+const strategyExport: ResearchRetrievalStrategyExport = exportResearchRetrievalStrategy([reopenedNotebook], retrievalQuestions, {
+  researchRevision: 'pinned-research-revision', strategy: 'hybrid', denseRankings: {} });
+const reopenedStrategySource = openResearchRetrievalSource([reopenedNotebook], strategyExport, strategyExport.corpus.source_ids[0]!);
+void [retrievalExport.corpus.id, lexicalArm.arm.rankings['question:appeal'], reopenedStrategySource.text];
 
 import { exportResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
 import type { ResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
