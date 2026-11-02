@@ -1,11 +1,13 @@
 import { publishPublicData } from '../packages/corpus/src/public-export.js';
 import { loadPublicCorpus } from '../packages/corpus/src/public-corpus.js';
 import { filterPublicOptions, type PublicFilters } from '../packages/domain/src/public-corpus.js';
-import { readFile, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { open, readFile, writeFile } from 'node:fs/promises';
 import { encodePublicEvidence } from '../packages/corpus/src/public-record.js';
 import { loadEntities } from '../packages/corpus/src/search-store.js';
 import { exportOpml, parseOpml, refreshBriefing, refreshDue } from '../packages/corpus/src/briefing/ingest.js';
 import { createBriefingApi, readBriefingRefresh } from '../packages/corpus/src/briefing/store.js';
+import { briefingRoute } from '../packages/corpus/src/briefing/http.js';
 import { loadSettings, saveSettings } from '../packages/corpus/src/search-settings.js';
 import {
   evidenceDigest,
@@ -27,6 +29,40 @@ if (operation === 'digest') {
 }
 if (operation === 'briefing') {
   const [action, ...briefingArgs] = args;
+  if (action === 'snapshot' && briefingArgs.length === 1) {
+    const response = await briefingRoute(process.cwd(), 'briefing/workbench', false, undefined, 0);
+    const snapshot = response?.body;
+    if (
+      response?.status !== 200 ||
+      !snapshot ||
+      typeof snapshot !== 'object' ||
+      (snapshot as { schema?: unknown }).schema !== 'signals.briefing-workbench.v1'
+    )
+      throw new Error('Briefing owner did not return a signals.briefing-workbench.v1 snapshot.');
+    const serialized = `${JSON.stringify(snapshot, null, 2)}\n`;
+    const bytes = Buffer.byteLength(serialized, 'utf8');
+    const snapshotLimit = 8 * 1024 * 1024;
+    if (bytes > snapshotLimit)
+      throw new Error(
+        `Briefing snapshot exceeds the Research seed limit of ${snapshotLimit} bytes.`,
+      );
+    const output = briefingArgs[0]!;
+    const handle = await open(
+      output,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      await handle.writeFile(serialized, 'utf8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    process.stdout.write(
+      `${JSON.stringify({ exported: true, schema: 'signals.briefing-workbench.v1', bytes, readAt: (snapshot as { readAt: string }).readAt })}\n`,
+    );
+    process.exit(0);
+  }
   if (action === 'refresh' && briefingArgs.length === 1 && briefingArgs[0] === '--once') {
     process.stdout.write(`${JSON.stringify(await refreshBriefing(process.cwd()), null, 2)}\n`);
     process.exit(0);
@@ -82,7 +118,7 @@ if (operation === 'briefing') {
     process.exit(0);
   }
   throw new Error(
-    'Usage: corpus briefing refresh --once [--request-id=UUID] | refresh-status --request-id=UUID | opml-import FILE.opml | opml-export NEW_FILE.opml',
+    'Usage: corpus briefing snapshot NEW_FILE.json | refresh --once [--request-id=UUID] | refresh-status --request-id=UUID | opml-import FILE.opml | opml-export NEW_FILE.opml',
   );
 }
 const corpus = await loadPublicCorpus();

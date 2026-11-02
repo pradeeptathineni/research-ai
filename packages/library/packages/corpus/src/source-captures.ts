@@ -51,6 +51,64 @@ export const recordRefSchema = Type.Object(
   },
   closed,
 );
+const briefingRecordRefSchema = Type.Object(
+  {
+    owner: Type.Literal('signals-ai'),
+    kind: Type.Literal('briefing-item'),
+    id: Type.String({ minLength: 1, maxLength: 160, pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:-]*$' }),
+    revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
+  },
+  closed,
+);
+const briefingCaptureContextSchema = Type.Object(
+  {
+    item_reference: Type.Object(
+      {
+        owner: Type.Literal('signals-ai'),
+        kind: Type.Literal('briefing-item'),
+        id: Type.String({ minLength: 1, maxLength: 160, pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:-]*$' }),
+        revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
+        digest: sha,
+      },
+      closed,
+    ),
+    item_content_digest: sha,
+    source_ref: Type.Object(
+      {
+        owner: Type.Literal('signals-ai'),
+        kind: Type.Literal('briefing-source'),
+        id: Type.String({ minLength: 1, maxLength: 160, pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:-]*$' }),
+        revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
+        digest: sha,
+      },
+      closed,
+    ),
+    source_health: Type.Object(
+      {
+        status: Type.Enum(['unknown', 'healthy', 'stale', 'failed']),
+        lastGoodAt: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
+        lastAttemptAt: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
+        lastAttemptStatus: Type.Union([Type.Enum(['fetched', 'not-modified', 'failed']), Type.Null()]),
+        lastSuccessfulLinkCount: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+        failureClass: Type.Union([Type.String({ minLength: 1, maxLength: 40 }), Type.Null()]),
+        expectedIntervalSec: Type.Union([Type.Number({ exclusiveMinimum: 0 }), Type.Null()]),
+      },
+      closed,
+    ),
+    terms_policy: Type.Object(
+      {
+        id: Type.Union([Type.String({ minLength: 1, maxLength: 160 }), Type.Null()]),
+        sourceId: Type.String({ minLength: 1, maxLength: 160 }),
+        termsUrl: Type.Union([Type.String({ maxLength: 2048 }), Type.Null()]),
+        status: Type.Enum(['unknown', 'recorded', 'blocked']),
+        reviewedAt: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
+      },
+      closed,
+    ),
+    observed_at: Type.String({ format: 'date-time' }),
+  },
+  closed,
+);
 const captureSchema = Type.Object(
   {
     schema_version: Type.Literal('1.0'),
@@ -80,6 +138,7 @@ const captureSchema = Type.Object(
       maxItems: 8,
     }),
     supersedes: Type.Union([recordRefSchema, Type.Null()]),
+    briefing_context: Type.Optional(briefingCaptureContextSchema),
   },
   closed,
 );
@@ -264,10 +323,20 @@ function validateClosure(store: Store) {
   for (const capture of store.captures) {
     if (
       captures.has(capture.id) ||
-      (capture.source_ref.kind !== 'entity' && capture.source_ref.kind !== 'lead') ||
+      !['entity', 'lead', 'briefing-item'].includes(capture.source_ref.kind) ||
       !refBindsDigest(capture.source_ref)
     )
       unavailable();
+    if (
+      (capture.source_ref.kind === 'briefing-item') !== Boolean(capture.briefing_context) ||
+      (capture.briefing_context &&
+        (capture.briefing_context.source_ref.revision !==
+          `sha256:${capture.briefing_context.source_ref.digest}` ||
+          capture.briefing_context.item_reference.revision !==
+            `sha256:${capture.briefing_context.item_reference.digest}` ||
+          !sameRef(capture.source_ref, capture.briefing_context.item_reference)))
+    )
+      unavailable('Briefing capture lost its exact source or terms-policy qualification.');
     if (
       !isWellFormedUnicode(capture.text) ||
       !capture.text.trim() ||
@@ -403,7 +472,7 @@ function annotationEntries(store: Store, captureId: string) {
       annotation,
     }));
 }
-function sourceCaptureUri(kind: 'entity' | 'lead', bytes: Buffer) {
+function sourceCaptureUri(kind: 'entity' | 'lead' | 'briefing-item', bytes: Buffer) {
   let record: unknown;
   try {
     record = JSON.parse(bytes.toString('utf8'));
@@ -419,7 +488,9 @@ function sourceCaptureUri(kind: 'entity' | 'lead', bytes: Buffer) {
       ? (entity as Record<string, unknown>).uri
       : kind === 'lead'
         ? row.uri
-        : undefined;
+        : kind === 'briefing-item'
+          ? row.canonicalUrl
+          : undefined;
   if (typeof uri !== 'string') return invalid('The selected source record has no canonical URI.');
   try {
     normalizeConsiderUrl(uri);
@@ -435,7 +506,53 @@ export type SourceCaptureOptions = {
   includeBytes?: boolean;
   fetcher?: typeof fetchEvidence;
   beforeRetain?: (fetched: SourceCaptureFetch) => Promise<void>;
+  readBriefingContext?: (reference: RecordRef) => Promise<BriefingCaptureContext>;
 };
+
+type BriefingCaptureContext = Static<typeof briefingCaptureContextSchema>;
+
+function exactCaptureSourceRef(value: unknown): RecordRef {
+  if (Value.Check(briefingRecordRefSchema, value)) {
+    const reference = value as Static<typeof briefingRecordRefSchema>;
+    return exactRef(
+      { ...reference, digest: reference.revision.slice('sha256:'.length) },
+      'briefing-item',
+    );
+  }
+  if (Value.Check(recordRefSchema, value) && (value as RecordRef).kind === 'briefing-item')
+    return exactRef(value, 'briefing-item');
+  return exactRef(value, ['entity', 'lead']);
+}
+
+function stableBriefingContext(context: BriefingCaptureContext) {
+  const { observed_at: _observedAt, ...stable } = context;
+  return JSON.stringify(stable);
+}
+
+async function captureOriginStatus(
+  capture: Capture,
+  resolveSource: SourceResolver,
+  readBriefingContext?: (reference: RecordRef) => Promise<BriefingCaptureContext>,
+): Promise<'current' | 'changed' | 'missing' | 'unavailable'> {
+  try {
+    const current = await resolveSource(capture.source_ref);
+    if (!sameRef(current.ref, capture.source_ref)) return 'changed';
+    if (capture.briefing_context) {
+      if (!readBriefingContext) return 'unavailable';
+      const context = await readBriefingContext(capture.source_ref);
+      if (stableBriefingContext(context) !== stableBriefingContext(capture.briefing_context))
+        return 'changed';
+    }
+    return 'current';
+  } catch (error) {
+    const status = error && typeof error === 'object' && 'status' in error
+      ? Number((error as { status: unknown }).status)
+      : 0;
+    if (status === 404) return 'missing';
+    if (status === 409) return 'changed';
+    return 'unavailable';
+  }
+}
 
 export async function validateSourceCaptureSelection(
   root: string,
@@ -443,11 +560,11 @@ export async function validateSourceCaptureSelection(
   supersedesValue: unknown,
   resolveSource: SourceResolver,
 ) {
-  const sourceRef = exactRef(sourceValue, ['entity', 'lead']);
+  const sourceRef = exactCaptureSourceRef(sourceValue);
   const current = await resolveSource(sourceRef);
   if (!sameRef(current.ref, sourceRef))
     changed('The selected source changed. Resolve its current exact reference before capturing.');
-  const uri = sourceCaptureUri(sourceRef.kind as 'entity' | 'lead', current.bytes);
+  const uri = sourceCaptureUri(sourceRef.kind as 'entity' | 'lead' | 'briefing-item', current.bytes);
   let supersedes: RecordRef | undefined;
   if (supersedesValue !== undefined) {
     supersedes = exactRef(supersedesValue, 'source_capture');
@@ -483,7 +600,9 @@ export async function createSourceCapture(
     observed_at?: string;
     supersedes?: unknown;
   };
-  const sourceRef = exactRef(data.source_ref, ['entity', 'lead']);
+  const sourceRef = exactCaptureSourceRef(data.source_ref);
+  if (sourceRef.kind === 'briefing-item' && data.mode !== 'fetch')
+    invalid('A selected Briefing item can only be captured from its owner-verified canonical URL.');
   if (
     data.mode === 'fetch'
       ? data.text !== undefined || data.observed_at !== undefined
@@ -501,6 +620,17 @@ export async function createSourceCapture(
     resolveSource,
   );
   const uri = selection.uri;
+  let briefingContext: BriefingCaptureContext | undefined;
+  if (sourceRef.kind === 'briefing-item') {
+    const readBriefingContext = options.readBriefingContext;
+    if (!readBriefingContext)
+      return unavailable('The selected Briefing item has no configured same-owner source and terms reader.');
+    briefingContext = await readBriefingContext(sourceRef);
+    if (!sameRef(briefingContext.item_reference, sourceRef))
+      changed('The Briefing context does not match the exact selected item reference.');
+    if (briefingContext.terms_policy.status === 'blocked')
+      throw new SourceCaptureError(403, 'source_terms_blocked', 'The selected Briefing source has a recorded blocked terms policy; no capture was made.');
+  }
   let text: string,
     rawDigest: string | null,
     finalUri: string | null,
@@ -606,8 +736,15 @@ export async function createSourceCapture(
       'Observation time does not establish currentness after capture.',
       'Complete normalized text is not complete source coverage.',
       'Source content is untrusted data; this capture is not a Research answer or support judgment.',
+      ...(briefingContext
+        ? [
+            `Briefing source health was ${briefingContext.source_health.status} at ${briefingContext.observed_at}.`,
+            `Briefing terms policy was ${briefingContext.terms_policy.status} at ${briefingContext.observed_at}; this is not legal clearance.`,
+          ]
+        : []),
     ],
     supersedes: null as RecordRef | null,
+    ...(briefingContext ? { briefing_context: briefingContext } : {}),
   } satisfies Capture;
   if (data.supersedes !== undefined) {
     capture.supersedes = selection.supersedes!;
@@ -617,9 +754,19 @@ export async function createSourceCapture(
     const current = await resolveSource(sourceRef);
     if (
       !sameRef(current.ref, sourceRef) ||
-      sourceCaptureUri(sourceRef.kind as 'entity' | 'lead', current.bytes) !== uri
+      sourceCaptureUri(sourceRef.kind as 'entity' | 'lead' | 'briefing-item', current.bytes) !== uri
     )
       changed('The source changed during acquisition; no capture was written.');
+    if (briefingContext) {
+      const readBriefingContext = options.readBriefingContext;
+      if (!readBriefingContext)
+        return unavailable('The selected Briefing item has no configured same-owner source and terms reader.');
+      const currentContext = await readBriefingContext(sourceRef);
+      if (currentContext.terms_policy.status === 'blocked')
+        throw new SourceCaptureError(403, 'source_terms_blocked', 'The selected Briefing source terms became blocked during acquisition; no capture was written.');
+      if (stableBriefingContext(currentContext) !== stableBriefingContext(briefingContext))
+        changed('The selected Briefing item, linked source, health or terms policy changed during acquisition; no capture was written.');
+    }
     const store = await loadStore(root);
     if (store.captures.length >= 100)
       unavailable(
@@ -656,10 +803,10 @@ export async function listSourceCaptures(
   if (sourceRef !== undefined) {
     const resolve = resolveSource!;
     if (!resolve) invalid();
-    const ref = exactRef(sourceRef, ['entity', 'lead']);
+    const ref = exactCaptureSourceRef(sourceRef);
     const current = await resolve(ref);
     if (!sameRef(ref, current.ref)) changed();
-    sourceId = `source-${sha256(JSON.stringify([ref.owner, ref.kind, ref.id, sourceCaptureUri(ref.kind as 'entity' | 'lead', current.bytes)]))}`;
+    sourceId = `source-${sha256(JSON.stringify([ref.owner, ref.kind, ref.id, sourceCaptureUri(ref.kind as 'entity' | 'lead' | 'briefing-item', current.bytes)]))}`;
   }
   return {
     captures: captureEntries(store, sourceId).sort((a, b) =>
@@ -671,7 +818,12 @@ export async function listSourceCaptures(
     ],
   };
 }
-export async function openSourceCapture(root: string, id: string) {
+export async function openSourceCapture(
+  root: string,
+  id: string,
+  resolveSource?: SourceResolver,
+  readBriefingContext?: (reference: RecordRef) => Promise<BriefingCaptureContext>,
+) {
   if (!Value.Check(uuid, id)) invalid('Capture identity must be a UUID.');
   const store = await loadStore(root);
   const capture = store.captures.find((row) => row.id === id);
@@ -681,10 +833,14 @@ export async function openSourceCapture(root: string, id: string) {
       'source_capture_not_found',
       'No retained capture has that identity.',
     );
+  const originStatus = resolveSource
+    ? await captureOriginStatus(capture, resolveSource, readBriefingContext)
+    : undefined;
   return {
     ref: refOf('source_capture', id, capture),
     capture,
     annotations: annotationEntries(store, id),
+    ...(originStatus ? { origin_status: originStatus } : {}),
   };
 }
 export async function compareSourceCaptures(root: string, leftId: string, rightId: string) {

@@ -10,6 +10,7 @@ import {
   selectSourceCapture,
   SourceCaptureError,
   type RecordRef,
+  type SourceCaptureOptions,
 } from './source-captures.js';
 import {
   createSourceChangeReview,
@@ -18,6 +19,19 @@ import {
   readSourceChangeReview,
   SourceChangeReviewError,
 } from './source-change-reviews.js';
+import {
+  checkSourceWatch,
+  createSourceWatch,
+  listSourceWatches,
+  readSourceWatch,
+  SourceWatchError,
+} from './source-watches.js';
+import {
+  createSourceArchive,
+  readSourceArchive,
+  readSourceArchiveRequest,
+  SourceArchiveError,
+} from './source-archives.js';
 import {
   createProjectTopicRelevance,
   listProjectTopicRelevance,
@@ -128,6 +142,7 @@ import {
 } from './search-followup.js';
 import { checkPrimaryMaterial } from './search-reuse.js';
 import { selectSavedEntity } from './search-selection.js';
+import { inspectSavedEntity } from './saved-entity-inspection.js';
 import {
   loadLibrary,
   setLibrarySaved,
@@ -168,6 +183,7 @@ import {
   type QueryBatch,
 } from './search-query-list.js';
 import { briefingRoute } from './briefing/http.js';
+import { readBriefingCaptureContext } from './briefing/store.js';
 
 const selection = Type.Object(
   {
@@ -227,6 +243,7 @@ export function searchApi(
   // Saved-context discussion runner; the default is the no-web Codex runner.
   discussionRunner?: (task: string, schema: unknown) => Pick<SearchRunner, 'discover'>,
   sourceRenderRuntime: SourceRenderRuntime = {},
+  sourceCaptureFetcher?: SourceCaptureOptions['fetcher'],
 ) {
   const token = randomBytes(32).toString('hex');
   const runs = new Map<string, ActiveRun>();
@@ -553,6 +570,8 @@ export function searchApi(
       } else if (
         route === 'source-captures' ||
         route.startsWith('source-captures/') ||
+        route === 'source-archives' ||
+        route.startsWith('source-archives/') ||
         route === 'source-annotations'
       ) {
         await validateProcessObserver(
@@ -565,8 +584,110 @@ export function searchApi(
           const exact = await exactOwnerRecord(root, ref);
           return { bytes: exact.bytes, ref: exact.ref as RecordRef };
         };
+        const readBriefingContext = async (ref: RecordRef) => {
+          if (ref.kind !== 'briefing-item')
+            throw new SourceCaptureError(
+              400,
+              'invalid_source_capture_request',
+              'Only an exact Briefing item can be captured through this path.',
+            );
+          const briefRef = { owner: ref.owner, kind: ref.kind, id: ref.id, revision: ref.revision };
+          const context = await readBriefingCaptureContext(root, briefRef);
+          const sourceRef = {
+            owner: 'signals-ai' as const,
+            kind: 'briefing-source' as const,
+            id: context.sourceReference.id,
+            revision: context.sourceReference.revision,
+            digest: context.sourceReference.revision.slice('sha256:'.length),
+          };
+          const exactSource = await resolveSource(sourceRef as RecordRef);
+          if (
+            exactSource.ref.revision !== sourceRef.revision ||
+            exactSource.ref.digest !== sourceRef.digest
+          )
+            throw new SourceCaptureError(
+              409,
+              'provider_record_changed',
+              'The linked Briefing source changed.',
+            );
+          return {
+            item_reference: {
+              owner: 'signals-ai' as const,
+              kind: 'briefing-item' as const,
+              id: ref.id,
+              revision: ref.revision,
+              digest: ref.digest,
+            },
+            item_content_digest: context.itemContentDigest,
+            source_ref: sourceRef,
+            source_health: context.sourceHealth,
+            terms_policy: context.termsPolicy ?? {
+              id: null,
+              sourceId: context.sourceReference.id,
+              termsUrl: null,
+              status: 'unknown' as const,
+              reviewedAt: null,
+            },
+            observed_at: context.observedAt,
+          };
+        };
         const routeParams = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        if (route === 'source-captures' && mutation) {
+        if (route === 'source-archives' && mutation) {
+          if (routeParams.size)
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive creation does not accept query fields.',
+            );
+          json(
+            201,
+            await createSourceArchive(root, body, resolveSource, {
+              readBriefingContext,
+              ...(sourceCaptureFetcher ? { fetcher: sourceCaptureFetcher } : {}),
+            }),
+          );
+        } else if (/^source-archives\/requests\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (routeParams.size)
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive request readback does not accept query fields.',
+            );
+          json(200, await readSourceArchiveRequest(root, route.split('/')[2]!));
+        } else if (/^source-archives\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (
+            [...routeParams.keys()].some((key) => key !== 'ref') ||
+            routeParams.getAll('ref').length !== 1
+          )
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive reopen requires one exact capture RecordRef.',
+            );
+          let captureRef: unknown;
+          try {
+            captureRef = JSON.parse(routeParams.get('ref')!);
+          } catch {
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'ref must be URL-encoded closed source-capture RecordRef JSON.',
+            );
+          }
+          if (
+            !captureRef ||
+            typeof captureRef !== 'object' ||
+            Array.isArray(captureRef) ||
+            (captureRef as Record<string, unknown>).kind !== 'source_capture' ||
+            (captureRef as Record<string, unknown>).id !== route.split('/')[1]
+          )
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive path UUID must match the exact source-capture RecordRef.',
+            );
+          json(200, await readSourceArchive(root, captureRef));
+        } else if (route === 'source-captures' && mutation) {
           if (routeParams.size)
             throw new SourceCaptureError(
               400,
@@ -580,12 +701,11 @@ export function searchApi(
           );
           json(
             201,
-            await createSourceCapture(
-              root,
-              payload,
-              resolveSource,
-              captureId === undefined ? {} : { captureId: captureId as string },
-            ),
+            await createSourceCapture(root, payload, resolveSource, {
+              ...(captureId === undefined ? {} : { captureId: captureId as string }),
+              readBriefingContext,
+              ...(sourceCaptureFetcher ? { fetcher: sourceCaptureFetcher } : {}),
+            }),
           );
         } else if (route === 'source-captures' && !mutation) {
           const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
@@ -709,7 +829,15 @@ export function searchApi(
               'invalid_source_capture_request',
               'Capture reopen does not accept query fields.',
             );
-          json(200, await openSourceCapture(root, route.slice('source-captures/'.length)));
+          json(
+            200,
+            await openSourceCapture(
+              root,
+              route.slice('source-captures/'.length),
+              resolveSource,
+              readBriefingContext,
+            ),
+          );
         } else if (route === 'source-annotations' && mutation) {
           if (routeParams.size)
             throw new SourceCaptureError(
@@ -729,7 +857,55 @@ export function searchApi(
           request.headers['x-signals-owner-epoch'],
         );
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        if (route === 'source-change-reviews' && mutation) {
+        if (route === 'source-change-reviews/watches' && !mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch listing does not accept query fields.',
+            );
+          json(200, await listSourceWatches(root));
+        } else if (route === 'source-change-reviews/watches' && mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch creation does not accept query fields.',
+            );
+          json(201, await createSourceWatch(root, body));
+        } else if (route === 'source-change-reviews/watches/check' && mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch checks do not accept query fields.',
+            );
+          if (!body || typeof body !== 'object' || Array.isArray(body))
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Supply exact watch and new-capture references.',
+            );
+          const input = body as Record<string, unknown>;
+          if (Object.keys(input).some((key) => !['watch_ref', 'new_capture_ref'].includes(key)))
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch checks accept only exact watch and new-capture references.',
+            );
+          json(200, await checkSourceWatch(root, input.watch_ref, input.new_capture_ref));
+        } else if (/^source-change-reviews\/watches\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch reads do not accept query fields.',
+            );
+          json(
+            200,
+            await readSourceWatch(root, route.slice('source-change-reviews/watches/'.length)),
+          );
+        } else if (route === 'source-change-reviews' && mutation) {
           if (params.size)
             throw new SourceChangeReviewError(
               400,
@@ -1353,6 +1529,22 @@ export function searchApi(
             ),
           ),
         );
+      } else if (route === 'saved-entity' && !mutation) {
+        const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        if (
+          [...params.keys()].some((key) => !['id', 'destination'].includes(key)) ||
+          params.getAll('id').length !== 1 ||
+          params.getAll('destination').length > 1
+        )
+          throw new Error('invalid_saved_entity_selection');
+        const id = params.get('id') ?? '';
+        const destination = params.get('destination');
+        if (destination !== null && !['public', 'private'].includes(destination))
+          throw new Error('invalid_entity_destination');
+        json(
+          200,
+          await inspectSavedEntity(id, root, destination as 'public' | 'private' | undefined),
+        );
       } else if (route === 'corpus' && !mutation)
         json(200, await loadEntities(resolve(root, 'signals/entities')));
       else if (route === 'private-corpus' && !mutation)
@@ -1796,6 +1988,8 @@ export function searchApi(
           throw new Error('unknown_result_identity');
         const settings = await loadSettings(root);
         const interests = settings.queries.filter((query) => query.query === result.query);
+        // A saved entity receipt must be able to reopen the exact research that introduced it.
+        await retainRun(result, root);
         json(
           200,
           await saveEntities(
@@ -1962,6 +2156,10 @@ export function searchApi(
         return true;
       }
       if (failure instanceof SourceCaptureError) {
+        json(failure.status, { code: failure.code, reason: failure.reason });
+        return true;
+      }
+      if (failure instanceof SourceArchiveError) {
         json(failure.status, { code: failure.code, reason: failure.reason });
         return true;
       }

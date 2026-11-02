@@ -1,10 +1,13 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { LibraryFinding } from '../../../packages/domain/src/library-search.js';
 import type { Entity } from '../../../packages/domain/src/search-contract.js';
+import type { inspectSavedEntity } from '../../../packages/corpus/src/saved-entity-inspection.js';
 import {
   assessmentHolds,
   originInspectionBinding,
 } from '../../../packages/domain/src/search-assessment.js';
+
+export type SavedEntityInspection = Awaited<ReturnType<typeof inspectSavedEntity>>;
 
 const date = (value: string | null) =>
   value
@@ -204,6 +207,95 @@ export function CandidateSummary({ finding }: { finding: LibraryFinding }) {
         </span>
       </div>
     </>
+  );
+}
+
+export function SavedEntityReview({
+  finding,
+  inspection,
+  onReopenResearch,
+}: {
+  finding: LibraryFinding;
+  inspection: {
+    loading: boolean;
+    data?: SavedEntityInspection;
+    error?: string;
+  } | null;
+  onReopenResearch: (runId: string) => void;
+}) {
+  const data = inspection?.data;
+  return (
+    <section aria-label="Saved entity assessment and provenance">
+      <h4>Saved entity review</h4>
+      {inspection?.loading && <p role="status">Opening the exact saved record…</p>}
+      {inspection?.error && (
+        <p className="desk-error">Saved record inspection failed: {inspection.error}</p>
+      )}
+      {data && (
+        <>
+          <p>
+            {data.savedState === 'user-saved' ? 'Saved manually' : 'Saved by eligibility policy'} in
+            the {data.destination} corpus · {data.assessmentState.replaceAll('-', ' ')}.
+          </p>
+          <p>
+            Confidence in this assessment: {data.confidence}. Signal{' '}
+            {data.assessment.score ?? 'unknown'} is a versioned evidence-policy index, not a
+            probability.
+          </p>
+          <p>
+            Assessment: {data.assessment.policy} · {date(data.assessment.asOf)} · record{' '}
+            {data.record.entity.id}.
+          </p>
+          <details>
+            <summary>
+              Exact retained evidence ({data.record.entity.evidence.length} sources)
+            </summary>
+            <ul>
+              {data.record.entity.evidence.map((source) => (
+                <li key={source.id}>
+                  <strong>{source.title}</strong> · {source.origin} · {source.state} · fetched{' '}
+                  {date(source.fetchedAt)} · source ID <code>{source.id}</code> · digest{' '}
+                  <code>{source.digest ?? 'Unknown'}</code>
+                  <p>{source.uri}</p>
+                </li>
+              ))}
+            </ul>
+            <p>
+              These are the original saved evidence identifiers and receipts. The assessment and
+              source details below retain their recorded limitations.
+            </p>
+          </details>
+          <h5>Research that introduced this saved record</h5>
+          {data.receipts.length ? (
+            <ul>
+              {data.receipts.map((receipt) => (
+                <li key={receipt.id}>
+                  <p>
+                    “{receipt.query}” · {receipt.mode} save · {date(receipt.at)} · receipt{' '}
+                    <code>{receipt.id}</code>
+                  </p>
+                  <button onClick={() => onReopenResearch(receipt.runId)}>
+                    Reopen frozen research run
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No saved selection receipt is available for this historical record.</p>
+          )}
+          <p>
+            Reopening reads the exact retained run. It does not start new research or change this
+            assessment.
+          </p>
+        </>
+      )}
+      {!data && !inspection?.loading && !inspection?.error && (
+        <p>Open this record from the local Library to inspect its exact save receipt.</p>
+      )}
+      {finding.native?.assessment.state === 'unassessed' && (
+        <p>Saving retains this lead only; it does not create an assessment or evidence.</p>
+      )}
+    </section>
   );
 }
 

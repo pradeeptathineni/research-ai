@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AssessmentConfidence,
   AssessmentDerivation,
@@ -7,6 +7,8 @@ import {
   HomeOverview,
   ComparisonView,
   FrozenDiscussion,
+  SavedEntityReview,
+  type SavedEntityInspection,
   type FrozenAnswer,
 } from './candidate-views.js';
 import {
@@ -152,6 +154,12 @@ export function Experience() {
   currentState.current = state;
   const activeReopen = useRef(automaticReopen(state));
   const [records, setRecords] = useState<LibraryFinding[]>([]);
+  const [entityInspection, setEntityInspection] = useState<{
+    key: string;
+    loading: boolean;
+    data?: SavedEntityInspection;
+    error?: string;
+  } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -196,34 +204,70 @@ export function Experience() {
     navigate({ detail: '' });
     evidenceOpener.current?.focus();
   }
-  async function api<T>(route: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-    let authorization = token;
-    if (body !== undefined && !authorization) {
-      const response = await fetch(`${base}__signals/api/session`);
-      if (!response.ok)
-        throw new Error('The local session is unavailable. Browsing remains available.');
-      authorization = ((await response.json()) as { token: string }).token;
-      setToken(authorization);
-    }
-    const response = await fetch(
-      `${base}__signals/api/${route}`,
-      body === undefined
-        ? { signal }
-        : {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', 'x-signals-token': authorization },
-            body: JSON.stringify(body),
-            signal,
-          },
-    );
-    const value: unknown = await response.json();
-    if (!response.ok)
-      throw new Error(
-        value && typeof value === 'object' && 'code' in value
-          ? String(value.code)
-          : 'Operation failed. Your input is retained.',
+  const api = useCallback(
+    async <T,>(route: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+      let authorization = token;
+      if (body !== undefined && !authorization) {
+        const response = await fetch(`${base}__signals/api/session`);
+        if (!response.ok)
+          throw new Error('The local session is unavailable. Browsing remains available.');
+        authorization = ((await response.json()) as { token: string }).token;
+        setToken(authorization);
+      }
+      const response = await fetch(
+        `${base}__signals/api/${route}`,
+        body === undefined
+          ? { signal }
+          : {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', 'x-signals-token': authorization },
+              body: JSON.stringify(body),
+              signal,
+            },
       );
-    return value as T;
+      const value: unknown = await response.json();
+      if (!response.ok)
+        throw new Error(
+          value && typeof value === 'object' && 'code' in value
+            ? String(value.code)
+            : 'Operation failed. Your input is retained.',
+        );
+      return value as T;
+    },
+    [token],
+  );
+  useEffect(() => {
+    if (!local || !detailed?.native) {
+      setEntityInspection(null);
+      return;
+    }
+    let current = true;
+    const key = detailed.key;
+    setEntityInspection({ key, loading: true });
+    const route = `saved-entity?id=${encodeURIComponent(detailed.id)}&destination=${detailed.origin.destination}`;
+    void api<SavedEntityInspection>(route)
+      .then((data) => {
+        if (current) setEntityInspection({ key, loading: false, data });
+      })
+      .catch((failure: unknown) => {
+        if (current)
+          setEntityInspection({
+            key,
+            loading: false,
+            error: failure instanceof Error ? failure.message : String(failure),
+          });
+      });
+    return () => {
+      current = false;
+    };
+  }, [api, detailed, local]);
+  async function reopenFrozenResearch(runId: string) {
+    const opened = await api<{ id: string }>('history/open', { runId });
+    setProjectResearch(null);
+    setWorkbenchStarted(true);
+    setReopenRun(opened.id);
+    activeReopen.current = opened.id;
+    navigate({ view: 'Search', mode: 'research', panel: '', run: opened.id });
   }
   async function action(operation: () => Promise<void> | void) {
     setError('');
@@ -1271,6 +1315,8 @@ export function Experience() {
           <EvidencePanel title={detailed.title} onClose={closeEvidence}>
             <FindingDetail
               finding={detailed}
+              inspection={entityInspection?.key === detailed.key ? entityInspection : null}
+              onReopenResearch={(runId) => void action(() => reopenFrozenResearch(runId))}
               matchedFields={
                 hits.find((hit) => hit.finding.key === detailed.key)?.matchedFields ?? []
               }
@@ -1335,13 +1381,28 @@ function ProjectFit({
 function FindingDetail({
   finding,
   matchedFields,
+  inspection,
+  onReopenResearch,
 }: {
   finding: LibraryFinding;
   matchedFields: string[];
+  inspection: {
+    loading: boolean;
+    data?: SavedEntityInspection;
+    error?: string;
+  } | null;
+  onReopenResearch: (runId: string) => void;
 }) {
   return (
     <div className="desk-detail">
       <p className="desk-detail-description">{finding.description}</p>
+      {finding.native && (
+        <SavedEntityReview
+          finding={finding}
+          inspection={inspection}
+          onReopenResearch={onReopenResearch}
+        />
+      )}
       {finding.answer && (
         <section aria-label="Complete retained answer">
           <h4>Complete answer · Unassessed · Confidence Unknown</h4>

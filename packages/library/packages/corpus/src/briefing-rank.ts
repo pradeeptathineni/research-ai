@@ -5,6 +5,8 @@ import {
   type BriefingRankInput,
   type RankingExplanation,
 } from './briefing/schema.js';
+import { summarizeBriefingPulse } from './briefing-pulse.js';
+import { briefingEventFreshness } from './briefing-event-freshness.js';
 
 const DAY = 86_400_000;
 const clamp = (value: number, low = 0, high = 100) => Math.max(low, Math.min(high, value));
@@ -108,6 +110,16 @@ function freshness(
   input: BriefingRankInput,
   now: number,
 ): RankingExplanation['components']['freshness'] {
+  const events = input.events;
+  if (events !== undefined) {
+    const targets = input.items.map(({ item, source, interests }) => ({
+      itemId: item.id,
+      interests: interests.filter(
+        (interest) => itemInterestTerms(item, interest, source.id).length > 0,
+      ),
+    }));
+    return briefingEventFreshness(events, targets, now);
+  }
   const values = input.items.flatMap(({ item, interests }) =>
     interests
       .filter((interest) => interest.enabled && interest.weight > 0)
@@ -170,39 +182,39 @@ function novelty(input: BriefingRankInput): RankingExplanation['components']['no
 }
 
 function velocity(input: BriefingRankInput): RankingExplanation['components']['velocity'] {
-  const groups = new Map<string, typeof input.metrics>();
-  for (const metric of input.metrics) {
-    const key = `${metric.platform}:${metric.name}`;
-    groups.set(key, [...(groups.get(key) ?? []), metric]);
-  }
-  const changes = [...groups.entries()].flatMap(([key, rows]) => {
-    const sorted = [...rows].sort((a, b) => a.observedAt.localeCompare(b.observedAt));
-    if (sorted.length < 2) return [];
-    const first = sorted[0]!;
-    const last = sorted.at(-1)!;
-    const hours = (Date.parse(last.observedAt) - Date.parse(first.observedAt)) / 3_600_000;
-    if (!(hours > 0)) return [];
-    const perHour = Math.max(0, last.value - first.value) / hours;
-    return [
-      {
-        key,
-        score: clamp((100 * perHour) / Math.max(1, last.value)),
-        refs: sorted.map((row) => row.id),
-      },
-    ];
-  });
+  const changes = summarizeBriefingPulse(input.metrics)
+    .filter(
+      (pulse) =>
+        pulse.status === 'available' && pulse.latestValue !== null && pulse.perHour !== null,
+    )
+    .map((pulse) => ({
+      key: `${pulse.itemId}:${pulse.platform}:${pulse.name}:${pulse.scope}:${pulse.method}:${pulse.sourceRef ?? 'no-source-ref'}`,
+      score: clamp((100 * pulse.perHour!) / Math.max(1, pulse.latestValue!)),
+      refs: input.metrics
+        .filter(
+          (metric) =>
+            metric.itemId === pulse.itemId &&
+            metric.platform === pulse.platform &&
+            metric.name === pulse.name &&
+            metric.scope === pulse.scope &&
+            metric.method === pulse.method &&
+            metric.sourceRef === pulse.sourceRef,
+        )
+        .map((metric) => metric.id),
+    }));
   if (!changes.length)
     return {
       value: null,
       status: 'insufficient-observations',
-      reason: 'Velocity needs at least two time-ordered observations for one platform and metric.',
+      reason:
+        'Velocity needs two unambiguous time-ordered observations for one item and exact source provenance stream.',
       refs: [],
     };
   const best = changes.reduce((a, b) => (b.score > a.score ? b : a));
   return {
     value: Math.round(best.score),
     status: 'available',
-    reason: `Highest nonnegative per-hour change within ${best.key}; values from different platforms are never added.`,
+    reason: `Highest per-hour change within ${best.key}; observations from different item or source provenance streams are never combined.`,
     refs: best.refs,
   };
 }

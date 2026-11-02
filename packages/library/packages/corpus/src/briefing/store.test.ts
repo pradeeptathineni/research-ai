@@ -655,6 +655,168 @@ describe('Briefing same-store API', () => {
     ).rejects.toThrow('briefing_query_not_supported');
   });
 
+  it('previews and recovers an exact per-interest preference with a stale-write guard', async () => {
+    const root = await fixtureRoot();
+    const sourceId = (await createBriefingApi(root).listSources())[0]!.record.id;
+    const visibleStory = { ...storyFixture, itemIds: [itemFixture.id] };
+    const hiddenItem = {
+      ...itemFixture,
+      id: 'item-hidden',
+      canonicalUrl: 'https://example.test/story/hidden',
+      title: 'A hidden climate data release',
+      storyId: 'story-hidden',
+    };
+    const hiddenStory = {
+      ...visibleStory,
+      id: 'story-hidden',
+      itemIds: [hiddenItem.id],
+      representativeItemId: hiddenItem.id,
+      relation: 'single' as const,
+      groupingEvidence: [],
+    };
+    await retainBriefingRecords(root, {
+      items: [
+        { ...itemFixture, sourceId },
+        { ...hiddenItem, sourceId },
+      ],
+      stories: [visibleStory, hiddenStory],
+    });
+    await createBriefingApi(root).recordFeedback({
+      requestId: 'fb5d790c-433b-4d42-b7ac-9f6ae8c824c3',
+      targetKind: 'story',
+      targetId: hiddenStory.id,
+      action: 'dismiss',
+    });
+    const currentInterest = (await createBriefingApi(root).listInterests()).find(
+      (interest) => interest.id === 'climate-data',
+    )!;
+    const before = await briefingRoute(root, 'briefing/preferences', false, undefined, 0);
+    const preview = await briefingRoute(
+      root,
+      'briefing/preferences/interest-preview',
+      true,
+      { interestId: 'climate-data', weight: 0.9, halfLifeDays: 0.25 },
+      0,
+    );
+    expect(preview).toMatchObject({
+      status: 200,
+      body: {
+        schema: 'signals.briefing-interest-preview.v1',
+        current: {
+          interestId: 'climate-data',
+          weight: currentInterest.weight,
+          halfLifeDays: currentInterest.halfLifeDays,
+        },
+        draft: { interestId: 'climate-data', weight: 0.9, halfLifeDays: 0.25 },
+        stories: [{ storyId: visibleStory.id, currentPosition: 1, draftPosition: 1 }],
+      },
+    });
+    const previewRow = (
+      preview?.body as {
+        stories: Array<{ currentExplanation: unknown; draftExplanation: unknown }>;
+      }
+    ).stories[0]!;
+    expect(previewRow.currentExplanation).toBeDefined();
+    expect(previewRow.draftExplanation).toBeDefined();
+    expect(await briefingRoute(root, 'briefing/preferences', false, undefined, 0)).toEqual(before);
+
+    const requestId = 'c2cd2dbd-10fb-4d41-9a06-215aee6b08a1';
+    await briefingRoute(
+      root,
+      'briefing/preferences/interest',
+      true,
+      {
+        requestId,
+        interestId: 'climate-data',
+        weight: 0.9,
+        halfLifeDays: 0.25,
+        expected: {
+          weight: currentInterest.weight,
+          halfLifeDays: currentInterest.halfLifeDays,
+        },
+      },
+      0,
+    );
+    const status = await briefingRoute(
+      root,
+      'briefing/preferences/interest-status',
+      false,
+      undefined,
+      1,
+      new URLSearchParams({ requestId }),
+    );
+    expect(status).toMatchObject({
+      status: 200,
+      body: {
+        status: 'found',
+        requestId,
+        preference: { id: 'climate-data', weight: 0.9, halfLifeDays: 0.25 },
+        currentPreference: { interestId: 'climate-data', weight: 0.9, halfLifeDays: 0.25 },
+        currentMatches: true,
+      },
+    });
+    await expect(
+      briefingRoute(
+        root,
+        'briefing/preferences/interest',
+        true,
+        {
+          requestId: '587f73b1-8e78-4814-90c5-c0c8584c2059',
+          interestId: 'climate-data',
+          weight: 0.4,
+          halfLifeDays: 14,
+          expected: {
+            weight: currentInterest.weight,
+            halfLifeDays: currentInterest.halfLifeDays,
+          },
+        },
+        0,
+      ),
+    ).rejects.toThrow('briefing_interest_preference_changed');
+    await briefingRoute(
+      root,
+      'briefing/preferences/interest',
+      true,
+      {
+        requestId: '831e236e-7059-4470-8b93-7b9b257e8312',
+        interestId: 'climate-data',
+        weight: 0.4,
+        halfLifeDays: 14,
+        expected: { weight: 0.9, halfLifeDays: 0.25 },
+      },
+      0,
+    );
+    const priorStatus = await briefingRoute(
+      root,
+      'briefing/preferences/interest-status',
+      false,
+      undefined,
+      1,
+      new URLSearchParams({ requestId }),
+    );
+    expect(priorStatus).toMatchObject({
+      status: 200,
+      body: {
+        status: 'found',
+        preference: { weight: 0.9, halfLifeDays: 0.25 },
+        currentPreference: { interestId: 'climate-data', weight: 0.4, halfLifeDays: 14 },
+        currentMatches: false,
+      },
+    });
+    const absentRequest = await briefingRoute(
+      root,
+      'briefing/preferences/interest-status',
+      false,
+      undefined,
+      1,
+      new URLSearchParams({ requestId: 'b7cda32c-ae87-40a2-bfc2-b4a7a6f84c1f' }),
+    );
+    expect(absentRequest).toMatchObject({
+      status: 200,
+      body: { status: 'not-found', qualification: expect.stringContaining('does not prove') },
+    });
+  });
+
   it('parses only bounded JSON Feed text fields and validates public entry URLs', async () => {
     const root = await fixtureRoot();
     const source = (await createBriefingApi(root).listSources())[0]!.record;

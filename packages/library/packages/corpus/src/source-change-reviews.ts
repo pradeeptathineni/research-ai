@@ -25,6 +25,15 @@ const refSchema = Type.Object(
   },
   closed,
 );
+const changeEvidenceSchema = Type.Object(
+  {
+    side: Type.Enum(['prior', 'next']),
+    capture_ref: refSchema,
+    line_number: Type.Integer({ minimum: 1 }),
+    line_sha256: digest,
+  },
+  closed,
+);
 const assertionSchema = Type.Object(
   {
     entity_ref: refSchema,
@@ -33,6 +42,7 @@ const assertionSchema = Type.Object(
     decision: Type.Enum(['retain', 'revise']),
     revised_status: Type.Optional(Type.Enum(['supported', 'contradicted', 'uncertain'])),
     rationale: Type.String({ minLength: 1, maxLength: 1600 }),
+    change_evidence: Type.Optional(Type.Array(changeEvidenceSchema, { minItems: 1, maxItems: 4 })),
   },
   closed,
 );
@@ -49,6 +59,7 @@ const requestSchema = Type.Object(
 );
 type Request = Static<typeof requestSchema>;
 type Assertion = Static<typeof assertionSchema>;
+type ChangeEvidence = Static<typeof changeEvidenceSchema>;
 const versionCoverageSchema = Type.Object(
   {
     text_sha256: digest,
@@ -104,6 +115,8 @@ export type BoundedSourceTextDiff = {
   truncated_added_line: boolean;
   removed_sha256: string;
   added_sha256: string;
+  removed_line_refs?: Array<{ line_number: number; line_sha256: string; text: string }>;
+  added_line_refs?: Array<{ line_number: number; line_sha256: string; text: string }>;
 };
 export function boundedSourceTextDiff(before: string, after: string): BoundedSourceTextDiff {
   const left = before.split('\n');
@@ -119,8 +132,9 @@ export function boundedSourceTextDiff(before: string, after: string): BoundedSou
     suffix++;
   const removed = left.slice(prefix, left.length - suffix);
   const added = right.slice(prefix, right.length - suffix);
-  const clipped = (rows: string[]) => {
+  const clipped = (rows: string[], firstLineNumber: number) => {
     const kept: string[] = [];
+    const lineRefs: Array<{ line_number: number; line_sha256: string; text: string }> = [];
     let bytes = 0;
     let omitted = 0;
     let truncatedLine = false;
@@ -152,12 +166,17 @@ export function boundedSourceTextDiff(before: string, after: string): BoundedSou
         break;
       }
       kept.push(row);
+      lineRefs.push({
+        line_number: firstLineNumber + index,
+        line_sha256: sha256(row),
+        text: row,
+      });
       bytes += size;
     }
-    return { kept, omitted, truncatedLine };
+    return { kept, lineRefs, omitted, truncatedLine };
   };
-  const shownRemoved = clipped(removed);
-  const shownAdded = clipped(added);
+  const shownRemoved = clipped(removed, prefix + 1);
+  const shownAdded = clipped(added, prefix + 1);
   return {
     state: before === after ? 'unchanged' : 'changed',
     removed: shownRemoved.kept,
@@ -168,6 +187,8 @@ export function boundedSourceTextDiff(before: string, after: string): BoundedSou
     truncated_added_line: shownAdded.truncatedLine,
     removed_sha256: sha256(removed.join('\n')),
     added_sha256: sha256(added.join('\n')),
+    removed_line_refs: shownRemoved.lineRefs,
+    added_line_refs: shownAdded.lineRefs,
   };
 }
 
@@ -181,6 +202,51 @@ const sameRef = (a: RecordRef, b: RecordRef) =>
   a.id === b.id &&
   a.revision === b.revision &&
   a.digest === b.digest;
+
+export type SourceChangeImpactEvidenceState = 'bound' | 'partial' | 'unbound';
+export function sourceChangeImpactEvidenceState(assertions: readonly { change_evidence?: unknown[] }[]): SourceChangeImpactEvidenceState {
+  const bound = assertions.filter((assertion) => Array.isArray(assertion.change_evidence) && assertion.change_evidence.length > 0).length;
+  return bound === assertions.length ? 'bound' : bound === 0 ? 'unbound' : 'partial';
+}
+
+function validateChangeEvidence(
+  value: ChangeEvidence[] | undefined,
+  prior: Awaited<ReturnType<typeof openSourceCapture>>,
+  next: Awaited<ReturnType<typeof openSourceCapture>>,
+  diff: BoundedSourceTextDiff,
+): ChangeEvidence[] | undefined {
+  if (value === undefined) return undefined;
+  const unique = new Set<string>();
+  for (const evidence of value) {
+    const capture = evidence.side === 'prior' ? prior : next;
+    const expectedRef = evidence.side === 'prior' ? prior.ref : next.ref;
+    if (!sameRef(evidence.capture_ref, expectedRef))
+      changed('Changed-line evidence does not match the exact prior/next capture reference.');
+    const line = capture.capture.text.split('\n')[evidence.line_number - 1];
+    const candidates = evidence.side === 'prior' ? diff.removed_line_refs : diff.added_line_refs;
+    const candidate = candidates?.find((row) => row.line_number === evidence.line_number);
+    if (line === undefined || !candidate || candidate.text !== line || candidate.line_sha256 !== evidence.line_sha256 || sha256(line) !== evidence.line_sha256)
+      changed('Changed-line evidence does not match a complete exact line in the selected source diff.');
+    const key = canonical(evidence);
+    if (unique.has(key)) invalid('Changed-line evidence references must be unique.');
+    unique.add(key);
+  }
+  return value;
+}
+
+async function verifyRetainedChangeEvidence(root: string, review: Review) {
+  if (sourceChangeImpactEvidenceState(review.assertions) === 'unbound') return;
+  const [prior, next] = await Promise.all([
+    openSourceCapture(root, review.prior_capture_ref.id),
+    openSourceCapture(root, review.new_capture_ref.id),
+  ]);
+  if (!sameRef(prior.ref, review.prior_capture_ref) || !sameRef(next.ref, review.new_capture_ref)) changed();
+  const diff = boundedSourceTextDiff(prior.capture.text, next.capture.text);
+  if (canonical(diff) !== canonical(review.observed_change))
+    changed('The retained source diff no longer matches its exact capture versions.');
+  for (const assertion of review.assertions)
+    validateChangeEvidence(assertion.change_evidence, prior, next, diff);
+}
 
 type Review = {
   schema_version: 'source-change-review-v1';
@@ -221,6 +287,16 @@ const reviewSchema = Type.Object(
         truncated_added_line: Type.Boolean(),
         removed_sha256: digest,
         added_sha256: digest,
+        removed_line_refs: Type.Optional(Type.Array(Type.Object({
+          line_number: Type.Integer({ minimum: 1 }),
+          line_sha256: digest,
+          text: Type.String({ maxLength: 5000 }),
+        }, closed), { maxItems: 40 })),
+        added_line_refs: Type.Optional(Type.Array(Type.Object({
+          line_number: Type.Integer({ minimum: 1 }),
+          line_sha256: digest,
+          text: Type.String({ maxLength: 5000 }),
+        }, closed), { maxItems: 40 })),
       },
       closed,
     ),
@@ -324,6 +400,7 @@ export async function listSourceChangeReviews(root: string) {
       prior_capture_ref: review.prior_capture_ref,
       new_capture_ref: review.new_capture_ref,
       meaningfulness: review.meaningfulness,
+      impact_evidence_state: sourceChangeImpactEvidenceState(review.assertions),
       assertions: review.assertions,
     })),
   };
@@ -334,7 +411,13 @@ export async function readSourceChangeReview(root: string, id: string) {
   const review = (await loadStore(root)).reviews.find((row) => row.id === id);
   if (!review)
     return fail(404, 'source_change_review_not_found', 'No retained review has that UUID.');
-  return { ref: reviewRef(review), review, cold_read: true };
+  await verifyRetainedChangeEvidence(root, review);
+  return {
+    ref: reviewRef(review),
+    review,
+    cold_read: true,
+    impact_evidence_state: sourceChangeImpactEvidenceState(review.assertions),
+  };
 }
 
 function reviewBytes(review: Review) {
@@ -348,6 +431,7 @@ export async function sourceChangeReviewRecordBytes(root: string, id: string) {
   const review = (await loadStore(root)).reviews.find((row) => row.id === id);
   if (!review)
     return fail(404, 'source_change_review_not_found', 'No retained review has that UUID.');
+  await verifyRetainedChangeEvidence(root, review);
   return { bytes: reviewBytes(review), storage: 'source_change_review_record' as const };
 }
 
@@ -408,7 +492,13 @@ export async function createSourceChangeReview(root: string, input: unknown) {
       changed(
         'This request UUID already names a different immutable review. Read the original UUID before continuing.',
       );
-    return { ref: reviewRef(existing), review: existing, replay: true };
+    await verifyRetainedChangeEvidence(root, existing);
+    return {
+      ref: reviewRef(existing),
+      review: existing,
+      replay: true,
+      impact_evidence_state: sourceChangeImpactEvidenceState(existing.assertions),
+    };
   }
   if (
     request.prior_capture_ref.kind !== 'source_capture' ||
@@ -445,7 +535,12 @@ export async function createSourceChangeReview(root: string, input: unknown) {
   const assertions = await Promise.all(
     request.assertions.map(async (row) => {
       const exact = await exactEntityAssertion(root, row);
-      return { ...row, observation_sha256: exact.observation_sha256 };
+      const changeEvidence = validateChangeEvidence(row.change_evidence, prior, next, observedChange);
+      return {
+        ...row,
+        ...(changeEvidence ? { change_evidence: changeEvidence } : {}),
+        observation_sha256: exact.observation_sha256,
+      };
     }),
   );
   const review: Review = {
@@ -466,6 +561,9 @@ export async function createSourceChangeReview(root: string, input: unknown) {
       'Meaningfulness, confidence impact, and retain/revise decisions are human judgments.',
       'The retained review does not rewrite the original Signal, its evidence, or historical assessment.',
       'Capture observation time does not establish currentness or complete source coverage.',
+      sourceChangeImpactEvidenceState(assertions) === 'bound'
+        ? 'Each assertion has exact line locators into its retained source versions; those locators do not establish semantic impact.'
+        : 'Assertions without exact line locators remain explicitly unbound to a specific changed line.',
     ],
   };
   let retained = review;
@@ -515,5 +613,10 @@ export async function createSourceChangeReview(root: string, input: unknown) {
       );
     await atomicJson(resolve(root, '.signals/source-change-reviews.json'), store);
   });
-  return { ref: reviewRef(retained), review: retained, replay: retained !== review };
+  return {
+    ref: reviewRef(retained),
+    review: retained,
+    replay: retained !== review,
+    impact_evidence_state: sourceChangeImpactEvidenceState(retained.assertions),
+  };
 }

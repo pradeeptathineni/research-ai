@@ -275,6 +275,38 @@ export const RankingExplanationSchema = Type.Object(
   closed,
 );
 
+export const InterestTuningValueSchema = Type.Object(
+  {
+    interestId: Type.String({ pattern: '^[a-z0-9-]{1,80}$' }),
+    weight: Type.Number({ minimum: 0, maximum: 1 }),
+    halfLifeDays: Type.Number({ exclusiveMinimum: 0 }),
+  },
+  closed,
+);
+export const InterestPreferencePreviewStorySchema = Type.Object(
+  {
+    storyId: opaqueId,
+    title: Type.String({ minLength: 1, maxLength: 500 }),
+    currentPosition: Type.Integer({ minimum: 1, maximum: 512 }),
+    draftPosition: Type.Integer({ minimum: 1, maximum: 512 }),
+    currentScore: Type.Number({ minimum: 0, maximum: 100 }),
+    draftScore: Type.Number({ minimum: 0, maximum: 100 }),
+    currentExplanation: RankingExplanationSchema,
+    draftExplanation: RankingExplanationSchema,
+  },
+  closed,
+);
+export const InterestPreferencePreviewSchema = Type.Object(
+  {
+    schema: Type.Literal('signals.briefing-interest-preview.v1'),
+    readAt: instant,
+    current: InterestTuningValueSchema,
+    draft: InterestTuningValueSchema,
+    stories: Type.Array(InterestPreferencePreviewStorySchema, { maxItems: 512 }),
+  },
+  closed,
+);
+
 /** Null before explicit recording; no legal or terms decision is inferred from a feed URL. */
 export const SourceTermsPolicySchema = Type.Object(
   {
@@ -304,6 +336,26 @@ export const InterestPreferenceSchema = Type.Object(
   },
   closed,
 );
+export const InterestPreferenceStatusSchema = Type.Union([
+  Type.Object(
+    {
+      status: Type.Literal('found'),
+      requestId: Type.String({ format: 'uuid' }),
+      preference: InterestPreferenceSchema,
+      currentPreference: Type.Union([InterestTuningValueSchema, Type.Null()]),
+      currentMatches: Type.Boolean(),
+    },
+    closed,
+  ),
+  Type.Object(
+    {
+      status: Type.Literal('not-found'),
+      requestId: Type.String({ format: 'uuid' }),
+      qualification: Type.String({ minLength: 1, maxLength: 500 }),
+    },
+    closed,
+  ),
+]);
 export const SourcePreferenceSchema = Type.Object(
   {
     id: opaqueId,
@@ -340,6 +392,7 @@ export const BriefingRankInputSchema = Type.Object(
     story: StorySchema,
     storyReference: BriefingRecordReferenceSchema,
     items: Type.Array(BriefingRankItemInputSchema, { minItems: 1, maxItems: 100 }),
+    events: Type.Optional(Type.Array(EventSchema, { maxItems: 100 })),
     metrics: Type.Array(MetricObservationSchema, { maxItems: 1000 }),
     feedback: Type.Array(FeedbackSchema, { maxItems: 100 }),
   },
@@ -374,6 +427,34 @@ export type BriefingReadOptions = {
   before?: string;
   limit?: number;
 };
+export type BriefingStoryInspection = {
+  status: 'found' | 'missing';
+  story: BriefingRecord<Story, 'briefing-story'> | null;
+  members: Array<{
+    itemId: string;
+    item: BriefingRecord<Item, 'briefing-item'> | null;
+    itemAvailability: 'retained' | 'unavailable';
+    source: BriefingRecord<Source, 'briefing-source'> | null;
+    sourceAvailability: 'retained' | 'unavailable';
+  }>;
+  qualification: string;
+};
+export type BriefingStoryPage = {
+  status: 'page' | 'changed';
+  snapshot: string;
+  offset: number;
+  stories: Array<{
+    storyReference: BriefingRecordReference & { kind: 'briefing-story' };
+    representativeItemReference: (BriefingRecordReference & { kind: 'briefing-item' }) | null;
+    representativeTitle: string | null;
+    itemAvailability: 'retained' | 'unavailable';
+    sourceReference: (BriefingRecordReference & { kind: 'briefing-source' }) | null;
+    sourceAttribution: string | null;
+    sourceAvailability: 'retained' | 'unavailable';
+  }>;
+  nextCursor: string | null;
+  qualification: string;
+};
 export type FeedbackRequest = {
   requestId: string;
   targetKind: Feedback['targetKind'];
@@ -392,7 +473,11 @@ export type InterestPreferenceRequest = {
   interestId: string;
   weight: number;
   halfLifeDays: number;
+  expected?: { weight: number; halfLifeDays: number };
 };
+export type InterestTuningValue = Static<typeof InterestTuningValueSchema>;
+export type InterestPreferencePreview = Static<typeof InterestPreferencePreviewSchema>;
+export type InterestPreferenceStatus = Static<typeof InterestPreferenceStatusSchema>;
 export type SourcePreference = Pick<Source, 'id' | 'priority'> & { updatedAt: string };
 export type SourcePreferenceRequest = { requestId: string; sourceId: string; priority: number };
 export type RankingPreferences = Static<typeof RankingPreferencesSchema>;
@@ -412,6 +497,8 @@ export interface BriefingReadApi {
   listStories(
     options?: BriefingReadOptions,
   ): Promise<Array<BriefingRecord<Story, 'briefing-story'>>>;
+  readStoryInspection(storyId: string): Promise<BriefingStoryInspection>;
+  readStoryPage(cursor?: string): Promise<BriefingStoryPage>;
   listEvents(
     options?: BriefingReadOptions,
   ): Promise<Array<BriefingRecord<Event, 'briefing-event'>>>;

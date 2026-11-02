@@ -2,9 +2,14 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { expect, it } from 'vitest';
+import { defaultSettings, saveSettings } from './search-settings.js';
+import { createBriefingApi, retainBriefingRecords } from './briefing/store.js';
 import { saveLibraryLead } from './library-leads.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
+import { searchApi } from './search-api.js';
 import {
   annotateSource,
   compareSourceCaptures,
@@ -13,8 +18,112 @@ import {
   selectSourceCapture,
   type RecordRef,
 } from './source-captures.js';
+import type { Item, Story } from './briefing/schema.js';
 
 const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
+
+it('captures a selected Briefing rank item through the existing owner and cold-reads terms/source drift', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-briefing-capture-')));
+  const api = searchApi(
+    root,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    async (uri) => ({ text: 'Synthetic captured source text.', digest: sha('Synthetic captured source text.'), uri }),
+  );
+  async function request(route: string, body?: unknown, headers: Record<string, string> = {}) {
+    const incoming = Object.assign(
+      Readable.from(body === undefined ? [] : [JSON.stringify(body)]),
+      {
+        url: `/signals-ai/__signals/api/${route}`,
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { host: '127.0.0.1:9999', 'content-type': 'application/json', ...headers },
+      },
+    ) as unknown as IncomingMessage;
+    let status = 0;
+    let text = '';
+    const outgoing = {
+      writeHead(code: number) { status = code; },
+      end(value: string) { text = value; },
+    } as unknown as ServerResponse;
+    expect(await api(incoming, outgoing)).toBe(true);
+    return { status, text };
+  }
+  try {
+    const settings = {
+      ...defaultSettings,
+      followedSources: [{ uri: 'https://example.test/feed.xml', label: 'Fixture feed', enabled: true, interests: ['fixture'] }],
+      queries: [{ id: 'fixture', query: 'fixture', enabled: true, everyDays: 1, offsetMinutes: 0, concepts: [] }],
+    };
+    await saveSettings(settings, root);
+    const sourceId = (await createBriefingApi(root).listSources())[0]!.reference.id;
+    const item: Item = {
+      id: 'fixture-item-1', sourceId, canonicalUrl: 'https://example.test/article/1',
+      title: 'Synthetic article', author: null, publishedAt: null,
+      observedAt: '2026-10-28T00:00:00.000Z', contentDigest: sha('fixture article'),
+      excerpt: 'Synthetic excerpt', metrics: [], interestIds: ['fixture'], storyId: 'fixture-story-1',
+    };
+    const story: Story = {
+      id: 'fixture-story-1', itemIds: [item.id], representativeItemId: item.id,
+      firstSeen: item.observedAt, lastSeen: item.observedAt, relation: 'single',
+      groupingEvidence: [], interestMatches: [{ interestId: 'fixture', matchedTerms: ['fixture'] }],
+    };
+    await retainBriefingRecords(root, { items: [item], stories: [story] });
+    const rankInput = (await createBriefingApi(root).listRankInputs()).find((row) => row.story.id === story.id)!;
+    const itemRef = {
+      owner: 'signals-ai', kind: 'briefing-item', id: rankInput.items[0]!.item.id,
+      revision: rankInput.items[0]!.itemReference.revision,
+      digest: rankInput.items[0]!.itemReference.revision.slice('sha256:'.length),
+    };
+    const session = JSON.parse((await request('session')).text) as { token: string };
+    const scopeResult = await request('request-scope', {}, { 'x-signals-token': session.token });
+    expect(scopeResult.status).toBe(200);
+    const scope = JSON.parse(scopeResult.text) as { identity: string; epoch: string };
+    const headers = {
+      'x-signals-token': session.token,
+      'x-signals-provider-version': '1.0',
+      'x-signals-instance-id': scope.identity,
+      'x-signals-owner-epoch': scope.epoch,
+    };
+    await createBriefingApi(root).setSourceTermsPolicy({
+      requestId: randomUUID(), sourceId, termsUrl: 'https://example.test/terms', status: 'blocked',
+    });
+    const blocked = await request('source-captures', { source_ref: itemRef, mode: 'fetch' }, headers);
+    expect(blocked.status).toBe(403);
+    expect(blocked.text).toContain('source_terms_blocked');
+
+    await createBriefingApi(root).setSourceTermsPolicy({
+      requestId: randomUUID(), sourceId, termsUrl: null, status: 'unknown',
+    });
+    const createdResponse = await request('source-captures', { source_ref: itemRef, mode: 'fetch' }, headers);
+    expect(createdResponse.status).toBe(201);
+    const created = JSON.parse(createdResponse.text) as {
+      capture: { id: string; briefing_context: { terms_policy: { status: string }; source_health: { status: string } } };
+    };
+    expect(created.capture.briefing_context.terms_policy.status).toBe('unknown');
+    expect(created.capture.briefing_context.source_health.status).toBe('unknown');
+    const current = await request(`source-captures/${created.capture.id}`, undefined, headers);
+    expect(current.status).toBe(200);
+    expect(JSON.parse(current.text).origin_status).toBe('current');
+
+    await createBriefingApi(root).setSourceTermsPolicy({
+      requestId: randomUUID(), sourceId, termsUrl: 'https://example.test/terms', status: 'recorded',
+    });
+    const changed = await request(`source-captures/${created.capture.id}`, undefined, headers);
+    expect(changed.status).toBe(200);
+    expect(JSON.parse(changed.text).origin_status).toBe('changed');
+
+    await rm(join(root, '.signals/briefing/state.json'), { force: true });
+    const missing = await request(`source-captures/${created.capture.id}`, undefined, headers);
+    expect(missing.status).toBe(200);
+    expect(JSON.parse(missing.text).origin_status).toBe('missing');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 it('retains exact paste, annotation successors and historical selections without source reacquisition', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-captures-')));
