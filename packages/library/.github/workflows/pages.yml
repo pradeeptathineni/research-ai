@@ -31,11 +31,6 @@ jobs:
       - run: npm run release:check
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
-      - name: Export the exact reviewed public-data preview
-        run: |
-          [[ "$REVIEWED_PREVIEW_SHA256" =~ ^[a-f0-9]{64}$ ]]
-          npm run corpus -- build-reviewed --review-sha256="$REVIEWED_PREVIEW_SHA256" --reviewer="$REVIEWER"
-      - run: npx vite build --config apps/corpus/vite.config.ts
       - name: Install the pinned private PDF test parser
         run: |
           python3 -m venv "$RUNNER_TEMP/signals-private-documents"
@@ -43,9 +38,14 @@ jobs:
           echo "$RUNNER_TEMP/signals-private-documents/bin" >> "$GITHUB_PATH"
       - run: npm test
       - run: node --experimental-strip-types --test scripts/public-site-integrity.test.mjs
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Export the exact reviewed public-data preview
+        run: |
+          [[ "$REVIEWED_PREVIEW_SHA256" =~ ^[a-f0-9]{64}$ ]] || exit 1
+          npm run corpus -- build-reviewed --review-sha256="$REVIEWED_PREVIEW_SHA256" --reviewer="$REVIEWER"
+      - run: npx vite build --config apps/corpus/vite.config.ts
       - name: Verify Vite copied every public artifact byte from the reviewed preview
         run: npm run corpus -- verify-reviewed-site --preview-sha256="$REVIEWED_PREVIEW_SHA256"
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: dist/public-site

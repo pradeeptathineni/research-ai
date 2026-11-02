@@ -11,14 +11,16 @@ export interface PublicSiteArtifact {
 
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
-/** Checks Vite's static public-data copies against already-reviewed artifact bytes. */
+const viteShellFile = (path: string) =>
+  path === 'index.html' ||
+  /^assets\/[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,32}\.(?:js|css)$/.test(path);
+
+/** Checks the whole Vite tree; only reviewed data files and the app's hashed shell are allowed. */
 export async function verifyPublicSiteArtifactBytes(
   artifacts: PublicSiteArtifact[],
-  previewSha256: string,
   directory: string,
 ) {
-  if (!Array.isArray(artifacts) || !/^[a-f0-9]{64}$/.test(previewSha256))
-    throw new Error('Invalid reviewed public site manifest.');
+  if (!Array.isArray(artifacts)) throw new Error('Invalid reviewed public site manifest.');
   const root = resolve(directory);
   const rootInfo = await lstat(root).catch(() => null);
   if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink())
@@ -41,23 +43,33 @@ export async function verifyPublicSiteArtifactBytes(
     expected.add(artifact.path);
   }
   const actual = new Set<string>();
+  const appShell = new Set<string>();
   const inspect = async (relative: string, absolute: string): Promise<void> => {
     const info = await lstat(absolute);
     if (info.isSymbolicLink())
       throw new Error(`Reviewed public site contains a symlink: ${relative}`);
     if (info.isDirectory()) {
+      if (relative !== 'assets' && relative !== 'bundles')
+        throw new Error(`Static site contains an unreviewed directory: ${relative}`);
       for (const entry of await readdir(absolute))
         await inspect(`${relative}/${entry}`, join(absolute, entry));
       return;
     }
     if (!info.isFile())
       throw new Error(`Reviewed public site contains a non-file artifact: ${relative}`);
-    actual.add(relative);
+    if (expected.has(relative)) {
+      actual.add(relative);
+      return;
+    }
+    if (viteShellFile(relative)) {
+      appShell.add(relative);
+      return;
+    }
+    throw new Error(`Static site contains an unreviewed file: ${relative}`);
   };
-  for (const entry of await readdir(root)) {
-    if (entry === 'bundles' || /^[^/]+\.json(?:\.sha256)?$/.test(entry))
-      await inspect(entry, join(root, entry));
-  }
+  for (const entry of await readdir(root)) await inspect(entry, join(root, entry));
+  if (!appShell.has('index.html') || ![...appShell].some((path) => path.endsWith('.js')))
+    throw new Error('Static site is missing the Vite HTML or JavaScript app shell.');
   if (actual.size !== expected.size || [...expected].some((path) => !actual.has(path)))
     throw new Error('Static site public-data paths differ from the reviewed preview.');
   for (const artifact of artifacts) {
@@ -76,7 +88,6 @@ export async function verifyPublicSiteArtifactBytes(
   }
   return {
     verified: true as const,
-    previewSha256,
     artifacts: artifacts.map(({ path, sha256, byteLength }) => ({
       path,
       sha256,

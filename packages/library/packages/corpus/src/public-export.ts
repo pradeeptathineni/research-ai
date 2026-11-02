@@ -295,7 +295,10 @@ export async function exportReviewedPublicData(
 /** Verifies the static site's public-data files are the exact reviewed preview bytes. */
 export async function verifyPublicSiteArtifacts(preview: PublicDataPreview, directory: string) {
   verifyPreview(preview);
-  return verifyPublicSiteArtifactBytes(preview.artifacts, preview.sha256, directory);
+  return {
+    ...(await verifyPublicSiteArtifactBytes(preview.artifacts, directory)),
+    previewSha256: preview.sha256,
+  };
 }
 
 /** Compatibility path retained for the existing build command. */

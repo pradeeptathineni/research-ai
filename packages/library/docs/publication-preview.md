@@ -29,8 +29,10 @@ pointer intact.
 `verify-reviewed-site` reloads those same public inputs, checks that their
 preview digest still matches, and compares every public JSON/bundle artifact
 copied into `dist/public-site` byte-for-byte. It also rejects extra top-level
-JSON or bundle files, symlinks and missing artifacts. The Pages workflow uploads
-only after this check passes.
+JSON, unrelated nested files/directories, symlinks and missing artifacts. The
+only non-data files allowed are the Vite shell actually emitted by this app:
+`index.html` and hashed `assets/*.js` or `assets/*.css` files. The Pages workflow
+uploads only after this check passes.
 
 The callable workflow is `previewPublicData(corpus, entities)`,
 `reviewPublicDataPreview(preview, { confirmedSha256, reviewer, reviewedAt })`,
@@ -41,6 +43,17 @@ rights. Only the validated public Corpus and the explicit closed-schema saved
 entity records are inputs. The CLI reads its saved entities from public
 `signals/entities`; the workflow does not read private annotations, project
 records, credentials, caches, or the `.signals` private collection.
+
+The preview digest binds the public-data artifact paths, bytes, source refs and
+qualifications. It does not bind the HTML/JavaScript/CSS app shell. The dispatch
+ref determines that shell and also supplies `release:check`, so the guard is a
+same-ref consistency check, not an access-control boundary. Repository settings
+for the `github-pages` environment must restrict eligible deployment branches
+and configure any required reviewers; this code cannot inspect those settings.
+The workflow labels the reviewer with the original `github.actor`, including
+when a run is restarted. The private-document test parser installation and
+test suite run before the reviewed export and Vite build; the final byte check
+is immediately followed by upload.
 
 `publishPublicData(corpus, directory, entities)` and the legacy `corpus build`
 command retain their existing direct-export behavior for compatibility; they do
@@ -53,4 +66,6 @@ that preview, builds the site and verifies copied bytes before upload. Local
 `build` and `dev` retain the direct compatibility build. In the converged
 Research workspace this workflow remains under `packages/library/.github`; it
 is not a root GitHub Actions workflow until an owner explicitly integrates it
-at the repository root.
+at the repository root. Its release-check guard is same-ref consistency lint,
+not protection against a workflow or guard edited together on the dispatched
+ref.

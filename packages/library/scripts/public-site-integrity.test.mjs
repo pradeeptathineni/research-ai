@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { verifyPublicSiteArtifactBytes } from '../packages/corpus/src/public-site-integrity.ts';
@@ -35,29 +35,46 @@ test(
       };
       await mkdir(site);
       await copyPreviewBytes(site, artifacts);
-      const previewSha256 = digest(
-        JSON.stringify(artifacts.map(({ path, sha256 }) => ({ path, sha256 }))),
-      );
+      await writeFile(join(site, 'index.html'), '<!doctype html><script src="/assets/index-abc12345.js"></script>');
+      await mkdir(join(site, 'assets'));
+      await writeFile(join(site, 'assets/index-abc12345.js'), 'synthetic app shell');
+      await writeFile(join(site, 'assets/index-abc12345.css'), 'synthetic styles');
+      const verify = () => verifyPublicSiteArtifactBytes(artifacts, site);
       assert.equal(
-        (await verifyPublicSiteArtifactBytes(artifacts, previewSha256, site)).verified,
+        (await verify()).verified,
         true,
       );
 
+      await writeFile(join(site, 'private-notes.txt'), 'must not publish');
+      await assert.rejects(verify(), /unreviewed file: private-notes\.txt/);
+      await rm(join(site, 'private-notes.txt'));
+
+      await mkdir(join(site, 'data'));
+      await writeFile(join(site, 'data/x.json'), '{}\n');
+      await assert.rejects(verify(), /unreviewed directory: data/);
+      await rm(join(site, 'data'), { recursive: true });
+
+      const outside = join(root, 'outside.txt');
+      await writeFile(outside, 'outside target');
+      await symlink(outside, join(site, 'outside-link.txt'));
+      await assert.rejects(verify(), /contains a symlink: outside-link\.txt/);
+      await rm(join(site, 'outside-link.txt'));
+
       await writeFile(join(site, 'entities.json'), '[{"id":"direct legacy build"}]\n');
       await assert.rejects(
-        verifyPublicSiteArtifactBytes(artifacts, previewSha256, site),
+        verify(),
         /bytes differ from the reviewed preview/,
       );
       await writeFile(join(site, 'entities.json'), artifacts[1].bytes);
       await writeFile(join(site, 'bundles/unreviewed.json'), '{}\n');
       await assert.rejects(
-        verifyPublicSiteArtifactBytes(artifacts, previewSha256, site),
-        /paths differ from the reviewed preview/,
+        verify(),
+        /unreviewed file: bundles\/unreviewed\.json/,
       );
+      await rm(join(site, 'bundles/unreviewed.json'));
       await assert.rejects(
         verifyPublicSiteArtifactBytes(
           [{ ...artifacts[0], path: '../outside.json' }],
-          previewSha256,
           site,
         ),
         /Invalid or duplicate public artifact/,
