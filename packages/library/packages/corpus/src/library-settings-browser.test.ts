@@ -80,7 +80,7 @@ it('built Settings shares native CLI values, preserves consent and refuses stale
       .click();
     const panel = page.getByRole('region', { name: 'Personal Library preferences' });
     const status = panel.getByRole('status');
-    await expectUI(status).toContainText('Saved personal preferences loaded');
+    await expectUI(status).toContainText('Personal saving settings loaded');
     await expectUI(panel.getByLabel('Automatic private saving', { exact: true })).not.toBeChecked();
     await expectUI(panel).toContainText('Source: default');
     await panel.getByLabel('Automatic private saving', { exact: true }).check();
@@ -98,7 +98,7 @@ it('built Settings shares native CLI values, preserves consent and refuses stale
     expect(cli().settings.map((row) => row.effective)).toEqual([true, 90, 75]);
     expect((await libraryPreferences(root)).meaningMatching).toBe(true);
     await page.reload();
-    await expectUI(status).toContainText('Saved personal preferences loaded');
+    await expectUI(status).toContainText('Personal saving settings loaded');
     await expectUI(panel.getByLabel('Minimum Signal', { exact: true })).toHaveValue('90');
     await panel.getByLabel('Find personal-saving settings').fill('Signal');
     await expectUI(panel.getByLabel('Minimum relevance', { exact: true })).toHaveCount(0);
@@ -150,7 +150,7 @@ it('built Settings shares native CLI values, preserves consent and refuses stale
     expect(cli().settings[1]?.effective).toBe(85);
     await page.unroute('**/__signals/api/library-settings');
     await panel.getByRole('button', { name: 'Reload personal preferences' }).click();
-    await expectUI(status).toContainText('Saved personal preferences loaded');
+    await expectUI(status).toContainText('Personal saving settings loaded');
     expect(writes).toBe(1);
     expect((await libraryPreferences(root)).meaningMatching).toBe(true);
     const audit = await new AxeBuilder({ page })

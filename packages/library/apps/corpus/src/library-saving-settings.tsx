@@ -30,7 +30,7 @@ export function LibrarySavingSettings({ api }: { api: Client }) {
       setReset(false);
       setReviewed(false);
       setUncertain(false);
-      setMessage('Saved personal preferences loaded.');
+      setMessage('Personal saving settings loaded.');
     } catch {
       setUncertain(true);
       setMessage('Personal preferences are unavailable. Reload before editing.');
