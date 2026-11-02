@@ -142,6 +142,7 @@ import {
 } from './search-followup.js';
 import { checkPrimaryMaterial } from './search-reuse.js';
 import { selectSavedEntity } from './search-selection.js';
+import { inspectSavedEntity } from './saved-entity-inspection.js';
 import {
   loadLibrary,
   setLibrarySaved,
@@ -1528,6 +1529,26 @@ export function searchApi(
             ),
           ),
         );
+      } else if (route === 'saved-entity' && !mutation) {
+        const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        if (
+          [...params.keys()].some((key) => !['id', 'destination'].includes(key)) ||
+          params.getAll('id').length !== 1 ||
+          params.getAll('destination').length > 1
+        )
+          throw new Error('invalid_saved_entity_selection');
+        const id = params.get('id') ?? '';
+        const destination = params.get('destination');
+        if (destination !== null && !['public', 'private'].includes(destination))
+          throw new Error('invalid_entity_destination');
+        json(
+          200,
+          await inspectSavedEntity(
+            id,
+            root,
+            destination as 'public' | 'private' | undefined,
+          ),
+        );
       } else if (route === 'corpus' && !mutation)
         json(200, await loadEntities(resolve(root, 'signals/entities')));
       else if (route === 'private-corpus' && !mutation)
@@ -1971,6 +1992,8 @@ export function searchApi(
           throw new Error('unknown_result_identity');
         const settings = await loadSettings(root);
         const interests = settings.queries.filter((query) => query.query === result.query);
+        // A saved entity receipt must be able to reopen the exact research that introduced it.
+        await retainRun(result, root);
         json(
           200,
           await saveEntities(
