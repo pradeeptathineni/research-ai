@@ -318,6 +318,16 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
     expect(copied).toBe(artifact.bytes);
     await writeFile(path, copied);
   }
+  const addSyntheticViteShell = async (site: string) => {
+    await writeFile(
+      join(site, 'index.html'),
+      '<!doctype html><script src="/assets/index-abc12345.js"></script>',
+    );
+    await mkdir(join(site, 'assets'), { recursive: true });
+    await writeFile(join(site, 'assets/index-abc12345.js'), 'synthetic app shell');
+    await writeFile(join(site, 'assets/index-abc12345.css'), 'synthetic styles');
+  };
+  await addSyntheticViteShell(reviewedSite);
   expect(await verifyPublicSiteArtifacts(preview, reviewedSite)).toMatchObject({
     verified: true,
     previewSha256: preview.sha256,
@@ -337,6 +347,7 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
     expect(copied).toBe(artifact.bytes);
     await writeFile(path, copied);
   }
+  await addSyntheticViteShell(directSite);
   await expect(verifyPublicSiteArtifacts(preview, directSite)).rejects.toThrow(
     /differ from the reviewed preview/,
   );
