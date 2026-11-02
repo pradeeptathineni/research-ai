@@ -2,6 +2,7 @@ import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import { isStoryHidden } from '../briefing-feedback.js';
 import { briefingMatchedTerms, rankBriefingStory } from '../briefing-rank.js';
+import { summarizeBriefingPulse } from '../briefing-pulse.js';
 import { eventCalendar } from '../briefing-calendar.js';
 import {
   importBriefingOpml,
@@ -226,6 +227,7 @@ export async function briefingRoute(
               return {
                 input,
                 matchedTerms,
+                socialPulse: summarizeBriefingPulse(input.metrics),
                 explanation: await rankBriefingStory(input, {
                   now,
                   velocityWeight: preferences.ranking.velocityWeight,
