@@ -45,7 +45,7 @@ try {
   if (command === 'list' && args.length === 0) result = await listSourceWatches(root);
   else if (command === 'create' && args.length === 1)
     result = await createSourceWatch(root, parse(args[0]));
-  else if (command === 'read' && args.length === 1) result = await readSourceWatch(root, args[0]!);
+  else if (command === 'read' && args.length === 1) result = await readSourceWatch(root, args[0]);
   else if (command === 'check' && args.length === 2)
     result = await checkSourceWatch(root, parse(args[0]), parse(args[1]));
   else if (command === 'review-preview' && args.length === 2) {

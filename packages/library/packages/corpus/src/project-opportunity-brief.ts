@@ -20,48 +20,6 @@ import { projectOpportunityBriefSchema } from './project-contract.js';
 const closed = { additionalProperties: false };
 const uuid = Type.String({ pattern: '^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$' });
 const digestSchema = Type.String({ pattern: '^[a-f0-9]{64}$' });
-const briefBindingSchema = Type.Object(
-  {
-    schema: Type.Literal('signals-provider-contract-binding.v1'),
-    owner: Type.Literal('signals-ai'),
-    contract_id: Type.Literal('project-opportunity-brief'),
-    contract_version: Type.Literal('1.0'),
-    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
-    contract_digest: digestSchema,
-    instance_id: uuid,
-    owner_epoch: uuid,
-    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
-  },
-  closed,
-);
-const reassessmentBindingSchema = Type.Object(
-  {
-    schema: Type.Literal('signals-provider-contract-binding.v1'),
-    owner: Type.Literal('signals-ai'),
-    contract_id: Type.Literal('project-opportunity-brief-reassessment'),
-    contract_version: Type.Literal('1.0'),
-    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
-    contract_digest: digestSchema,
-    instance_id: uuid,
-    owner_epoch: uuid,
-    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
-  },
-  closed,
-);
-const comparisonBindingSchema = Type.Object(
-  {
-    schema: Type.Literal('signals-provider-contract-binding.v1'),
-    owner: Type.Literal('signals-ai'),
-    contract_id: Type.Literal('project-opportunity-brief-successor-comparison'),
-    contract_version: Type.Literal('1.0'),
-    digest_kind: Type.Literal('sha256-canonical-contract-json-v1'),
-    contract_digest: digestSchema,
-    instance_id: uuid,
-    owner_epoch: uuid,
-    source_commit: Type.Optional(Type.String({ pattern: '^[a-f0-9]{40,64}$' })),
-  },
-  closed,
-);
 const exactRefSchema = Type.Object(
   {
     owner: Type.Literal('signals-ai'),
@@ -190,13 +148,22 @@ const briefComparisonInputSchema = Type.Object(
 );
 type Selection = Static<typeof selectionSchema>;
 type Content = Static<typeof contentSchema>;
-type Binding = Static<typeof briefBindingSchema>;
+type ProviderContractBinding<ContractId extends string> = {
+  schema: 'signals-provider-contract-binding.v1';
+  owner: 'signals-ai';
+  contract_id: ContractId;
+  contract_version: '1.0';
+  digest_kind: 'sha256-canonical-contract-json-v1';
+  contract_digest: string;
+  instance_id: string;
+  owner_epoch: string;
+  source_commit?: string;
+};
+type Binding = ProviderContractBinding<'project-opportunity-brief'>;
 type Basis = Static<typeof projectOpportunityBriefSchema.properties.basis>;
 type Brief = Static<typeof projectOpportunityBriefSchema>;
 type ExactRef = Static<typeof exactRefSchema>;
-type ReassessmentRequest = Static<typeof reassessmentRequestSchema>;
-type ReassessmentBinding = Static<typeof reassessmentBindingSchema>;
-type ComparisonBinding = Static<typeof comparisonBindingSchema>;
+type ReassessmentBinding = ProviderContractBinding<'project-opportunity-brief-reassessment'>;
 type ReviewContext = Static<
   NonNullable<typeof projectOpportunityBriefSchema.properties.review_context>
 >;
@@ -362,66 +329,6 @@ async function projectOpportunityBriefReassessmentBinding(
     contract_version: '1.0',
     digest_kind: bindingDigestKind,
     contract_digest: sha256(canonical(metadata)),
-    instance_id: scope.identity,
-    owner_epoch: scope.epoch,
-    ...(typeof capabilities.source_commit === 'string' &&
-    /^[a-f0-9]{40,64}$/.test(capabilities.source_commit)
-      ? { source_commit: capabilities.source_commit }
-      : {}),
-  };
-}
-
-async function projectOpportunityBriefComparisonBinding(root: string): Promise<ComparisonBinding> {
-  const scope = await requestStore(root)
-    .scope()
-    .catch(() =>
-      fail(
-        503,
-        'project_opportunity_brief_unavailable',
-        'The Signals owner binding is unavailable.',
-      ),
-    );
-  const response = await providerCapabilities(root, '1.0', scope.identity, scope.epoch);
-  const capabilities = response.capabilities as {
-    contracts?: Array<{ id: string; versions: string[] }>;
-    operations?: Array<{
-      name: string;
-      target_kinds: string[];
-      mutating: boolean;
-      authority_required: boolean;
-    }>;
-    record_kinds?: string[];
-    source_commit?: string;
-  };
-  const contract = capabilities.contracts?.find(
-    (row) =>
-      row.id === 'project-opportunity-brief-successor-comparison' && row.versions.includes('1.0'),
-  );
-  const compare = capabilities.operations?.find(
-    (row) => row.name === 'compare_project_opportunity_brief_successor',
-  );
-  if (
-    !contract ||
-    !compare ||
-    compare.mutating ||
-    compare.authority_required ||
-    !compare.target_kinds.includes('project_opportunity_brief') ||
-    !capabilities.record_kinds?.includes('project_opportunity_brief')
-  )
-    fail(
-      503,
-      'project_opportunity_brief_comparison_unavailable',
-      'The connected Signals provider lacks the exact successor-comparison contract.',
-    );
-  return {
-    schema: 'signals-provider-contract-binding.v1',
-    owner: 'signals-ai',
-    contract_id: 'project-opportunity-brief-successor-comparison',
-    contract_version: '1.0',
-    digest_kind: bindingDigestKind,
-    contract_digest: sha256(
-      canonical({ contract, operations: [compare], record_kinds: ['project_opportunity_brief'] }),
-    ),
     instance_id: scope.identity,
     owner_epoch: scope.epoch,
     ...(typeof capabilities.source_commit === 'string' &&
@@ -631,7 +538,7 @@ export async function previewProjectOpportunityBrief(root: string, input: unknow
       'invalid_project_opportunity_brief',
       'The opportunity brief preview input is invalid.',
     );
-  const value = input as { selection: Selection; content: Content };
+  const value = input;
   const current = await currentBasis(root, value.selection);
   validateContent(value.content, current.allowedRefs);
   const previewDigest = sha256(
@@ -667,13 +574,7 @@ export async function retainProjectOpportunityBrief(root: string, input: unknown
       'invalid_project_opportunity_brief',
       'The opportunity brief retention input is invalid.',
     );
-  const request = input as {
-    request_id: string;
-    selection: Selection;
-    basis: Basis;
-    content: Content;
-    preview_digest: string;
-  };
+  const request = input;
   const current = await currentBasis(root, request.selection);
   if (!same(request.basis, current.basis))
     fail(
@@ -763,12 +664,7 @@ export async function previewProjectOpportunityBriefReassessment(root: string, i
       'invalid_project_opportunity_brief_reassessment',
       'The reassessment preview input is invalid.',
     );
-  const request = previewInput as {
-    parent_ref: ExactRef;
-    selection: Selection;
-    rationale: string;
-    evidence_updates: ReassessmentRequest['evidence_updates'];
-  };
+  const request = previewInput;
   const parent = await readProjectOpportunityBrief(root, request.parent_ref.id);
   if (!same(parent.ref, request.parent_ref))
     fail(
@@ -862,7 +758,7 @@ export async function reassessProjectOpportunityBrief(root: string, input: unkno
       'invalid_project_opportunity_brief_reassessment',
       'The reassessment request is invalid.',
     );
-  const request = input as ReassessmentRequest;
+  const request = input;
   const preview = await previewProjectOpportunityBriefReassessment(root, request);
   if (!same(preview.basis, request.basis) || preview.preview_digest !== request.preview_digest)
     fail(
@@ -1165,7 +1061,7 @@ export async function compareProjectOpportunityBriefSuccessor(root: string, inpu
       'invalid_project_opportunity_brief_comparison',
       'Choose exact retained parent and successor references.',
     );
-  const { before_ref, after_ref } = input as Static<typeof briefComparisonInputSchema>;
+  const { before_ref, after_ref } = input;
   const state = await loadProjects(root);
   const beforeRow = findBrief(state, before_ref.id);
   const afterRow = findBrief(state, after_ref.id);

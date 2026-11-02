@@ -29,6 +29,15 @@ import {
 
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
+type MutableArchiveStore = {
+  requests: Array<{
+    request_id: string;
+    bytes_base64: string;
+    manifest: { sha256: string; [key: string]: unknown };
+    archive_ref: RecordRef;
+    capture_ref: RecordRef;
+  }>;
+};
 
 it('archives exact fetch response bytes without rewriting retained captures or refetching on recovery', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-source-archive-')));
@@ -156,7 +165,7 @@ it('archives exact fetch response bytes without rewriting retained captures or r
     expect(coldArchive.raw_digest).toBe(sha(rawBytes));
     expect(coldArchive.byte_count).toBe(rawBytes.byteLength);
     expect(coldArchive.sha256).toBe(sha(rawBytes));
-    expect(Buffer.from(coldArchive.bytes_base64!, 'base64')).toEqual(rawBytes);
+    expect(Buffer.from(coldArchive.bytes_base64, 'base64')).toEqual(rawBytes);
     expect(fetchCalls).toBe(1);
 
     const exportPath = join(root, 'exact-response.bin');
@@ -207,8 +216,9 @@ it('archives exact fetch response bytes without rewriting retained captures or r
 
     const archiveStoreBytes = await readFile(join(root, '.signals/source-archives.json'));
     try {
-      const tampered = JSON.parse(archiveStoreBytes.toString('utf8'));
-      const row = tampered.requests.find((entry: any) => entry.request_id === requestId);
+      const tampered = JSON.parse(archiveStoreBytes.toString('utf8')) as MutableArchiveStore;
+      const row = tampered.requests.find((entry) => entry.request_id === requestId);
+      if (!row) throw new Error('missing_fixture_archive_request');
       const changedBytes = Buffer.from(rawBytes);
       changedBytes[0] = changedBytes[0]! ^ 1;
       const changedDigest = sha(changedBytes);
@@ -234,8 +244,9 @@ it('archives exact fetch response bytes without rewriting retained captures or r
       await writeFile(join(root, '.signals/source-archives.json'), archiveStoreBytes);
     }
     try {
-      const tampered = JSON.parse(archiveStoreBytes.toString('utf8'));
-      const row = tampered.requests.find((entry: any) => entry.request_id === requestId);
+      const tampered = JSON.parse(archiveStoreBytes.toString('utf8')) as MutableArchiveStore;
+      const row = tampered.requests.find((entry) => entry.request_id === requestId);
+      if (!row) throw new Error('missing_fixture_archive_request');
       row.capture_ref.id = randomUUID();
       await writeFile(
         join(root, '.signals/source-archives.json'),

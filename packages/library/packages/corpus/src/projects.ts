@@ -171,6 +171,7 @@ export async function listOpportunities(root: string) {
   return state.opportunities.map((item) => {
     const project = state.projects.find((entry) => entry.id === item.projectId);
     const { briefs: _briefHistory, ...opportunity } = item;
+    void _briefHistory;
     return {
       ...opportunity,
       needsReview:
@@ -267,6 +268,7 @@ export async function appendProjectOpportunityBrief(
     )
       throw new Error('project_opportunity_brief_project_changed');
     const { briefs: _briefs, ...opportunityWithoutBriefHistory } = opportunity;
+    void _briefs;
     const currentOpportunity = {
       ...opportunityWithoutBriefHistory,
       needsReview:

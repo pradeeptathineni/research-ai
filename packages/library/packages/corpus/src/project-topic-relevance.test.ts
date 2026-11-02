@@ -169,6 +169,7 @@ it('binds human relevance to exact topic, project and S04 change bases; preserve
       source_change_review_ref: changeReview.ref,
     };
     const { request_id: _requestId, ...previewRequest } = request;
+    expect(_requestId).toMatch(/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/);
     const preview = await previewProjectTopicRelevance(root, previewRequest);
     expect(preview.preview).toMatchObject({
       topic: { id: savedTopic.id, revision: savedTopic.revision },

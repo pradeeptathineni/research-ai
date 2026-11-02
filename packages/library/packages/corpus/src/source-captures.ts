@@ -516,19 +516,21 @@ type BriefingCaptureContext = Static<typeof briefingCaptureContextSchema>;
 
 function exactCaptureSourceRef(value: unknown): RecordRef {
   if (Value.Check(briefingRecordRefSchema, value)) {
-    const reference = value as Static<typeof briefingRecordRefSchema>;
+    const reference = value;
     return exactRef(
       { ...reference, digest: reference.revision.slice('sha256:'.length) },
       'briefing-item',
     );
   }
-  if (Value.Check(recordRefSchema, value) && (value as RecordRef).kind === 'briefing-item')
+  if (Value.Check(recordRefSchema, value) && value.kind === 'briefing-item')
     return exactRef(value, 'briefing-item');
   return exactRef(value, ['entity', 'lead']);
 }
 
 function stableBriefingContext(context: BriefingCaptureContext) {
-  const { observed_at: _observedAt, ...stable } = context;
+  const stable = Object.fromEntries(
+    Object.entries(context).filter(([key]) => key !== 'observed_at'),
+  );
   return JSON.stringify(stable);
 }
 
@@ -549,9 +551,7 @@ async function captureOriginStatus(
     return 'current';
   } catch (error) {
     const status =
-      error && typeof error === 'object' && 'status' in error
-        ? Number((error as { status: unknown }).status)
-        : 0;
+      error && typeof error === 'object' && 'status' in error ? Number(error.status) : 0;
     if (status === 404) return 'missing';
     if (status === 409) return 'changed';
     return 'unavailable';

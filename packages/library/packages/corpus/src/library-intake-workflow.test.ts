@@ -15,6 +15,17 @@ import { searchApi } from './search-api.js';
 import { saveLibraryLead } from './library-leads.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
 
+function requiredString(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('missing_fixture_string');
+  return value;
+}
+
+function requiredReference(value: unknown): { id: string; [key: string]: unknown } {
+  if (!value || typeof value !== 'object' || !('id' in value))
+    throw new Error('missing_fixture_reference');
+  return { ...value, id: requiredString(value.id) };
+}
+
 it('imports, previews and freezes an exact human correction successor without changing cited history', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'library-intake-')));
   try {
@@ -145,19 +156,19 @@ it('dispatches a paste capture request UUID to the existing owner capture ID wit
         },
       } as never,
     );
-    return { status, body: text ? (JSON.parse(text) as Record<string, any>) : null };
+    return { status, body: text ? (JSON.parse(text) as Record<string, unknown>) : null };
   }
   try {
     const session = await call('session', 'GET');
     expect(session.status).toBe(200);
-    const csrf = { 'x-signals-token': session.body!.token };
+    const csrf = { 'x-signals-token': requiredString(session.body?.token) };
     const scope = await call('request-scope', 'POST', {}, csrf);
     expect(scope.status).toBe(200);
     const providerHeaders = {
       ...csrf,
       'x-signals-provider-version': '1.0',
-      'x-signals-instance-id': scope.body!.identity,
-      'x-signals-owner-epoch': scope.body!.epoch,
+      'x-signals-instance-id': requiredString(scope.body?.identity),
+      'x-signals-owner-epoch': requiredString(scope.body?.epoch),
     };
     const docRequestId = randomUUID();
     const imported = await call(
@@ -173,7 +184,7 @@ it('dispatches a paste capture request UUID to the existing owner capture ID wit
       providerHeaders,
     );
     expect(imported.status).toBe(201);
-    const exactRef = imported.body!.ref;
+    const exactRef = requiredReference(imported.body?.ref);
     const reopened = await call(
       `private-documents/${exactRef.id}?ref=${encodeURIComponent(JSON.stringify(exactRef))}`,
       'GET',
@@ -222,7 +233,7 @@ it('dispatches a paste capture request UUID to the existing owner capture ID wit
       providerHeaders,
     );
     expect(response.status).toBe(201);
-    expect(response.body!.ref.id).toBe(requestId);
+    expect(requiredReference(response.body?.ref).id).toBe(requestId);
     expect(response.body!.capture).toMatchObject({
       id: requestId,
       text: 'Synthetic versioned capture.',
