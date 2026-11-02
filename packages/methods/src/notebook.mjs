@@ -95,8 +95,7 @@ function shouldaSourceOrigin(value, document) {
 function briefingSourceOrigin(value, document) {
   const fields = ["schemaVersion", "kind", "itemReference", "sourceReference", "contentDigest",
     "excerptSha256", "observedAt", "sourceHealth"];
-  const storyFields = [...fields, "storyReference"];
-  if ((!keys(value, fields) && !keys(value, storyFields))
+  if (!allowed(value, fields, ["storyReference", "canonicalUrl", "sourceTerms", "assessmentStatus"])
       || value.schemaVersion !== 1 || value.kind !== "signals-briefing-item")
     invalid("invalid Briefing source origin fields");
   const reference = (ref, kind) => keys(ref, ["owner", "kind", "id", "revision"])
@@ -109,18 +108,42 @@ function briefingSourceOrigin(value, document) {
       || !digestPattern.test(value.contentDigest) || !digestPattern.test(value.excerptSha256)
       || typeof value.observedAt !== "string" || !Number.isFinite(Date.parse(value.observedAt))
       || value.observedAt.length > 40) invalid("invalid Briefing source identity or observation");
-  const healthFields = ["status", "lastGoodAt", "lastAttemptAt", "lastAttemptStatus",
-    "lastSuccessfulLinkCount", "failureClass", "expectedIntervalSec"];
+  if (value.canonicalUrl !== undefined) {
+    let parsed;
+    try { parsed = new URL(value.canonicalUrl); } catch { invalid("invalid Briefing canonical URL"); }
+    if (typeof value.canonicalUrl !== "string" || value.canonicalUrl.length > 2048
+        || !["http:", "https:"].includes(parsed.protocol)) invalid("invalid Briefing canonical URL");
+  }
+  if (value.assessmentStatus !== undefined && value.assessmentStatus !== "unassessed-lead")
+    invalid("invalid Briefing lead assessment status");
+  let sourceTerms;
+  if (value.sourceTerms !== undefined) {
+    const terms = value.sourceTerms;
+    if (!keys(terms, ["sourceId", "termsRef", "status", "termsUrl", "reviewedAt"])
+        || terms.sourceId !== value.sourceReference.id
+        || !(terms.termsRef === null || (typeof terms.termsRef === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(terms.termsRef)))
+        || !["unknown", "recorded", "blocked"].includes(terms.status)
+        || !(terms.termsUrl === null || (typeof terms.termsUrl === "string" && terms.termsUrl.length <= 2048))
+        || !(terms.reviewedAt === null || (typeof terms.reviewedAt === "string"
+          && terms.reviewedAt.length <= 40 && Number.isFinite(Date.parse(terms.reviewedAt)))))
+      invalid("invalid Briefing source terms provenance");
+    sourceTerms = clone(terms);
+  }
   const health = value.sourceHealth;
-  if (!keys(health, healthFields) || !["unknown", "healthy", "stale", "failed"].includes(health.status)
-      || ![null, "fetched", "not-modified", "failed"].includes(health.lastAttemptStatus)
+  const basicHealthFields = ["status", "lastGoodAt", "lastAttemptAt", "failureClass", "expectedIntervalSec"];
+  const detailedHealthFields = [...basicHealthFields, "lastAttemptStatus", "lastSuccessfulLinkCount"];
+  const hasDetailedHealth = keys(health, detailedHealthFields);
+  if (!(keys(health, basicHealthFields) || hasDetailedHealth)
+      || !["unknown", "healthy", "stale", "failed"].includes(health.status)
+      || (hasDetailedHealth && ![null, "fetched", "not-modified", "failed"].includes(health.lastAttemptStatus))
       || ![null, "unreachable", "parse-error", "refused", "terms-blocked", "other"].includes(health.failureClass)
       || ![null, "string"].includes(health.lastGoodAt === null ? null : typeof health.lastGoodAt)
       || ![null, "string"].includes(health.lastAttemptAt === null ? null : typeof health.lastAttemptAt)
       || (health.lastGoodAt !== null && !Number.isFinite(Date.parse(health.lastGoodAt)))
       || (health.lastAttemptAt !== null && !Number.isFinite(Date.parse(health.lastAttemptAt)))
-      || !(health.lastSuccessfulLinkCount === null || (Number.isSafeInteger(health.lastSuccessfulLinkCount)
+      || (hasDetailedHealth && !(health.lastSuccessfulLinkCount === null || (Number.isSafeInteger(health.lastSuccessfulLinkCount)
         && health.lastSuccessfulLinkCount >= 0 && health.lastSuccessfulLinkCount <= 10000))
+      )
       || !(health.expectedIntervalSec === null || (Number.isFinite(health.expectedIntervalSec) && health.expectedIntervalSec > 0)))
     invalid("invalid Briefing source health qualification");
   const documentIdentity = value.storyReference
@@ -132,6 +155,9 @@ function briefingSourceOrigin(value, document) {
   return { schemaVersion: 1, kind: value.kind, itemReference: clone(value.itemReference),
     sourceReference: clone(value.sourceReference), contentDigest: value.contentDigest,
     ...(value.storyReference ? { storyReference: clone(value.storyReference) } : {}),
+    ...(value.canonicalUrl !== undefined ? { canonicalUrl: value.canonicalUrl } : {}),
+    ...(sourceTerms ? { sourceTerms } : {}),
+    ...(value.assessmentStatus ? { assessmentStatus: value.assessmentStatus } : {}),
     excerptSha256: value.excerptSha256, observedAt: value.observedAt, sourceHealth: clone(health) };
 }
 
@@ -486,6 +512,24 @@ export function renderResearchNotebook(value, { format = "json" } = {}) {
   const out = [`# ${escapeText(notebook.title)}`, "", escapeText(notebook.topic), "", "## Sources", ""];
   for (const entry of notebook.sources) {
     out.push(`### ${escapeText(entry.document.title)} (${escapeText(entry.document.id)})`, "");
+    if (entry.briefingOrigin) {
+      const origin = entry.briefingOrigin;
+      const assessment = origin.assessmentStatus === "unassessed-lead"
+        ? "Unassessed Library lead; rights and claim support are not assessed here."
+        : "Legacy Briefing origin; assessment status was not recorded.";
+      const terms = origin.sourceTerms;
+      out.push(`Classification: ${assessment}`, "",
+        ...(origin.canonicalUrl ? [`Source URL: ${escapeText(origin.canonicalUrl)}`, ""] : []),
+        `Story reference: ${escapeText(origin.storyReference ? `${origin.storyReference.owner}/${origin.storyReference.kind}/${origin.storyReference.id}@${origin.storyReference.revision}` : "not recorded")}`,
+        `Item reference: ${escapeText(`${origin.itemReference.owner}/${origin.itemReference.kind}/${origin.itemReference.id}@${origin.itemReference.revision}`)}`,
+        `Source reference: ${escapeText(`${origin.sourceReference.owner}/${origin.sourceReference.kind}/${origin.sourceReference.id}@${origin.sourceReference.revision}`)}`,
+        `Content digest: ${origin.contentDigest}`,
+        `Excerpt digest: ${origin.excerptSha256}`,
+        `Observed at: ${origin.observedAt}`,
+        `Source health: ${origin.sourceHealth.status}`,
+        `Terms policy: ${terms?.status ?? "not recorded"}${terms?.termsUrl ? ` (${escapeText(terms.termsUrl)})` : ""}`,
+        `Terms reviewed at: ${terms?.reviewedAt ?? "not recorded"}`, "");
+    }
     for (const page of entry.document.pages) out.push(`#### Page ${page.number}`, "", escapeText(page.text), "");
   }
   out.push("## Notes", "");
