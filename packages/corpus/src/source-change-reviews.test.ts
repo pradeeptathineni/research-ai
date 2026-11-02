@@ -6,6 +6,7 @@ import { expect, it } from 'vitest';
 import { saveLibraryLead } from './library-leads.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
 import { createSourceCapture, type RecordRef } from './source-captures.js';
+import { loadEntities } from './search-store.js';
 import {
   createSourceChangeReview,
   listSourceChangeReviews,
@@ -16,7 +17,7 @@ import { openSourceCapture } from './source-captures.js';
 
 const resolveRef = async (root: string, ref: RecordRef) => {
   const exact = await exactOwnerRecord(root, ref);
-  return { bytes: exact.bytes, ref: exact.ref as RecordRef };
+  return { bytes: exact.bytes, ref: { ...exact.ref, owner: 'signals-ai' as const } };
 };
 
 it('retains changed and unchanged human reviews with exact bases, refuses stale inputs and reopens cold by UUID', async () => {
@@ -45,10 +46,9 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
         revision: null,
         digest: null,
       })
-    ).ref as RecordRef;
-    const entity = JSON.parse(
-      await readFile(join(root, 'signals/entities', entityFilename), 'utf8'),
-    ) as any;
+    ).ref;
+    const [entity] = await loadEntities(join(root, 'signals/entities'));
+    if (!entity) throw new Error('missing_fixture_entity');
     const entityRef = (
       await exactOwnerRecord(root, {
         owner: 'signals-ai',
@@ -57,8 +57,10 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
         revision: null,
         digest: null,
       })
-    ).ref as RecordRef;
-    const observationId = entity.entity.observations[0].id as string;
+    ).ref;
+    const firstObservation = entity.entity.observations[0];
+    if (!firstObservation) throw new Error('missing_fixture_observation');
+    const observationId = firstObservation.id;
     const first = await createSourceCapture(
       root,
       {
@@ -284,8 +286,10 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     expect(reopened.review).toEqual(created.review);
     const captureStorePath = join(root, '.signals/source-captures.json');
     const captureStoreBytes = await readFile(captureStorePath);
-    const captureStore = JSON.parse(captureStoreBytes.toString('utf8')) as any;
-    captureStore.captures = captureStore.captures.filter((row: any) => row.id !== first.capture.id);
+    const captureStore = JSON.parse(captureStoreBytes.toString('utf8')) as {
+      captures: Array<{ id: string }>;
+    };
+    captureStore.captures = captureStore.captures.filter((row) => row.id !== first.capture.id);
     await writeFile(captureStorePath, JSON.stringify(captureStore));
     await expect(readSourceChangeReview(root, created.review.id)).rejects.toMatchObject({
       status: 503,
@@ -296,8 +300,12 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     );
     await expect(readSourceChangeReview(root, randomUUID())).rejects.toMatchObject({ status: 404 });
     const reviewStorePath = join(root, '.signals/source-change-reviews.json');
-    const legacyStore = JSON.parse(await readFile(reviewStorePath, 'utf8')) as any;
-    delete legacyStore.reviews[0].version_coverage;
+    const legacyStore = JSON.parse(await readFile(reviewStorePath, 'utf8')) as {
+      reviews: Array<Record<string, unknown>>;
+    };
+    const [legacyReview] = legacyStore.reviews;
+    if (!legacyReview) throw new Error('missing_fixture_review');
+    delete legacyReview.version_coverage;
     await writeFile(reviewStorePath, JSON.stringify(legacyStore));
     const legacyRead = await readSourceChangeReview(root, created.review.id);
     expect(legacyRead.review).not.toHaveProperty('version_coverage');

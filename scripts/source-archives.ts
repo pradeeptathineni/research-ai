@@ -107,7 +107,7 @@ try {
   if (command === 'create' && args.length === 1)
     result = await createSourceArchive(root, parse(args[0]), resolveSource);
   else if (command === 'request' && args.length === 1)
-    result = await readSourceArchiveRequest(root, args[0]!);
+    result = await readSourceArchiveRequest(root, args[0]);
   else if (command === 'read' && args.length === 1)
     result = await readSourceArchive(root, parse(args[0]));
   else if (command === 'export' && args.length === 2)

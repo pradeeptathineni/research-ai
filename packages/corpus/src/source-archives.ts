@@ -159,7 +159,7 @@ const sameRef = (left: RecordRef, right: RecordRef) =>
   left.revision === right.revision &&
   left.digest === right.digest;
 function normalizedRecordRef(value: unknown): RecordRef | null {
-  if (Value.Check(recordRefSchema, value)) return value as RecordRef;
+  if (Value.Check(recordRefSchema, value)) return value;
   if (
     value &&
     typeof value === 'object' &&
@@ -173,7 +173,7 @@ function normalizedRecordRef(value: unknown): RecordRef | null {
     const revision = row.revision as string;
     const digest = typeof row.digest === 'string' ? row.digest : revision.slice('sha256:'.length);
     const normalized = { owner: 'signals-ai', kind: 'briefing-item', id: row.id, revision, digest };
-    return Value.Check(recordRefSchema, normalized) ? (normalized as RecordRef) : null;
+    return Value.Check(recordRefSchema, normalized) ? normalized : null;
   }
   return null;
 }
@@ -475,20 +475,21 @@ export async function createSourceArchive(
       ...options,
       captureId: request.request_id,
       includeBytes: true,
-      beforeRetain: async (fetched) => {
+      beforeRetain: (fetched) => {
         if (!fetched.bytes?.length) {
           unavailableReason = 'The existing fetch returned no original body bytes.';
-          return;
+          return Promise.resolve();
         }
         if (fetched.bytes.length > MAX_ARCHIVE_BYTES) {
           unavailableReason = 'The original body exceeds the 1,000,000-byte archive limit.';
-          return;
+          return Promise.resolve();
         }
         if (sha256(fetched.bytes) !== fetched.digest) {
           unavailableReason = 'Raw body bytes do not match the existing fetch raw digest.';
-          return;
+          return Promise.resolve();
         }
         fetchedBody.bytes = Buffer.from(fetched.bytes);
+        return Promise.resolve();
       },
     });
   } catch (error) {
@@ -501,8 +502,8 @@ export async function createSourceArchive(
     if (found && isRequestCapture(found.capture, request)) {
       const row = await updateRequest(root, request.request_id, (current) => {
         current.state = 'capture-created-archive-unavailable';
-        current.capture_ref = found!.ref;
-        current.raw_digest = found!.capture.raw_digest;
+        current.capture_ref = found.ref;
+        current.raw_digest = found.capture.raw_digest;
         current.reason =
           'The capture was retained, but archive creation did not complete. No refetch was made.';
       }).catch(() => null);
@@ -573,7 +574,7 @@ export async function createSourceArchive(
       current.raw_digest = rawDigest;
       current.manifest = manifest;
       current.archive_ref = archive;
-      current.bytes_base64 = rawBytes!.toString('base64');
+      current.bytes_base64 = rawBytes.toString('base64');
       current.reason = null;
     });
     return receipt(row, false);

@@ -4,12 +4,7 @@ import { resolve } from 'node:path';
 import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
 import { atomicJson, withWriter } from './search-store.js';
-import {
-  openSourceCapture,
-  sourceCaptureScopeSchema,
-  type RecordRef,
-  type SourceCaptureScope,
-} from './source-captures.js';
+import { openSourceCapture, sourceCaptureScopeSchema, type RecordRef } from './source-captures.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
 
 const closed = { additionalProperties: false };
@@ -104,6 +99,14 @@ const invalid = (
 const changed = (
   reason = 'An exact selected input changed. Resolve its current reference explicitly.',
 ) => fail(409, 'source_change_review_changed', reason);
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+function arrayValue(value: unknown): unknown[] | null {
+  return Array.isArray(value) ? value : null;
+}
 
 export type BoundedSourceTextDiff = {
   state: 'changed' | 'unchanged';
@@ -402,17 +405,25 @@ async function exactEntityAssertion(root: string, assertion: Assertion) {
       'A revised judgment needs one explicit successor status; retained judgments cannot include one.',
     );
   const exact = await exactOwnerRecord(root, assertion.entity_ref);
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(exact.bytes.toString('utf8'));
   } catch {
     return changed('The selected entity record is unreadable.');
   }
-  const entity = parsed?.entity;
-  if (!entity || !Array.isArray(entity.observations))
-    changed('The selected entity has no retained confidence observations.');
-  const observation = entity.observations.find((row: any) => row?.id === assertion.observation_id);
-  if (!observation || !['supported', 'contradicted', 'uncertain'].includes(observation.status))
+  const entity = recordValue(recordValue(parsed)?.entity);
+  const observations = arrayValue(entity?.observations);
+  if (!observations) return changed('The selected entity has no retained confidence observations.');
+  const observation = observations.find(
+    (row) =>
+      row !== null && typeof row === 'object' && 'id' in row && row.id === assertion.observation_id,
+  );
+  const status = recordValue(observation)?.status;
+  if (
+    !observation ||
+    typeof status !== 'string' ||
+    !['supported', 'contradicted', 'uncertain'].includes(status)
+  )
     changed('The selected confidence assertion is unavailable in the exact entity version.');
   return { ref: exact.ref as RecordRef, observation_sha256: sha256(canonical(observation)) };
 }
@@ -477,12 +488,12 @@ export async function previewSourceChange(root: string, priorId: string, newId: 
     prior: {
       text_sha256: prior.capture.text_sha256,
       raw_digest: prior.capture.raw_digest,
-      scope: prior.capture.scope as SourceCaptureScope,
+      scope: prior.capture.scope,
     },
     next: {
       text_sha256: next.capture.text_sha256,
       raw_digest: next.capture.raw_digest,
-      scope: next.capture.scope as SourceCaptureScope,
+      scope: next.capture.scope,
     },
   } satisfies { prior: VersionCoverage; next: VersionCoverage };
   return {
@@ -549,12 +560,12 @@ export async function createSourceChangeReview(root: string, input: unknown) {
     prior: {
       text_sha256: prior.capture.text_sha256,
       raw_digest: prior.capture.raw_digest,
-      scope: prior.capture.scope as SourceCaptureScope,
+      scope: prior.capture.scope,
     },
     next: {
       text_sha256: next.capture.text_sha256,
       raw_digest: next.capture.raw_digest,
-      scope: next.capture.scope as SourceCaptureScope,
+      scope: next.capture.scope,
     },
   } satisfies { prior: VersionCoverage; next: VersionCoverage };
   if ((observedChange.state === 'unchanged') !== (request.meaningfulness === 'unchanged'))

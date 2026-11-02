@@ -35,12 +35,14 @@ try {
   const command = args.shift();
   let result: unknown;
   if (command === 'list' && args.length === 0) result = await listSourceChangeReviews(root);
-  else if (command === 'preview' && args.length === 2)
-    result = await previewSourceChange(root, args[0]!, args[1]!);
-  else if (command === 'create' && args.length === 1)
+  else if (command === 'preview' && args.length === 2) {
+    const priorId = args[0] ?? '';
+    const nextId = args[1] ?? '';
+    result = await previewSourceChange(root, priorId, nextId);
+  } else if (command === 'create' && args.length === 1)
     result = await createSourceChangeReview(root, parse(args[0]));
   else if (command === 'open' && args.length === 1)
-    result = await readSourceChangeReview(root, args[0]!);
+    result = await readSourceChangeReview(root, args[0]);
   else throw new Error('invalid_command');
   console.log(JSON.stringify(result, null, 2));
 } catch (failure) {
