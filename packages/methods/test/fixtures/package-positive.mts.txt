@@ -197,13 +197,16 @@ const searchHit: NotebookSearchHit | undefined = searchResult.hits[0];
 if (searchHit) openNotebookSearchHit([reopenedNotebook], searchResult, searchHit.id);
 void notebookSearchLimits.engine.sha256;
 
-import { exportResearchRetrievalArm } from '@pradeeptathineni/research-ai';
-import type { ResearchRetrievalArmExport, ResearchRetrievalQuestion } from '@pradeeptathineni/research-ai';
+import { exportResearchRetrievalArm, exportResearchRetrievalStrategy, openResearchRetrievalSource } from '@pradeeptathineni/research-ai';
+import type { ResearchRetrievalArmExport, ResearchRetrievalStrategyExport, ResearchRetrievalQuestion } from '@pradeeptathineni/research-ai';
 const retrievalQuestions: ResearchRetrievalQuestion[] = [{ id: 'question:appeal', text: 'appeal window' }];
 declare const retrievalExport: ResearchRetrievalArmExport;
 const lexicalArm: ResearchRetrievalArmExport = exportResearchRetrievalArm([reopenedNotebook], retrievalQuestions,
   { mode: 'prefix', researchRevision: 'pinned-research-revision' });
-void [retrievalExport.corpus.id, lexicalArm.arm.rankings['question:appeal']];
+const strategyExport: ResearchRetrievalStrategyExport = exportResearchRetrievalStrategy([reopenedNotebook], retrievalQuestions, {
+  researchRevision: 'pinned-research-revision', strategy: 'hybrid', denseRankings: {} });
+const reopenedStrategySource = openResearchRetrievalSource([reopenedNotebook], strategyExport, strategyExport.corpus.source_ids[0]!);
+void [retrievalExport.corpus.id, lexicalArm.arm.rankings['question:appeal'], reopenedStrategySource.text];
 
 import { exportResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';
 import type { ResearchAnswerCitationMap } from '@pradeeptathineni/research-ai';

@@ -1430,6 +1430,27 @@ export interface ResearchRetrievalArmExport {
 export function exportResearchRetrievalArm(notebooks: ResearchNotebook[], questions: ResearchRetrievalQuestion[], options: {
   mode?: "exact" | "prefix" | "fuzzy"; researchRevision: string;
 }): ResearchRetrievalArmExport;
+export interface ResearchRetrievalStrategyExport {
+  format: "research-retrieval-strategy-1";
+  corpus: ResearchRetrievalArmExport["corpus"];
+  questions: ResearchRetrievalQuestion[];
+  arm: ResearchRetrievalArmExport["arm"];
+  diagnostics: Record<string, { requestedStrategy: "lexical" | "dense" | "hybrid"; effectiveStrategy: "lexical" | "dense" | "hybrid";
+    lexicalCandidateCount: number; denseCandidateCount: number; fallbackReason: string | null; scoreMeaning: string }>;
+  qualifications: string[];
+  sha256: string;
+}
+/** Exports an offline lexical, caller-dense, or reciprocal-rank-fused arm over exactly retained page/note-version identities. */
+export function exportResearchRetrievalStrategy(notebooks: ResearchNotebook[], questions: ResearchRetrievalQuestion[], options: {
+  mode?: "exact" | "prefix" | "fuzzy"; researchRevision: string; strategy?: "lexical" | "dense" | "hybrid";
+  denseRankings?: Record<string, Array<{ id: string; sha256: string; score: number }>>;
+}): ResearchRetrievalStrategyExport;
+/** Reopens an exact retained page or note version in a strategy export without rerunning ranking. */
+export function openResearchRetrievalSource(notebooks: ResearchNotebook[], result: ResearchRetrievalStrategyExport, sourceId: string): {
+  id: string; notebookId: string; kind: NotebookSearchKind; recordId: string; documentId: string | null; page: number | null;
+  version: number | null; title: string; sourceDigest: string; contentSha256: string; text: string;
+  corpusCurrentness: "current" | "changed"; corpusChanges: { added: number; missing: number; changed: number };
+};
 
 export interface ResearchAnswerCitationMap {
   format: "research-answer-citation-map-1";

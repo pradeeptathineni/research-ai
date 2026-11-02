@@ -27,6 +27,7 @@ export { researchNotebookLimits, createResearchNotebook, validateResearchNoteboo
 export { searchResearchNotebooks, openNotebookSearchHit, notebookSearchLimits } from './notebook-search.mjs';
 export { createResearchNotebookFromBriefingSelection, createResearchNotebookFromBriefingStoryInspection } from './briefing-notebook.mjs';
 export { exportResearchRetrievalArm } from './retrieval-arm.mjs';
+export { exportResearchRetrievalStrategy, openResearchRetrievalSource } from './retrieval-strategy.mjs';
 export { exportResearchAnswerCitationMap } from './answer-citation-map.mjs';
 
 export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, exportResearchStudyPlanningSource, validateResearchStudyPlanningSource, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Offline lexical search over explicit portable Research notebooks.
 import { openNotebookSearchHit, searchResearchNotebooks } from "../src/index.mjs";
+import { openResearchRetrievalSource, exportResearchRetrievalStrategy } from "../src/index.mjs";
 
 const maxBytes = 32 * 1024 * 1024;
 const fail = (message) => { process.stderr.write(`${message.slice(0, 500)}\n`); process.exitCode = 1; };
@@ -21,14 +22,16 @@ function object(value, required, optional = []) {
 }
 function action(args) {
   if (args.length === 1 && args[0] === "--help") return "help";
-  if (args.length !== 2 || args[0] !== "--action" || !["search", "open"].includes(args[1]))
-    throw new Error("choose --action search or --action open; run with --help");
+  if (args.length !== 2 || args[0] !== "--action" || !["search", "open", "strategy", "source"].includes(args[1]))
+    throw new Error("choose --action search, open, strategy, or source; run with --help");
   return args[1];
 }
-const usage = `Usage: research-notebook-search --action search|open
+const usage = `Usage: research-notebook-search --action search|open|strategy|source
 Read one UTF-8 JSON request from stdin and write a closed JSON result to stdout.
 Search input: {"notebooks":[...],"query":"...","options":{...}}
 Open input: {"notebooks":[...],"result":{...},"hitId":"notebook-hit-..."}
+Strategy input: {"notebooks":[...],"questions":[{"id":"...","text":"..."}],"options":{"researchRevision":"...","strategy":"lexical|dense|hybrid","denseRankings":{...}}}
+Source input: {"notebooks":[...],"result":{...},"sourceId":"notebook-hit-..."}
 No paths, URLs, implicit notebook selections, persistence, or inference are used.`;
 
 try {
@@ -40,9 +43,15 @@ try {
     if (selected === "search") {
       object(request, ["notebooks", "query"], ["options"]);
       result = searchResearchNotebooks(request.notebooks, request.query, request.options);
-    } else {
+    } else if (selected === "open") {
       object(request, ["notebooks", "result", "hitId"]);
       result = openNotebookSearchHit(request.notebooks, request.result, request.hitId);
+    } else if (selected === "strategy") {
+      object(request, ["notebooks", "questions"], ["options"]);
+      result = exportResearchRetrievalStrategy(request.notebooks, request.questions, request.options);
+    } else {
+      object(request, ["notebooks", "result", "sourceId"]);
+      result = openResearchRetrievalSource(request.notebooks, request.result, request.sourceId);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   }

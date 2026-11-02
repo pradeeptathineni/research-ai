@@ -95,3 +95,39 @@ identity remains explicitly unresolved. The map carries no quote/page/note body
 and makes no relevance, entailment, correctness, or ground-truth claim. It
 accepts at most 8 notebooks, 32 ordered question IDs, and 48 unique final
 evidence IDs across the selected questions.
+
+### Scoped dense and hybrid strategy composition
+
+`exportResearchRetrievalStrategy(notebooks, questions, { researchRevision,
+strategy, denseRankings })` adds a caller-selected `lexical`, `dense`, or
+`hybrid` strategy while retaining the exact corpus IDs, source hashes and
+ordered question list used by `exportResearchRetrievalArm`. The caller may
+supply dense candidate rows per question as `{ id, sha256, score }`; `id` must
+be a retained `notebook-hit-…` page or exact note-version ID, `sha256` must
+match that corpus record, and `score` must be finite. These values
+are caller-provided ranking inputs, not generated embeddings or judgments.
+Research performs no model, embedding, network or persistent-index operation.
+
+Lexical strategy keeps the existing MiniSearch order. Dense strategy sorts the
+bound candidate rows by caller score. Hybrid strategy applies reciprocal-rank
+fusion (constant 60) to the lexical and dense ID rankings. Missing or empty
+dense rows fall back to lexical for that question, with requested/effective
+strategy, candidate counts and fallback reason in `diagnostics`. Invalid or
+stale source IDs/digests are refused. Scores and fused order never represent
+evidence strength, confidence, truth, entailment, currentness or independence.
+The resulting `corpus`, `questions`, and `arm` fields can be combined directly
+with another arm in Sandbox's retrieval comparison; use the same Research
+revision and selected notebook corpus for every arm, and leave relevance labels
+unknown unless independently authorized.
+
+`openResearchRetrievalSource(notebooks, result, sourceId)` cold-reopens the
+exact selected retained page or note version after the ranking result is
+serialized and parsed again. It checks the result's original corpus binding and
+the selected page/note-version content digest before returning the text. An
+unrelated notebook addition or edit does not hide unchanged evidence;
+`corpusCurrentness` and `corpusChanges` report added, missing and changed
+records separately. A removed or changed selected record refuses to reopen.
+Reopening does not rerun lexical or dense ranking. The CLI exposes the same bounded
+journey using `research-notebook-search --action strategy` and
+`--action source`; requests remain explicit JSON over stdin and results go to
+stdout. Existing `search` and `open` actions are unchanged.
