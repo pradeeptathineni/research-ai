@@ -109,6 +109,12 @@ The private Library searches and reopens complete imported answers alongside sel
 
 Manual personal saving accepts unassessed leads. Optional automatic personal saving is off by default and requires completed assessment, supported resolved identity, relevance at least 75 and the chosen Signal threshold, initially 75. Public inclusion and publication have separate review and owner boundaries. CLI `--save eligible` writes eligible public entities locally; it does not commit or push.
 
+Settings → Personal Library shows the saved/default values and source for private-saving controls.
+Preview changes before saving, reload after an uncertain reply, or reset the complete saving group.
+`npm run library:settings -- --root /absolute/private-workspace show` exposes the same owner values
+without starting research. See [personal-saving settings](docs/provider-interface.md#personal-saving-settings)
+for guarded CLI edits, discovery and timing.
+
 Cards distinguish intrinsic Signal, query relevance, contextual priority and saved state. Evidence strength is a versioned policy judgment, not probability or demonstrated usefulness. Native brief v7 uses `signal-strength-v10`; older records replay their declared numerical policies, while current admission retains unresolved decisive history across refresh formats. The [assessment contract](docs/signals-contract.md) defines these meanings.
 
 Notes, feedback, dismissals, followed sources, inbox entries and saved question/interest associations remain private under `.signals/`. Personal novelty stays unknown until you supply feedback. A source scan records acquisition and newly exposed links; repeated scans do not invent discoveries or usefulness. Changed source content requires assessment before becoming a meaningful claim change. [Source change review](docs/source-change-review.md) compares retained versions and records explicit human impact decisions against exact saved confidence observations.

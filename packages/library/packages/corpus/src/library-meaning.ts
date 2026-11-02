@@ -7,37 +7,57 @@ import {
   type LibraryFilters,
   type LibraryHit,
 } from '../../domain/src/library-search.js';
-import { atomicJson, readPrivateJson } from './search-store.js';
+import { atomicJson, readPrivateJson, withWriter } from './search-store.js';
 import { codexRunner, type SearchRunner } from './search-runner.js';
 
-const preferencesSchema = Type.Object(
+export const personalSavingSchema = Type.Object(
   {
-    meaningMatching: Type.Boolean(),
-    automaticSaving: Type.Optional(
-      Type.Object(
-        {
-          enabled: Type.Boolean(),
-          signalThreshold: Type.Integer({ minimum: 0, maximum: 100 }),
-          relevanceThreshold: Type.Enum([75, 100]),
-        },
-        { additionalProperties: false },
-      ),
-    ),
+    enabled: Type.Boolean(),
+    signalThreshold: Type.Integer({ minimum: 0, maximum: 100 }),
+    relevanceThreshold: Type.Enum([75, 100]),
   },
   { additionalProperties: false },
 );
-export async function libraryPreferences(root: string, value?: unknown) {
+export const libraryPreferencesSchema = Type.Object(
+  {
+    meaningMatching: Type.Boolean(),
+    automaticSaving: Type.Optional(personalSavingSchema),
+  },
+  { additionalProperties: false },
+);
+export const personalSavingDefaults = {
+  enabled: false,
+  signalThreshold: 75,
+  relevanceThreshold: 75 as 75 | 100,
+};
+
+async function readPreferences(root: string) {
   const current = await readPrivateJson(root, 'library-preferences.json', {
     meaningMatching: false,
   });
-  if (!Value.Check(preferencesSchema, current)) throw new Error('invalid_library_preferences');
-  if (value !== undefined && !Value.Check(preferencesSchema, value))
+  if (!Value.Check(libraryPreferencesSchema, current))
     throw new Error('invalid_library_preferences');
-  const preferences = value === undefined ? current : { ...current, ...value };
-  if (!Value.Check(preferencesSchema, preferences)) throw new Error('invalid_library_preferences');
-  if (value !== undefined)
+  return current;
+}
+
+/** Serialize edits with the existing owner writer and preserve unselected preferences. */
+export async function changeLibraryPreferences(
+  root: string,
+  change: (current: Awaited<ReturnType<typeof readPreferences>>) => unknown,
+) {
+  return withWriter(root, async () => {
+    const preferences = change(await readPreferences(root));
+    if (!Value.Check(libraryPreferencesSchema, preferences))
+      throw new Error('invalid_library_preferences');
     await atomicJson(resolve(root, '.signals/library-preferences.json'), preferences);
-  return preferences;
+    return preferences;
+  });
+}
+
+export async function libraryPreferences(root: string, value?: unknown) {
+  if (value === undefined) return readPreferences(root);
+  if (!Value.Check(libraryPreferencesSchema, value)) throw new Error('invalid_library_preferences');
+  return changeLibraryPreferences(root, (current) => ({ ...current, ...value }));
 }
 const answerSchema = Type.Object(
   {

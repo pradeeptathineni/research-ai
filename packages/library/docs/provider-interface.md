@@ -16,6 +16,57 @@ Capability reads never initialize storage, probe a native CLI or start research.
 
 Identity reuses S02's durable scope. Missing/corrupt/unreadable scope yields `503 provider_unavailable`, never an invented instance or repaired ledger. For an explicitly selected fresh workspace, obtain the existing session token and explicitly `POST request-scope` with `{}`. Session acquisition includes native readiness and is separate from capability/record reads. Never initialize another scope to resolve uncertain work, storage loss or restore. Already registered callers can pin `x-signals-instance-id` and `x-signals-owner-epoch` while negotiating.
 
+## Personal-saving settings
+
+The optional `owner-settings` v1 contract advertises `read_owner_settings`,
+`preview_owner_settings` and authority-required `edit_owner_settings` for
+`private-library-settings`. Existing provider identity, loopback Origin and session-token
+boundaries apply. These operations do not start research or alter authentication.
+
+`GET library-settings` discovers the three existing private automatic-saving controls:
+`automaticSaving.enabled`, `automaticSaving.signalThreshold` and
+`automaticSaving.relevanceThreshold`. No query parameters or caller-selected paths are accepted.
+The `owner.settings.v1` projection uses the shared settings field shape: owner/component, category,
+default, effective value, source, scope, constraints, editability, timing and explicit limitations.
+The semantic owner is Research Library. The HTTP provider retains its historical `signals-ai`
+identity. Consumers must bind the registered provider instance/epoch and configured scope.
+
+`POST library-settings` accepts a closed request:
+
+```json
+{
+  "action": "preview",
+  "expectedRevision": "<revision from GET library-settings>",
+  "updates": { "automaticSaving.signalThreshold": 85 },
+  "resets": []
+}
+```
+
+Preview returns proposed values without writing. Use `action: "save"` with the same original
+`expectedRevision` after review. `baseRevision` preserves that original revision in preview/save
+responses. Revisions are opaque equality tokens over validated preferences, including unexposed
+consent. Formatting changes do not invalidate a revision. A changed preference returns
+`409 settings_changed`. Saves use the existing native validator, writer lock and private JSON
+store. Unknown save outcomes require a fresh read, without automatic replay.
+
+Reset requires all three IDs in `resets` and no updates. The owner stores this as one optional
+group, so reset removes the complete group and restores false/75/75. Individual override removal
+is unsupported. Manual saving, public admission, recurrence, meaning-matching consent and provider
+cost settings remain separate. Reads return no consent value or credentials. The native workbench
+reads the saving policy at completion, so a running operation can observe a saved change.
+Memory-only requests, claim checks and refresh remain outside automatic personal saving.
+
+The standalone exposes the same operations without a running server:
+
+```sh
+npm run library:settings -- --root /absolute/private-workspace show
+npm run library:settings -- --root /absolute/private-workspace edit '{"action":"preview","expectedRevision":"<current revision>","updates":{"automaticSaving.signalThreshold":85},"resets":[]}'
+```
+
+The workbench's persistent controls stay in Settings → Personal Library. Its search covers these
+three controls, with saved/default/source/scope values beside each. The form previews, saves,
+reloads and resets through the same owner route. It never resubmits the separate consent flag.
+
 ## Read exact retained records
 
 `GET provider/records?ref=<URL-encoded JSON RecordRef>` requires:

@@ -107,6 +107,22 @@ it('negotiates a portable owner boundary and reads exact partial answer bytes wi
     expect(metadata.capabilities.contracts).toContainEqual({ id: 'K13', versions: ['1.0'] });
     expect(metadata.capabilities.contracts).toContainEqual({ id: 'K14', versions: ['1.0'] });
     expect(metadata.capabilities.contracts).toContainEqual({
+      id: 'owner-settings',
+      versions: ['1.0'],
+    });
+    expect(metadata.capabilities.operations).toContainEqual({
+      name: 'read_owner_settings',
+      target_kinds: ['private-library-settings'],
+      mutating: false,
+      authority_required: false,
+    });
+    expect(metadata.capabilities.operations).toContainEqual({
+      name: 'edit_owner_settings',
+      target_kinds: ['private-library-settings'],
+      mutating: true,
+      authority_required: true,
+    });
+    expect(metadata.capabilities.contracts).toContainEqual({
       id: 'saved-entity-inspection',
       versions: ['1.0'],
     });

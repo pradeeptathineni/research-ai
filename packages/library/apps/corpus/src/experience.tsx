@@ -26,6 +26,7 @@ import {
 } from './experience-projects.js';
 import type { Project } from '../../../packages/corpus/src/project-contract.js';
 import BriefingPage from './briefing/BriefingPage.js';
+import { LibrarySavingSettings } from './library-saving-settings.js';
 
 const base = import.meta.env.BASE_URL;
 const local = (window as Window & { __SIGNALS_LOCAL__?: boolean }).__SIGNALS_LOCAL__ === true;
@@ -184,11 +185,6 @@ export function Experience() {
     { query: string; queryId?: string; at: string; selected: string[] }[]
   >([]);
   const [meaningAllowed, setMeaningAllowed] = useState(false);
-  const [autoSaving, setAutoSaving] = useState({
-    enabled: false,
-    signalThreshold: 75,
-    relevanceThreshold: 75,
-  });
   const [meaningBusy, setMeaningBusy] = useState(false);
   const [meaningResult, setMeaningResult] = useState<{
     query: string;
@@ -329,19 +325,12 @@ export function Experience() {
     const [history, settings, preferences] = await Promise.all([
       api<{ runs: typeof recent; selections: typeof selections }>('history'),
       api<{ queries: typeof interests }>('settings'),
-      api<{ meaningMatching: boolean; automaticSaving?: typeof autoSaving }>('library-preferences'),
+      api<{ meaningMatching: boolean }>('library-preferences'),
     ]);
     setRecent(history.runs);
     setSelections(history.selections);
     setInterests(settings.queries);
     setMeaningAllowed(preferences.meaningMatching);
-    setAutoSaving(
-      preferences.automaticSaving ?? {
-        enabled: false,
-        signalThreshold: 75,
-        relevanceThreshold: 75,
-      },
-    );
   }
   async function searchLibrary() {
     if (!local || !state.query.trim()) return;
@@ -1173,77 +1162,7 @@ export function Experience() {
             </nav>
           </>
         )}
-        {local && state.view === 'Settings' && (
-          <section className="desk-personal-preferences" aria-label="Personal Library preferences">
-            <h2>Personal Library</h2>
-            <p>
-              Manual saving accepts any returned item. Automatic personal saving is off by default
-              and never publishes to the public Corpus.
-            </p>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void action(async () => {
-                  await api('library-preferences', {
-                    meaningMatching: meaningAllowed,
-                    automaticSaving: autoSaving,
-                  });
-                  setMessage(
-                    'Personal preferences saved. Public admission and recurrence are separate.',
-                  );
-                });
-              }}
-            >
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={autoSaving.enabled}
-                  onChange={(event) =>
-                    setAutoSaving({ ...autoSaving, enabled: event.target.checked })
-                  }
-                />
-                Automatically save qualifying research results privately
-              </label>
-              <div className="desk-filters">
-                <label>
-                  Minimum Signal
-                  <input
-                    aria-label="Automatic saving Signal threshold"
-                    type="number"
-                    min={0}
-                    max={100}
-                    required
-                    value={autoSaving.signalThreshold}
-                    onChange={(event) =>
-                      setAutoSaving({ ...autoSaving, signalThreshold: event.target.valueAsNumber })
-                    }
-                  />
-                </label>
-                <label>
-                  Minimum relevance
-                  <select
-                    aria-label="Automatic saving relevance threshold"
-                    value={autoSaving.relevanceThreshold}
-                    onChange={(event) =>
-                      setAutoSaving({
-                        ...autoSaving,
-                        relevanceThreshold: Number(event.target.value),
-                      })
-                    }
-                  >
-                    <option value={75}>75 · Direct match</option>
-                    <option value={100}>100 · Meets inspected constraints</option>
-                  </select>
-                </label>
-              </div>
-              <p className="desk-meta">
-                Requires completed assessment, resolved identity and no decisive unresolved
-                contradiction. Exclusions remain inspectable. Changes apply when saved.
-              </p>
-              <button>Save personal preferences</button>
-            </form>
-          </section>
-        )}
+        {local && state.view === 'Settings' && <LibrarySavingSettings api={api} />}
         {local && state.view === 'Briefing' && (
           <BriefingPage
             api={api}

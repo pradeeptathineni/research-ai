@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { editLibrarySettings, readLibrarySettings } from './library-settings.js';
 import { knowledgeRoute } from './knowledge.js';
 import { smartCollectionsRoute } from './smart-collections.js';
 import {
@@ -1319,6 +1320,13 @@ export function searchApi(
           process.env.SIGNALS_QUERY_DIRECTORY ?? resolve(root, '.signals/queries'),
         );
         json(200, { saved: true, id: file.split('/').at(-1) });
+      } else if (route === 'library-settings') {
+        if (new URL(request.url!, 'http://127.0.0.1').searchParams.size)
+          throw new Error('invalid_library_settings');
+        json(
+          200,
+          mutation ? await editLibrarySettings(root, body) : await readLibrarySettings(root),
+        );
       } else if (route === 'library-preferences')
         json(200, await libraryPreferences(root, mutation ? body : undefined));
       else if (route === 'library-search' && mutation) {
@@ -2187,6 +2195,7 @@ export function searchApi(
       json(
         [
           'request_conflict',
+          'settings_changed',
           'owner_epoch_mismatch',
           'request_configuration_changed',
           'request_configuration_conflict',

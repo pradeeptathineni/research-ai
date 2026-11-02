@@ -195,6 +195,7 @@ export async function providerCapabilities(
     contracts: [
       ...['K01', 'K12', 'K13', 'K14', 'K15'].map((id) => ({ id, versions: ['1.0'] })),
       { id: 'library-explore', versions: ['1.0'] },
+      { id: 'owner-settings', versions: ['1.0'] },
       { id: 'source-capture', versions: ['1.0'] },
       { id: 'source-archive', versions: ['1.0'] },
       { id: 'source-change-review', versions: ['1.0'] },
@@ -215,6 +216,24 @@ export async function providerCapabilities(
       { id: 'research-activity', versions: ['1.0'] },
     ],
     operations: [
+      {
+        name: 'read_owner_settings',
+        target_kinds: ['private-library-settings'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'preview_owner_settings',
+        target_kinds: ['private-library-settings'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'edit_owner_settings',
+        target_kinds: ['private-library-settings'],
+        mutating: true,
+        authority_required: true,
+      },
       {
         name: 'preview_briefing_ranking',
         target_kinds: ['briefing-story'],
