@@ -265,7 +265,11 @@ export function SavedEntityReview({
               source details below retain their recorded limitations.
             </p>
           </details>
-          <h5>Research that introduced this saved record</h5>
+          <h5>Saved research receipts</h5>
+          <p>
+            Each receipt records a save selection. A later refresh or repeat save may not be the
+            first time this entity entered the corpus.
+          </p>
           {data.receipts.length ? (
             <ul>
               {data.receipts.map((receipt) => (
@@ -274,9 +278,16 @@ export function SavedEntityReview({
                     “{receipt.query}” · {receipt.mode} save · {date(receipt.at)} · receipt{' '}
                     <code>{receipt.id}</code>
                   </p>
-                  <button onClick={() => onReopenResearch(receipt.runId)}>
-                    Reopen frozen research run
-                  </button>
+                  {receipt.reopenStatus === 'available' ? (
+                    <button onClick={() => onReopenResearch(receipt.runId)}>
+                      Reopen frozen research run
+                    </button>
+                  ) : (
+                    <p role="status">
+                      Frozen run {receipt.reopenStatus}: {receipt.reopenReason} No other run will be
+                      substituted.
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

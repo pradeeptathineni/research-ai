@@ -10,7 +10,7 @@ import {
   FrozenDiscussion,
   SavedEntityReview,
 } from './candidate-views.js';
-import { loadEntities } from '../../../packages/corpus/src/search-store.js';
+import { loadEntities, retainRun } from '../../../packages/corpus/src/search-store.js';
 import { inspectSavedEntity } from '../../../packages/corpus/src/saved-entity-inspection.js';
 import { assessEntity } from '../../../packages/domain/src/search-score.js';
 import { saveLibraryLead } from '../../../packages/corpus/src/library-leads.js';
@@ -20,6 +20,7 @@ import {
   projectLegacyLibrary,
   projectNativeLibrary,
 } from '../../../packages/domain/src/library-search.js';
+import { budgets, type SearchResult } from '../../../packages/domain/src/search-contract.js';
 
 it('shows a saved entity separately from its assessment and exposes its frozen run and evidence receipt', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-saved-entity-review-')));
@@ -31,6 +32,34 @@ it('shows a saved entity separately from its assessment and exposes its frozen r
     join(root, '.signals/corpus/entities', `${record.entity.id}.json`),
     JSON.stringify(record),
   );
+  const run: SearchResult = {
+    schemaVersion: 2,
+    runId: randomUUID(),
+    query: 'synthetic lead query',
+    status: 'completed',
+    items: [
+      {
+        entity: record.entity,
+        match: { level: 'direct', reason: 'Synthetic saved entity.', sources: [] },
+        eligible: false,
+        reasons: ['manual_only'],
+      },
+    ],
+    sources: [],
+    coverage: [],
+    gaps: [],
+    usage: {
+      searches: 0,
+      documents: 0,
+      elapsedMs: 0,
+      modelCalls: 0,
+      providerUsage: null,
+      cost: null,
+    },
+    counts: { leads: 1, distinct: 1, duplicates: 0, omitted: 0 },
+    limits: budgets.quick,
+  };
+  await retainRun(run, root);
   await writeFile(
     join(root, '.signals/selections.json'),
     JSON.stringify([
@@ -42,8 +71,8 @@ it('shows a saved entity separately from its assessment and exposes its frozen r
         selected: [record.entity.id],
         changed: [record.entity.id],
         skipped: [],
-        runId: randomUUID(),
-        query: 'synthetic entity vetting',
+        runId: run.runId,
+        query: run.query,
         kind: 'one-off',
       },
     ]),
@@ -63,8 +92,27 @@ it('shows a saved entity separately from its assessment and exposes its frozen r
     expect(markup).toContain('not a probability');
     expect(markup).toContain('Exact retained evidence');
     expect(markup).toContain(record.entity.evidence[0]!.id);
-    expect(markup).toContain('synthetic entity vetting');
+    expect(markup).toContain('synthetic lead query');
     expect(markup).toContain('Reopen frozen research run');
+    const staleMarkup = renderToStaticMarkup(
+      <SavedEntityReview
+        finding={projectNativeLibrary(record, 'private')}
+        inspection={{
+          loading: false,
+          data: {
+            ...inspection,
+            receipts: inspection.receipts.map((receipt) => ({
+              ...receipt,
+              reopenStatus: 'unavailable' as const,
+              reopenReason: 'The frozen introducing run is no longer retained.',
+            })),
+          },
+        }}
+        onReopenResearch={() => {}}
+      />,
+    );
+    expect(staleMarkup).toContain('Frozen run unavailable');
+    expect(staleMarkup).not.toContain('Reopen frozen research run');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
