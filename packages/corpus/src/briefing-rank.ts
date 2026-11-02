@@ -6,6 +6,7 @@ import {
   type RankingExplanation,
 } from './briefing/schema.js';
 import { summarizeBriefingPulse } from './briefing-pulse.js';
+import { briefingEventFreshness } from './briefing-event-freshness.js';
 
 const DAY = 86_400_000;
 const clamp = (value: number, low = 0, high = 100) => Math.max(low, Math.min(high, value));
@@ -109,6 +110,16 @@ function freshness(
   input: BriefingRankInput,
   now: number,
 ): RankingExplanation['components']['freshness'] {
+  const events = input.events;
+  if (events !== undefined) {
+    const targets = input.items.map(({ item, source, interests }) => ({
+      itemId: item.id,
+      interests: interests.filter(
+        (interest) => itemInterestTerms(item, interest, source.id).length > 0,
+      ),
+    }));
+    return briefingEventFreshness(events, targets, now);
+  }
   const values = input.items.flatMap(({ item, interests }) =>
     interests
       .filter((interest) => interest.enabled && interest.weight > 0)
