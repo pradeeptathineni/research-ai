@@ -5,6 +5,12 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { saveLibraryLead } from './library-leads.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
+import { defaultSettings, saveSettings } from './search-settings.js';
+import {
+  createBriefingApi,
+  readBriefingCaptureContext,
+  retainBriefingRecords,
+} from './briefing/store.js';
 import {
   compareSourceCaptures,
   createSourceCapture,
@@ -12,6 +18,7 @@ import {
   type RecordRef,
   type SourceCaptureOptions,
 } from './source-captures.js';
+import type { Item, Story } from './briefing/schema.js';
 import {
   createSourceArchive,
   readSourceArchive,
@@ -140,6 +147,8 @@ it('archives exact fetch response bytes without rewriting retained captures or r
 
     const coldArchive = await readSourceArchive(root, created.capture_ref!);
     expect(coldArchive.state).toBe('available');
+    if (coldArchive.state !== 'available')
+      throw new Error('Archived response bytes are unavailable.');
     expect(coldArchive.capture_ref).toEqual(created.capture_ref);
     expect(coldArchive.raw_digest).toBe(sha(rawBytes));
     expect(coldArchive.byte_count).toBe(rawBytes.byteLength);
@@ -209,8 +218,10 @@ it('archives exact fetch response bytes without rewriting retained captures or r
 
     const legacyArchive = await readSourceArchive(root, legacy.ref);
     expect(legacyArchive.state).toBe('unavailable');
+    if (legacyArchive.state !== 'unavailable')
+      throw new Error('Legacy capture unexpectedly has a raw archive.');
     expect(legacyArchive.capture_ref).toEqual(legacy.ref);
-    expect(legacyArchive.bytes_base64).toBeUndefined();
+    expect('bytes_base64' in legacyArchive).toBe(false);
     expect((await openSourceCapture(root, legacy.ref.id)).capture).toEqual(legacyBefore.capture);
     const comparison = await compareSourceCaptures(root, legacy.ref.id, requestId);
     expect(comparison.left.ref).toEqual(legacy.ref);
@@ -261,6 +272,160 @@ it('archives exact fetch response bytes without rewriting retained captures or r
     expect(partialReplay.replayed).toBe(true);
     expect(partialReplay.capture_ref).toEqual(partial.capture_ref);
     expect(oversizedFetchCalls).toBe(1);
+
+    await saveSettings(
+      {
+        ...defaultSettings,
+        followedSources: [
+          {
+            uri: 'https://example.test/fixture-feed.xml',
+            label: 'Fixture feed',
+            enabled: true,
+            interests: ['fixture'],
+          },
+        ],
+        queries: [
+          {
+            id: 'fixture',
+            query: 'fixture',
+            enabled: true,
+            everyDays: 1,
+            offsetMinutes: 0,
+            concepts: [],
+          },
+        ],
+      },
+      root,
+    );
+    const briefing = createBriefingApi(root);
+    const sourceId = (await briefing.listSources())[0]!.reference.id;
+    const item: Item = {
+      id: 'fixture-archive-item',
+      sourceId,
+      canonicalUrl: 'https://example.test/blocked-archive-item',
+      title: 'Synthetic blocked source',
+      author: null,
+      publishedAt: null,
+      observedAt: '2026-11-02T00:00:00.000Z',
+      contentDigest: sha(Buffer.from('fixture article', 'utf8')),
+      excerpt: 'Synthetic fixture item.',
+      metrics: [],
+      interestIds: [],
+      storyId: 'fixture-archive-story',
+    };
+    const story: Story = {
+      id: 'fixture-archive-story',
+      itemIds: [item.id],
+      representativeItemId: item.id,
+      firstSeen: item.observedAt,
+      lastSeen: item.observedAt,
+      relation: 'single',
+      groupingEvidence: [],
+      interestMatches: [],
+    };
+    await retainBriefingRecords(root, { items: [item], stories: [story] });
+    const rankInput = (await briefing.listRankInputs()).find((row) => row.story.id === story.id)!;
+    const briefingRef: RecordRef = {
+      owner: 'signals-ai',
+      kind: 'briefing-item',
+      id: rankInput.items[0]!.item.id,
+      revision: rankInput.items[0]!.itemReference.revision,
+      digest: rankInput.items[0]!.itemReference.revision.slice('sha256:'.length),
+    };
+    await briefing.setSourceTermsPolicy({
+      requestId: randomUUID(),
+      sourceId,
+      termsUrl: 'https://example.test/terms',
+      status: 'blocked',
+    });
+    const deniedRequestId = randomUUID();
+    const deniedRequest = {
+      request_id: deniedRequestId,
+      capture_request: { source_ref: briefingRef, mode: 'fetch' as const },
+    };
+    let deniedFetchCalls = 0;
+    const deniedFetcher: NonNullable<SourceCaptureOptions['fetcher']> = async (uri) => {
+      deniedFetchCalls++;
+      return {
+        text: 'Terms-blocked fetch must not start.',
+        digest: sha(rawBytes),
+        uri,
+        bytes: Buffer.from(rawBytes),
+        contentType: 'text/html; charset=utf-8',
+      };
+    };
+    const readBriefingContext: NonNullable<SourceCaptureOptions['readBriefingContext']> = async (
+      ref,
+    ) => {
+      const context = await readBriefingCaptureContext(root, {
+        owner: 'signals-ai',
+        kind: 'briefing-item',
+        id: ref.id,
+        revision: ref.revision,
+      });
+      const itemReference = {
+        owner: 'signals-ai' as const,
+        kind: 'briefing-item' as const,
+        id: ref.id,
+        revision: ref.revision,
+        digest: ref.digest,
+      };
+      const sourceReference = {
+        owner: 'signals-ai' as const,
+        kind: 'briefing-source' as const,
+        id: context.sourceReference.id,
+        revision: context.sourceReference.revision,
+        digest: context.sourceReference.revision.slice('sha256:'.length),
+      };
+      const exactSource = await resolveRef(sourceReference);
+      expect(exactSource.ref).toMatchObject(sourceReference);
+      return {
+        item_reference: itemReference,
+        item_content_digest: context.itemContentDigest,
+        source_ref: sourceReference,
+        source_health: context.sourceHealth,
+        terms_policy: context.termsPolicy ?? {
+          id: null,
+          sourceId: context.sourceReference.id,
+          termsUrl: null,
+          status: 'unknown' as const,
+          reviewedAt: null,
+        },
+        observed_at: context.observedAt,
+      };
+    };
+    await expect(
+      createSourceArchive(root, deniedRequest, resolveRef, {
+        fetcher: deniedFetcher,
+        readBriefingContext,
+      }),
+    ).rejects.toMatchObject({ status: 403, code: 'source_terms_blocked' });
+    expect(deniedFetchCalls).toBe(0);
+    await expect(openSourceCapture(root, deniedRequestId)).rejects.toMatchObject({
+      status: 404,
+      code: 'source_capture_not_found',
+    });
+    const deniedReadback = await readSourceArchiveRequest(root, deniedRequestId);
+    expect(deniedReadback).toMatchObject({
+      state: 'not-created',
+      request_id: deniedRequestId,
+      capture_ref: null,
+      archive_ref: null,
+      replayed: true,
+    });
+    expect(deniedFetchCalls).toBe(0);
+    const deniedReplay = await createSourceArchive(root, deniedRequest, resolveRef, {
+      fetcher: deniedFetcher,
+      readBriefingContext,
+    });
+    expect(deniedReplay).toMatchObject({
+      state: 'not-created',
+      request_id: deniedRequestId,
+      capture_ref: null,
+      archive_ref: null,
+      replayed: true,
+    });
+    expect(deniedFetchCalls).toBe(0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
