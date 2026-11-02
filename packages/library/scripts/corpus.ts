@@ -1,4 +1,9 @@
-import { publishPublicData } from '../packages/corpus/src/public-export.js';
+import {
+  exportReviewedPublicData,
+  previewPublicData,
+  publishPublicData,
+  reviewPublicDataPreview,
+} from '../packages/corpus/src/public-export.js';
 import { loadPublicCorpus } from '../packages/corpus/src/public-corpus.js';
 import { filterPublicOptions, type PublicFilters } from '../packages/domain/src/public-corpus.js';
 import { constants } from 'node:fs';
@@ -167,4 +172,32 @@ if (operation === 'check') {
   );
 } else if (operation === 'build') {
   await publishPublicData(corpus, 'dist', await loadEntities());
-} else throw new Error('Usage: corpus check | search --query=TEXT [--type=VALUE] | build');
+} else if (operation === 'preview' && args.length === 0) {
+  const preview = previewPublicData(corpus, await loadEntities());
+  process.stdout.write(`${JSON.stringify(preview, null, 2)}\n`);
+} else if (operation === 'build-reviewed') {
+  const values: Record<string, string> = {};
+  for (const arg of args) {
+    const match = /^--(review-sha256|reviewer)=(.*)$/.exec(arg);
+    if (!match || !match[2])
+      throw new Error(
+        'Usage: corpus build-reviewed --review-sha256=PREVIEW_SHA256 --reviewer=LABEL',
+      );
+    if (Object.hasOwn(values, match[1]!)) throw new Error('Duplicate review option.');
+    values[match[1]!] = match[2]!;
+  }
+  if (Object.keys(values).length !== 2 || !/^[a-f0-9]{64}$/.test(values['review-sha256'] ?? ''))
+    throw new Error('Usage: corpus build-reviewed --review-sha256=PREVIEW_SHA256 --reviewer=LABEL');
+  const entities = await loadEntities();
+  const preview = previewPublicData(corpus, entities);
+  const review = reviewPublicDataPreview(preview, {
+    confirmedSha256: values['review-sha256']!,
+    reviewer: values.reviewer!,
+    reviewedAt: new Date().toISOString(),
+  });
+  const result = await exportReviewedPublicData(corpus, 'dist', entities, review);
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+} else
+  throw new Error(
+    'Usage: corpus check | search --query=TEXT [--type=VALUE] | build | preview | build-reviewed --review-sha256=SHA256 --reviewer=LABEL',
+  );

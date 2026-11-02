@@ -4,6 +4,8 @@ Signals researches questions, explains worthwhile findings, and retains knowledg
 
 The local workspace opens on Home with retained discoveries and recent searches. Search offers Library, Online and Combined scopes. Projects connects selected repository or folder snapshots to findings. Following manages interests and sources. The [public Corpus](https://pradeeptathineni.github.io/signals-ai/) is a read-only view of approved public records.
 
+Before a local public-data export, `npm run corpus -- preview` prints the exact derived artifact bytes, SHA-256 digests, source references and privacy qualifications. Review that preview digest, then use `npm run corpus -- build-reviewed --review-sha256=... --reviewer=...` to export those same bytes to `dist/public-data`. This is a local artifact operation; it does not push Git or publish Pages. The existing `corpus build` and `publishPublicData` compatibility path remains available without this action-time review workflow, and external repository publication remains a separate reviewed operation. See [publication preview](docs/publication-preview.md).
+
 ## Start locally
 
 Use Node 24.19 or later in the Node 24 series and npm 12.1 or later in the npm 12 series.

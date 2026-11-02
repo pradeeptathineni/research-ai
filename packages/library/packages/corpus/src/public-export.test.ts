@@ -7,6 +7,15 @@ import { loadPublicCorpus } from './public-corpus.js';
 import { publishPublicData } from './public-export.js';
 import { parsePublicIndex } from '../../domain/src/public-index.js';
 import { refreshPublicFreshness } from '../../domain/src/public-corpus.js';
+import {
+  previewPublicData,
+  reviewPublicDataPreview,
+  exportReviewedPublicData,
+} from './public-export.js';
+import { evidenceDigest } from '../../domain/src/evidence-exchange.js';
+import { assessEntity } from '../../domain/src/search-score.js';
+import { entityIdentity } from './signal-search.js';
+import { validateEntity, type StoredEntity } from './search-store.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof Fs>();
@@ -97,4 +106,163 @@ it('builds the library only from approved public inputs, independently of privat
   expect(library.every((finding) => finding.origin.destination === 'public')).toBe(true);
   expect(bytes).not.toContain('PRIVATE NOTE');
   expect(bytes).not.toContain('.signals');
+});
+
+it('previews exact synthetic public bytes, binds review to that digest and exports byte-identically offline', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'signals-public-preview-'));
+  const destination = await mkdtemp(join(tmpdir(), 'signals-public-reviewed-export-'));
+  directories.push(root, destination);
+  await mkdir(join(root, 'practices'));
+  const bundle = {
+    schema_version: 1 as const,
+    bundle_id: 'synthetic-preview',
+    mode: 'offline-curated' as const,
+    created_at: '2026-10-01T00:00:00.000Z',
+    producer: {
+      repository: 'https://example.org/synthetic',
+      commit: 'a'.repeat(40),
+      protocol: 'signals-evidence-v1',
+    },
+    need: { query: 'synthetic publication preview' },
+    sources: [
+      {
+        id: 'source:synthetic',
+        uri: 'https://example.org/source',
+        title: 'Synthetic source',
+        source_class: 'documentation',
+        observed_at: '2026-10-01T00:00:00.000Z',
+      },
+    ],
+    claims: [
+      {
+        id: 'claim:synthetic',
+        text: 'Synthetic claim for byte preview.',
+        source_ids: ['source:synthetic'],
+        status: 'observed' as const,
+      },
+    ],
+    candidates: [
+      {
+        id: 'option:synthetic',
+        name: 'Synthetic option',
+        canonical_uri: 'https://example.org/option',
+        claim_ids: ['claim:synthetic'],
+        disposition: 'consider' as const,
+        reason: 'Synthetic-only fixture.',
+        limitations: [],
+      },
+    ],
+    limitations: ['Synthetic preview data; not a public finding.'],
+  };
+  const bundleBytes = `${JSON.stringify(bundle, null, 2)}\n`;
+  const digest = evidenceDigest(bundleBytes);
+  const record = {
+    recordVersion: 1,
+    encoding: 'pretty-json-v1',
+    evidence: bundle,
+    review: {
+      digest,
+      category: 'Synthetic',
+      reviewedAt: '2026-10-02T00:00:00.000Z',
+      reviewer: 'human',
+      rationale: 'Synthetic test record.',
+      claimReviews: [{ claimId: 'claim:synthetic', basis: 'unknown', reviewAfterDays: null }],
+      state: 'withdrawn',
+    },
+  };
+  await writeFile(join(root, 'practices/synthetic.json'), JSON.stringify(record));
+  const publicCorpus = await loadPublicCorpus(root, '2026-10-03T00:00:00.000Z');
+
+  const uri = 'https://example.org/synthetic-tool';
+  const base = {
+    id: entityIdentity(uri),
+    uri,
+    name: 'Synthetic saved entity',
+    kind: 'software' as const,
+    identity: 'resolved' as const,
+    aliases: [],
+    description: 'Synthetic entity body.',
+    facets: {
+      domains: [],
+      capabilities: [],
+      interfaces: [],
+      deliveryForms: [],
+      platforms: [],
+      licenses: [],
+      tags: [],
+    },
+    observations: [],
+    limits: [],
+    evidence: [],
+  };
+  const entity = validateEntity({
+    ...base,
+    assessment: assessEntity(base, '2026-10-03T00:00:00.000Z', 'signal-strength-v10'),
+  });
+  const entities: StoredEntity[] = [{ recordVersion: 2, state: 'user-saved', entity }];
+  await mkdir(join(destination, '.signals'));
+  await writeFile(
+    join(destination, '.signals/private.json'),
+    'PRIVATE PROJECT AND ANNOTATION SENTINEL',
+  );
+
+  const preview = previewPublicData(publicCorpus, entities);
+  const paths = preview.artifacts.map(({ path }) => path);
+  expect(paths).toEqual([
+    'corpus.json',
+    'entities.json',
+    'library.json',
+    'bundles/synthetic-preview.json',
+    'bundles/synthetic-preview.json.sha256',
+  ]);
+  expect(
+    preview.artifacts.every(
+      (artifact) => artifact.bytes.length > 0 && /^[a-f0-9]{64}$/.test(artifact.sha256),
+    ),
+  ).toBe(true);
+  expect(preview.artifacts.find((artifact) => artifact.path === 'entities.json')!.bytes).toContain(
+    entity.id,
+  );
+  expect(preview.artifacts.some((artifact) => artifact.bytes.includes('PRIVATE PROJECT'))).toBe(
+    false,
+  );
+  expect(() =>
+    previewPublicData(publicCorpus, [
+      {
+        ...entities[0]!,
+        entity: { ...entity, privateAnnotation: 'must not export' },
+      } as unknown as StoredEntity,
+    ]),
+  ).toThrow('invalid_entity_schema');
+  expect(preview.qualifications.join(' ')).toMatch(/truth|rights/);
+  expect(() =>
+    reviewPublicDataPreview(preview, {
+      confirmedSha256: '0'.repeat(64),
+      reviewer: 'human',
+      reviewedAt: '2026-10-03T00:00:00Z',
+    }),
+  ).toThrow(/exact preview digest/);
+  const review = reviewPublicDataPreview(preview, {
+    confirmedSha256: preview.sha256,
+    reviewer: 'synthetic reviewer',
+    reviewedAt: '2026-10-03T00:00:00Z',
+  });
+  const changedEntity = structuredClone(entities);
+  changedEntity[0]!.entity.description = 'Changed after review.';
+  await expect(
+    exportReviewedPublicData(publicCorpus, destination, changedEntity, review),
+  ).rejects.toThrow('changed after review');
+
+  const exported = await exportReviewedPublicData(publicCorpus, destination, entities, review);
+  expect(exported.previewSha256).toBe(preview.sha256);
+  const pointer = join(destination, 'public-data');
+  for (const artifact of preview.artifacts) {
+    const actual = await readFile(join(pointer, artifact.path), 'utf8');
+    expect(actual).toBe(artifact.bytes);
+    expect(evidenceDigest(actual)).toBe(artifact.sha256);
+  }
+  expect(await readFile(join(destination, '.signals/private.json'), 'utf8')).toContain(
+    'PRIVATE PROJECT',
+  );
+  expect(await readFile(join(pointer, 'entities.json'), 'utf8')).not.toContain('PRIVATE PROJECT');
 });
