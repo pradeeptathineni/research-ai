@@ -46,6 +46,14 @@ npm run source-watches -- --root /path/to/private-root check '{"owner":"signals-
 
 The result is limited to the selected retained text and reports capture coverage. Missing/ambiguous markers, unavailable refs, or an unverified same-source predecessor chain return `unresolved`; they do not mean unchanged. A changed result is a textual difference, not a finding about truth, importance, support, or currentness. A person must inspect the retained excerpts and context, then explicitly decide whether any assessment or action should change. Source Watches do not fetch, notify, or make that decision.
 
+To prepare the existing full-source change-review preview from a resolved watch check, run:
+
+```sh
+npm run source-watches -- --root /path/to/private-root review-preview '{"owner":"signals-ai","kind":"source-watch","id":"WATCH_UUID_FROM_CREATE","revision":"sha256:WATCH_DIGEST_FROM_CREATE","digest":"WATCH_DIGEST_FROM_CREATE"}' '{"owner":"signals-ai","kind":"source_capture","id":"NEW_CAPTURE_UUID","revision":"sha256:NEW_CAPTURE_DIGEST","digest":"NEW_CAPTURE_DIGEST"}'
+```
+
+This command returns both the selected-section check and `previewSourceChange` output for the complete normalized capture text. It is preview-only and does not create a review. It refuses unresolved watch checks, and the existing full-source preview additionally requires the new capture to directly supersede the baseline; a watch can check a descendant up to 100 versions later, but that multi-version result cannot be promoted through this command. Watch diff line references use filtered-section coordinates after exact ignored lines are removed; full-source preview references use the original normalized capture text. Keep those coordinate systems separate when a person prepares a review.
+
 Diff output retains at most 40 changed lines and 5,000 UTF-8 bytes for each side. It includes hashes and omitted-line counts for larger changes, and keeps a marked excerpt when a single changed line exceeds the byte limit. The per-version coverage snapshot separately reports capture mode, original/retained/omitted text sizes, extraction kind, and declared omissions. An unchanged pair can be recorded as unchanged, but still carries no truth, source-currentness, or support conclusion. Missing and stale exact references fail closed.
 
 Each confidence observation is bound to the exact saved entity revision and its canonical observation ID. A source change review preserves the original signal and assertion history. Cold reopen reads retained review state without fetching the source or regenerating the diff.
