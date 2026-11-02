@@ -167,7 +167,7 @@ describe('Briefing matched-interest term feedback', () => {
     ).toEqual(beforeReference);
     const reopened = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!;
     const reopenedRanked = (
-      reopened.body as typeof firstWorkbench.body as {
+      reopened.body as {
         ranked: Array<{
           input: { story: Story };
           matchedTerms: Array<{ interestId: string; terms: string[] }>;

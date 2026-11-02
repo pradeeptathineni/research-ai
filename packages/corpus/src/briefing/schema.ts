@@ -547,7 +547,7 @@ export function rankingTotal(
 }
 export function isRankingExplanation(value: unknown): value is RankingExplanation {
   if (!Value.Check(RankingExplanationSchema, value)) return false;
-  const explanation = value as RankingExplanation;
+  const explanation = value;
   const componentValues = Object.values(explanation.components);
   const allKnown = componentValues.every((component) => component.status === 'available');
   const statusesValid = componentValues.every(
