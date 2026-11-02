@@ -647,7 +647,7 @@ export async function providerCapabilities(
       private_document_intake_route:
         'private-documents supports PDF text-layer, Markdown, inert HTML and plain-text imports. The private-document-intake v1 contract adds an idempotent import request and action-tagged correction preview/create on the same bounded route; corrections retain original bytes and exact parent refs in the existing immutable document store.',
       saved_entity_inspection_route:
-        'GET saved-entity?id=<entity-id>&destination=private|public returns the exact saved entity record, its saved-versus-assessed status, Unknown confidence, matching save receipts and introducing run IDs. POST history/open with a receipt runId reopens its frozen run without new research.',
+        'GET saved-entity?id=<entity-id>&destination=private|public returns the exact saved entity record, its saved-versus-assessed status, Unknown confidence and matching save receipts. Each receipt reports whether its exact runId was cold-validated against the saved query and entity ID; stale or conflicting runs cannot be reopened. POST history/open with an available receipt runId reopens its frozen run without new research.',
       supported_records:
         'Qualified retained runs, imported answers, native entities, selected leads and project records. Library summaries are bounded; process observations use provider/processes. No arbitrary paths or commands.',
     },
