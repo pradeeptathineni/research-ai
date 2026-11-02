@@ -109,6 +109,7 @@ it('checks exact watched sections across source descendants without rewriting ca
       new_capture_ref: second.ref,
       ignored_counts: { baseline: 1, next: 1 },
     });
+    if (!("baseline_section" in unchanged)) throw new Error("Unchanged watch result has no comparable section data.");
     expect(unchanged.baseline_section.text_sha256).toBe(unchanged.new_section.text_sha256);
     expect(first.capture.text).not.toBe(second.capture.text);
     expect(first.capture.text_sha256).not.toBe(second.capture.text_sha256);
@@ -122,6 +123,7 @@ it('checks exact watched sections across source descendants without rewriting ca
       new_capture_ref: third.ref,
       ignored_counts: { baseline: 1, next: 1 },
     });
+    if (!("diff" in changed)) throw new Error("Changed watch result has no section diff.");
     expect(changed.diff.added).toContain('Status: beta');
     expect(changed.diff.removed).toContain('Status: alpha');
     expect(changed.new_section.line_map.every((line) => line.line_number > 1 && line.line_number < 9)).toBe(true);
@@ -129,12 +131,15 @@ it('checks exact watched sections across source descendants without rewriting ca
 
     const missing = await checkSourceWatch(root, created.ref, missingMarker.ref);
     expect(missing.status).toBe('unresolved');
+    if (!("reason" in missing)) throw new Error("Missing-marker result was not unresolved.");
     expect(missing.reason).toMatch(/marker/);
     const duplicate = await checkSourceWatch(root, created.ref, duplicatedMarker.ref);
     expect(duplicate.status).toBe('unresolved');
+    if (!("reason" in duplicate)) throw new Error("Duplicate-marker result was not unresolved.");
     expect(duplicate.reason).toMatch(/marker/);
     const brokenLineage = await checkSourceWatch(root, created.ref, disconnected.ref);
     expect(brokenLineage.status).toBe('unresolved');
+    if (!("reason" in brokenLineage)) throw new Error("Broken-lineage result was not unresolved.");
     expect(brokenLineage.reason).toMatch(/descendant/);
     for (const result of [missing, duplicate, brokenLineage]) {
       expect(result.qualification.some((item) => item.includes('no quiet unchanged result was inferred'))).toBe(true);
