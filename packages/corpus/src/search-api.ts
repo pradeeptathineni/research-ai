@@ -600,7 +600,7 @@ export function searchApi(
             revision: context.sourceReference.revision,
             digest: context.sourceReference.revision.slice('sha256:'.length),
           };
-          const exactSource = await resolveSource(sourceRef as RecordRef);
+          const exactSource = await resolveSource(sourceRef);
           if (
             exactSource.ref.revision !== sourceRef.revision ||
             exactSource.ref.digest !== sourceRef.digest
