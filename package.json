@@ -21,10 +21,13 @@
   "scripts": {
     "research": "node packages/methods/bin/research-ai.mjs",
     "methods:test": "npm test --workspace @pradeeptathineni/research-ai",
+    "methods:verify": "npm test --workspace @pradeeptathineni/research-ai",
+    "library:verify": "npm run verify --workspace signals-ai",
     "library:research": "node --import tsx packages/library/scripts/research.ts",
     "library:dependencies": "node packages/library/scripts/dependency-check.mjs",
     "workbench:start": "npm run start --workspace research-workbench",
     "workbench:dev": "npm run dev --workspace research-workbench",
-    "workbench:verify": "npm run verify:entrypoint --workspace research-workbench"
+    "workbench:verify": "npm run verify:entrypoint --workspace research-workbench && npm run verify:briefing-research --workspace research-workbench",
+    "rx02:verify": "npm run methods:verify && npm run library:verify && npm run workbench:verify"
   }
 }

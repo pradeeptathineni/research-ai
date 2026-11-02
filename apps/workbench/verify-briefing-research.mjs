@@ -4,12 +4,11 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  createResearchNotebookFromBriefingSelection,
   createReport,
-  createResearchNotebook,
   projectReportClaimRegister,
   renderReport,
   renderResearchNotebook,
-  reviseResearchNotebook,
   validateResearchNotebook,
 } from "@pradeeptathineni/research-ai";
 import { refreshBriefing } from "../../packages/library/packages/corpus/src/briefing/ingest.ts";
@@ -21,17 +20,6 @@ import {
 } from "../../packages/library/packages/corpus/src/search-settings.ts";
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
-const canonical = (value) => {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object")
-    return `{${Object.entries(value)
-      .filter(([, child]) => child !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
-      .join(",")}}`;
-  return JSON.stringify(value) ?? "null";
-};
-
 const root = await realpath(
   await mkdtemp(join(tmpdir(), "rx02-briefing-research-")),
 );
@@ -123,14 +111,16 @@ try {
 
   const storyReference = input.storyReference;
   const excerptSha256 = sha256(item.excerpt);
-  const documentIdentity = [storyReference, itemReference, sourceReference];
-  const document = {
-    id: `briefing-item-${sha256(canonical(documentIdentity))}`,
-    title: item.title,
-    sha256: sha256(`briefing-document-header\n${item.title}\n${excerptSha256}`),
-    pages: [{ number: 1, text: item.excerpt, sha256: excerptSha256 }],
-  };
-  const origin = {
+  const notebook = createResearchNotebookFromBriefingSelection(workbench.body, {
+    storyReference,
+    itemReferences: [itemReference],
+    title: "Briefing story review",
+  });
+  const reopenedNotebook = validateResearchNotebook(
+    JSON.parse(renderResearchNotebook(notebook)),
+  );
+  assert.deepEqual(reopenedNotebook, notebook);
+  assert.deepEqual(reopenedNotebook.sources[0].briefingOrigin, {
     schemaVersion: 1,
     kind: "signals-briefing-item",
     storyReference,
@@ -140,20 +130,16 @@ try {
     excerptSha256,
     observedAt: item.observedAt,
     sourceHealth: source.health,
-  };
-  const notebook = reviseResearchNotebook(
-    createResearchNotebook("Briefing story review"),
-    {
-      type: "add-briefing-source",
-      document,
-      origin,
+    canonicalUrl: item.canonicalUrl,
+    sourceTerms: {
+      sourceId: source.id,
+      termsRef: null,
+      status: "unknown",
+      termsUrl: null,
+      reviewedAt: null,
     },
-  );
-  const reopenedNotebook = validateResearchNotebook(
-    JSON.parse(renderResearchNotebook(notebook)),
-  );
-  assert.deepEqual(reopenedNotebook, notebook);
-  assert.deepEqual(reopenedNotebook.sources[0].briefingOrigin, origin);
+    assessmentStatus: "unassessed-lead",
+  });
 
   const sourceIdentityNotes = [
     `Signals story reference: ${storyReference.kind}/${storyReference.id}@${storyReference.revision}.`,

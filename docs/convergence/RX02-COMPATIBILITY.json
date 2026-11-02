@@ -2,7 +2,7 @@
   "schema": "research-rx02-workspace-compatibility.v1",
   "componentSources": {
     "methods": {
-      "revision": "c261de3ed9827b21b5a3c818c464ed7af905f51b",
+      "revision": "cecbe5da3127826affb7630707aeb55f8aa62cd3",
       "target": "packages/methods"
     },
     "library": {
@@ -93,14 +93,14 @@
     "No publish, install, listener, live provider/model, or real store"
   ],
   "integrationNotes": [
-    "Methods workspace source is exact accepted f597; package name/version, bins, ESM/type entrypoints and zero runtime dependencies are unchanged. The refreshed workspace manifest binds every file in its declared package payload.",
+    "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
     "Library workspace source is exact accepted 4e2; package.json retains only the documented workspace Methods link. Library standalone package-lock and fixed archive bytes stay at their original digests.",
     "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
   ],
   "workbenchConsumerFlow": {
-    "command": "npm run verify:briefing-research --workspace research-workbench",
-    "path": "synthetic JSON Feed \u2192 existing Library refresh/workbench ranking and exact story/item/source refs \u2192 Methods Briefing-origin notebook cold reopen \u2192 caller-authored cited report + claim register",
+    "command": "npm run workbench:verify",
+    "path": "synthetic JSON Feed → Library refresh and ranked Briefing → explicit exact story/item selection → Methods-owned Research Notebook with exact story/item/source refs, source terms, health and excerpt → cold reopen → caller-authored cited report and claim register",
     "networkOrModel": false,
-    "qualification": "Exact owner refs stay typed in the Research Notebook. The generic report retains canonical URI and exact excerpt digest/citation, with exact Signals refs included as caller qualifications; it is not a typed Briefing-origin report basis."
+    "qualification": "The Methods owner validates exact references and terms and creates an in-memory Notebook; no new acquisition, ranking, persistence or inference occurs. The generic report is caller-authored and does not claim a Research answer, entailment or truth."
   }
 }

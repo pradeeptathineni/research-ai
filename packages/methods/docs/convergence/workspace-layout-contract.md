@@ -1,51 +1,51 @@
-# RX02P2 workspace layout contract (pending integration decision)
+# RX02 P2 workspace layout contract
 
-This file records the paths required by the adopted program; it does not authorize
-subtree imports, source relocation, or promotion of a workspace prototype.
+This file records the exact private workspace integration. It does not authorize
+publication, store migration, provider setup, or cutover of any external
+consumer.
 
-The original RX02P2 target is `packages/methods`, `packages/library`
-(`corpus`, `domain`, and `contracts`), `apps/workbench`, and `python/reuse`.
-The binding B1 brief requires a history-preserving subtree import and confines B1
-to the Research clone root: workspace `package.json`, TypeScript references, CI
-for both gates, and `docs/convergence/*`. B1 does not edit files under the
-imported Signals path. No package configuration or import has been made pending
-the lead's resolution of whether a temporary non-promoted prototype is allowed
-before S1/F1 are available.
+The workspace contains `packages/methods`, `packages/library` (corpus, domain,
+contracts and Signals applications), and `apps/workbench`. Methods and Library
+are imported in an isolated clone with Git's subtree merge strategy; their
+standalone repository histories remain reachable. The workspace dependency
+replaces only the Library clone's dependency on a fixed Research archive.
+Library source, its standalone lock, archive bytes, canonical `signals/`
+records and private `.signals/` data path stay unchanged.
 
 ## Methods source identity
 
-The source package is the native Research root at the B2/B6 integration commit
-`048e33cc737c215b051c699cf27f62fc9bf820c7`, with package payload unchanged by
-subsequent B1 documentation-only commits. Its expected target is
-`packages/methods` by subtree import. The package name remains
-`@pradeeptathineni/research-ai`, version `0.4.0-rc.1`, engine
-`>=24.19.0 <25`, root export `./src/index.mjs` with declaration
-`./src/index.d.ts`, and all 17 existing executable names and paths. The exact
-package identity projection and 85-file payload digest are in
+The imported Methods source root is commit
+`cecbe5da3127826affb7630707aeb55f8aa62cd3`, whose Git tree is
+`4e19570f698ba79a2692131333ef4f3a79dab506`. Its target is
+`packages/methods`. The package remains `@pradeeptathineni/research-ai`
+version `0.4.0-rc.1`, engine `>=24.19.0 <25`, root export `./src/index.mjs`
+with declaration `./src/index.d.ts`, and its existing 17 executable names and
+paths. The package identity projection and exact payload digest are recorded in
 `methods-component-manifest.json`.
 
-The subtree operation must preserve Methods history and the bytes covered by the
-source manifest. Directory relocation changes only the repository-relative
-prefix from the source root to `packages/methods`; it does not authorize package
-identity, executable path, export, CLI, or source changes. Workspace-only root
-metadata is excluded from the Methods package identity digest.
+Workspace-only manifests bind source revisions, package identity and payload
+bytes. They do not alter the package's published `files` list. A verified
+workspace link is accepted only at the declared absolute root and only when
+workspace mode, manifest digest, lock digest and package payload all match.
+With workspace mode unset, standalone Library fixed-tarball verification
+remains active.
 
-## Library and runtime references
+## Library and compatibility
 
-The target Library root is `packages/library`, with B3's corpus/domain/contracts
-subtrees and B4's briefing-rank subtree imported only after S1/F1 freeze. Their
-final revisions, subtrees, manifests, and package export facts are intentionally
-not guessed here. The Methods workspace dependency spec, the precise `python/reuse`
-linkage, root workspace declaration, lockfile behavior, and TypeScript project
-reference shape remain pending exact frozen package metadata and the lead's
-prototype decision. No import path or build relationship is inferred from the
-current standalone repositories.
+Library source is pinned at
+`4e2d47096251ea4646efdfdf4209e04c079d59ad`. Its workspace package metadata
+changes only the Methods dependency specification from the fixed tarball to
+`file:../methods`. The original Library lock, tarball digest/integrity and all
+five vendored Research archives are frozen and verified. Existing CLI names,
+paths, capability IDs and the four bounded `SignalsProviderContractBinding`
+consumers remain inventoried in `workspace-component-manifest.json` and
+`RX02-COMPATIBILITY.json`.
 
-## Compatibility gates when authorized
+## Verification
 
-The target integration must demonstrate, in its isolated clone, that the
-standalone tarball identity remains unchanged; every existing Methods bin and
-root export resolves from `packages/methods`; the Library workspace link resolves
-to the exact frozen Methods source/content manifest; and the Research and Signals
-full gates pass on Node 24.19.0. These are future P2 acceptance checks, not checks
-claimed by this document.
+On Node 24.19, the Methods full test gate and the workspace-level Briefing to
+Research consumer flow are runnable offline. Library typecheck and build are
+separate from its full verify script; the full Library gate is only accepted
+when that script passes on its pinned source. No check here establishes live
+provider quality, public deployment, or compatibility of external Deep runtime
+mounts.

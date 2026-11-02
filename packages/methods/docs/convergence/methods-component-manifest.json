@@ -2,7 +2,7 @@
   "schema": "research.component-source-manifest.v1",
   "component": "Methods",
   "ownerId": "research-ai",
-  "sourcePath": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave6/research-rx01/publication",
+  "sourcePath": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/briefing-continuity/research",
   "targetPath": "packages/methods",
   "packageIdentity": {
     "name": "@pradeeptathineni/research-ai",
@@ -78,24 +78,28 @@
   "packageIdentityProjectionSha256": "0950ddc47a678ef501e66413f66d47207152355f16d505981d83dfbf33aa9da8",
   "frozenSource": {
     "acceptedResearchBase": "1722016738e1367f3e5a4900b6777297f83a69fd",
-    "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave18/methods-consumer-fixture/research",
-    "integrationCommit": "c261de3ed9827b21b5a3c818c464ed7af905f51b",
-    "integrationTree": "01a4f47a87376070c1381566b401988a47bd8372",
+    "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/briefing-continuity/research",
+    "integrationCommit": "cecbe5da3127826affb7630707aeb55f8aa62cd3",
+    "integrationTree": "4e19570f698ba79a2692131333ef4f3a79dab506",
     "binTree": "844ee77c0b21a32bd59033520edaaca8ad4998ca",
-    "srcTree": "27fab30b05a5802a5898555334acba957a783586",
+    "srcTree": "33b3d46364cb0cce575b79ce9cd1d23b2358ea23",
     "includedNativeCommits": [
       "2eeeb06ee063fa4c3fcfdc5e6272cd9d40db5858",
       "911b48d5b13aef1ffa921dfb66d24d87d943ba91",
       "1a5a05f32989f1a913eb43641e422f5d2039c5a3",
       "4bd458e806d154a18f45a03fdcf185e5d83fde18",
-      "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6"
+      "0e0da1985fbf199b4723a64e8a51ee7d638ed6b6",
+      "55c1c7eba62d396722d2d4e3c915b825e50a14a9",
+      "ec15ae05f3b85c906ea3ae02010b1de8927efb11",
+      "6580124be05de25b76cdf83ddf5d64d8af791761",
+      "cecbe5da3127826affb7630707aeb55f8aa62cd3"
     ],
-    "qualification": "History-preserving subtree refresh from clean Methods revision c261de3. This child adds only the four f597 public exports to the package-consumer expected-export fixture; no production source, package identity, declared payload file, CLI path or runtime dependency changed."
+    "qualification": "Exact clean standalone Methods source cecbe5d merged with Git subtree strategy at packages/methods; package identity, CLI paths and zero runtime dependencies remain unchanged."
   },
   "payloadManifest": {
     "algorithm": "Read package.json files entries; expand directories, deduplicate POSIX paths and sort. Hash compact UTF-8 JSON rows [{path,sha256}] for exact source bytes.",
-    "fileCount": 85,
-    "sha256": "7de82860025619a0e35b5f11e605134c69f0eab57453a7e5343b08853a2f907b",
+    "fileCount": 86,
+    "sha256": "9c7f4fd54255d5f8806192fccfc2fa23bc4904a25851f6ae795022537fd0d428",
     "packageIdentityProjection": "SHA-256 of compact UTF-8 JSON in key order name,version,license,type,engines,bin,types,exports,files."
   },
   "standaloneCompatibility": {

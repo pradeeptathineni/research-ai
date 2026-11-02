@@ -10,15 +10,15 @@
     {
       "component": "Methods",
       "owner": "research-ai",
-      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave18/methods-consumer-fixture/research",
-      "sourceCommit": "c261de3ed9827b21b5a3c818c464ed7af905f51b",
-      "sourceTree": "01a4f47a87376070c1381566b401988a47bd8372",
+      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/briefing-continuity/research",
+      "sourceCommit": "cecbe5da3127826affb7630707aeb55f8aa62cd3",
+      "sourceTree": "4e19570f698ba79a2692131333ef4f3a79dab506",
       "targetPath": "packages/methods",
       "packageIdentityManifest": "packages/methods/docs/convergence/methods-component-manifest.json",
-      "packageIdentityManifestSha256": "e07ecf7c6a08d14d0f59a5453d3709dff8116d6aac378eefaa154e13fb86a397",
+      "packageIdentityManifestSha256": "53db2267cf963e7b1195c315241d3865fa9e8257ac99536395f34290fbea3c11",
       "packageIdentityProjectionSha256": "0950ddc47a678ef501e66413f66d47207152355f16d505981d83dfbf33aa9da8",
-      "payloadFileCount": 85,
-      "payloadManifestSha256": "7de82860025619a0e35b5f11e605134c69f0eab57453a7e5343b08853a2f907b",
+      "payloadFileCount": 86,
+      "payloadManifestSha256": "9c7f4fd54255d5f8806192fccfc2fa23bc4904a25851f6ae795022537fd0d428",
       "packageName": "@pradeeptathineni/research-ai",
       "packageVersion": "0.4.0-rc.1",
       "bins": {
@@ -86,7 +86,7 @@
       "manifestSha256": "0df815a7ad3dc4f6dca0ec637f0c3fb754eeb489de8fa6912e6733adfa4e38d1",
       "purpose": "Thin npm workspace entrypoint forwarding start/dev/test/build to existing signals-ai package scripts; contains no copied UI or server implementation.",
       "verificationScriptSha256": "5ab52863c2cd691f5114bfe822bb2687d553609c5b3801c9c619b14f8b5ad01d",
-      "consumerFlowScriptSha256": "abaa26192debff9f89dd1cf007656f9da7af6bcd83966c7fc72e2abd40dd7ae2"
+      "consumerFlowScriptSha256": "b6a4a7138760a1eb5b71a796016b0edaf81392b210208a6bb8add7e31e5b00cc"
     }
   ],
   "workspacePolicy": {
@@ -98,7 +98,7 @@
       "packages/library/packages/*"
     ],
     "packageLockVersion": 3,
-    "rootPackageSha256": "73d8e0ed9aa9f938b7925c1623095b39a02c40a5c611d507532b37c398192899",
+    "rootPackageSha256": "96208073b8e0533feab7ab230bae25ac3a5f163929ed9a4d2bcb96dac1a08d30",
     "packageLockSha256": "f849b5c1519f95944491741d85ae5252a932d10339a6265e74bedf315b0a6284",
     "rootNpmrcSha256": "8a62002fc1d79d6d0f06174e5900931232558fa56617990f0de6b7c13e56b010",
     "repomixMcpSdkOverride": "1.32.0",
