@@ -108,6 +108,27 @@ const basisInputSchema = Type.Object(
   },
   closed,
 );
+const sourceCaptureRefSchema = Type.Object(
+  {
+    owner: Type.Literal('signals-ai'),
+    kind: Type.Literal('source_capture'),
+    id: uuid,
+    revision: Type.String({ pattern: '^sha256:[a-f0-9]{64}$' }),
+    digest: digestSchema,
+  },
+  closed,
+);
+const sourceChangeReviewSchema = Type.Object(
+  {
+    schema_version: Type.Literal('source-change-review-v1'),
+    id: uuid,
+    prior_capture_ref: sourceCaptureRefSchema,
+    new_capture_ref: sourceCaptureRefSchema,
+    meaningfulness: Type.Enum(['unchanged', 'meaningful', 'not-meaningful', 'uncertain']),
+    observed_change: Type.Unknown(),
+  },
+  { additionalProperties: true },
+);
 const requestSchema = Type.Object(
   {
     request_id: uuid,
@@ -319,7 +340,7 @@ async function readSourceChangeReview(root: string, ref: Basis['source_change_re
     }
     throw error;
   }
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(exact.bytes.toString('utf8'));
   } catch {
@@ -329,15 +350,19 @@ async function readSourceChangeReview(root: string, ref: Basis['source_change_re
       'The retained source-change review is unreadable.',
     );
   }
-  const refs = [parsed?.prior_capture_ref, parsed?.new_capture_ref];
-  if (
-    parsed?.id !== ref.id ||
-    refs.some((capture) => capture?.kind !== 'source_capture' || capture?.owner !== 'signals-ai')
-  )
+  if (!Value.Check(sourceChangeReviewSchema, parsed))
     fail(
       503,
       'project_topic_relevance_unavailable',
-      'The source-change review has invalid capture bindings.',
+      'The source-change review has an invalid schema or capture binding.',
+    );
+  const review = parsed;
+  const refs = [review.prior_capture_ref, review.new_capture_ref];
+  if (review.id !== ref.id)
+    fail(
+      503,
+      'project_topic_relevance_unavailable',
+      'The source-change review has an invalid identity.',
     );
   for (const capture of refs) {
     try {
@@ -355,7 +380,7 @@ async function readSourceChangeReview(root: string, ref: Basis['source_change_re
       throw error;
     }
   }
-  return { review: parsed, capture_refs: refs };
+  return { review, capture_refs: refs };
 }
 
 async function currentBasis(

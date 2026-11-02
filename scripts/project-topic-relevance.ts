@@ -40,7 +40,7 @@ try {
   else if (command === 'create' && args.length === 1)
     result = await createProjectTopicRelevance(root, parse(args[0]));
   else if (command === 'open' && args.length === 1)
-    result = await readProjectTopicRelevance(root, args[0]!);
+    result = await readProjectTopicRelevance(root, args[0]);
   else throw new Error('invalid_command');
   console.log(JSON.stringify(result, null, 2));
 } catch (failure) {
