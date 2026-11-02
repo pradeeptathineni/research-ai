@@ -17,6 +17,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
 import {
   checkResearchPin,
