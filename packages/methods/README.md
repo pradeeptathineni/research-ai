@@ -418,8 +418,10 @@ create, edit, reopen or export.
 
 `createInvestigationReportBasis(investigation, questionId, attemptId)` carries
 one exact current Investigation branch into this same cited-report workflow.
-Caller-authored source-span reviews become cited paragraphs; missing,
-conflicting, and unresolved reviews stay explicit unknown gaps. See
+Only caller-authored `supports` reviews become cited paragraphs; missing,
+conflicting, `contradicts`, `context`, and unresolved reviews stay explicit
+unknown gaps. `validateInvestigationReportBasis` re-derives the exact basis
+before a consumer accepts it. See
 [Investigation reports](docs/investigation-reports.md) for the offline
 projection and revision flow.
 

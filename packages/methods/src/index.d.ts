@@ -1506,8 +1506,10 @@ export interface ResearchStudyPlanningSource {
 export function createResearchStudyReportBasis(study: ResearchStudy, questionId: string): ResearchOutline;
 /** Re-derives and compares the exact Study report basis; caller edits are rejected. */
 export function validateResearchStudyReportBasis(study: ResearchStudy, questionId: string, candidate: unknown): ResearchOutline;
-/** Projects one exact current completed Investigation question/attempt into the cited report outline. Unreviewed or unresolved findings stay unknown gaps. */
+/** Projects one exact current completed Investigation question/attempt into the cited report outline. Only supports reviews become cited paragraphs; other findings stay unknown gaps. */
 export function createInvestigationReportBasis(investigation: Investigation, questionId: string, attemptId: string): ResearchOutline;
+/** Re-derives and compares the exact basis, including selected attempt and current caller-review digest; edits are rejected. */
+export function validateInvestigationReportBasis(investigation: Investigation, questionId: string, attemptId: string, candidate: unknown): ResearchOutline;
 export interface ResearchStudy {
   version: "research-study-v1"; id: string; title: string; revision: number;
   selections: ResearchStudySelection[]; questions: ResearchStudyQuestion[]; sha256: string;

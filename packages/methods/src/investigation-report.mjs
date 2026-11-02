@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { validateInvestigation, projectInvestigationClaimReviews, projectInvestigationMethodProgress } from './investigation.mjs';
 import { validateOutline } from './outline.mjs';
 
@@ -38,8 +39,8 @@ export function createInvestigationReportBasis(value, questionId, attemptId) {
       continue;
     }
     const review = matching[0];
-    if (review.assessment === 'unresolved') {
-      gaps.push(`Finding ${index + 1} remains unknown (caller review unresolved): ${finding}`);
+    if (review.assessment !== 'supports') {
+      gaps.push(`Finding ${index + 1} remains unknown (caller review ${review.assessment}): ${finding} Review rationale: ${review.rationale}`);
       continue;
     }
     if (review.citations.length > 4) fail(`finding ${index + 1} exceeds the report citation limit`);
@@ -59,13 +60,18 @@ export function createInvestigationReportBasis(value, questionId, attemptId) {
       }
       return { source: sourceIndex, start: citation.start, end: citation.end, quote: citation.quote };
     });
-    const text = `Finding: ${finding} Human review (${review.assessment}): ${review.rationale}`;
+    const text = `Finding: ${finding} Caller review (supports): ${review.rationale}`;
     if (text.length > 350) fail(`finding ${index + 1} review exceeds the report paragraph limit; shorten the caller rationale before projection`);
     points.push({ text, citations });
   }
   if (!sources.length) {
-    // The report format needs a retained source even when every finding is unresolved.
-    const source = state.sources[0];
+    // The outline format requires a source even for an all-unknown report. Select
+    // only a source the chosen attempt actually used and explicitly mark it uncited.
+    const used = attempt.sources.find(candidate => candidate.sha256
+      && state.sources.some(source => source.uri === candidate.uri && source.sha256 === candidate.sha256));
+    if (!used) fail('all-unknown report has no source identity bound to the selected attempt');
+    const source = state.sources.find(candidate => candidate.uri === used.uri && candidate.sha256 === used.sha256);
+    if (!source) fail('all-unknown report has no retained source used by the selected attempt');
     sources.push({
       uri: sourceUri(state, question, attempt, source),
       text: source.text,
@@ -82,6 +88,8 @@ export function createInvestigationReportBasis(value, questionId, attemptId) {
   if (!groups.length) groups.push({ points: [], gaps: ['The selected attempt retained no findings; evidence remains unknown.'] });
   if (groups.length > 8) fail('reviewed findings and gaps exceed the eight-section report limit');
   const id = `question-${sha(question.id).slice(0, 16)}`;
+  const reviewDigest = sha(JSON.stringify(reviews.map(({ id, findingIndex, findingSha256, assessment, rationale, citations }) =>
+    ({ id, findingIndex, findingSha256, assessment, rationale, citations }))));
   return validateOutline({
     version: 'research-outline-v1', topic: question.question, sources,
     sections: groups.map((group, index) => ({
@@ -93,10 +101,21 @@ export function createInvestigationReportBasis(value, questionId, attemptId) {
     origin: { type: 'caller-authored' },
     limits: [
       `Projected from Investigation question ${question.id} (${sha(question.question)}) and completed attempt ${attempt.id}.`,
-      'Only one current caller-authored source-span review per finding is carried as a reviewed paragraph. Missing, conflicting, or unresolved reviews remain unknown gaps.',
+      'Only one current caller-authored supports review per finding is carried as a cited paragraph. Missing, conflicting, contradicts, context, and unresolved reviews remain unknown gaps.',
       'Exact source occurrence is checked. Review labels are caller judgments and do not establish entailment, truth, completeness, or current source availability.',
       `Investigation identity: ${state.identity}.`,
       `Selected branch attempt context: ${attempt.contextIdentity}.`,
+      `Selected current caller-review digest: ${reviewDigest}.`,
+      ...(points.length === 0 ? ['The retained source is included only to satisfy the report format; no evidence citation is asserted.'] : []),
     ],
   });
+}
+
+/** Re-derives a projected basis and rejects caller edits or a changed Investigation snapshot. */
+export function validateInvestigationReportBasis(value, questionId, attemptId, candidate) {
+  const expected = createInvestigationReportBasis(value, questionId, attemptId);
+  let actual;
+  try { actual = validateOutline(candidate); } catch { fail('candidate is not a valid Investigation report basis'); }
+  if (!isDeepStrictEqual(expected, actual)) fail('report basis differs from the selected Investigation question, attempt, or caller-review snapshot');
+  return expected;
 }

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import {
   advanceInvestigationPlan, createInvestigation, createInvestigationReportBasis, createReport,
   exportReportHtml, planInvestigation, projectReportClaimRegister, renderReport,
-  reviseReport, reviewInvestigationClaim, validateReport,
+  reviseReport, reviewInvestigationClaim, validateInvestigationReportBasis, validateReport,
 } from '../src/index.mjs';
 import { fakeCodex, message } from './fake-codex.mjs';
 
@@ -14,7 +14,9 @@ const result = {
   findings: [
     'The retained capture reports 17 units.',
     'The measurement date is absent from this capture.',
-    'Independent replication is not established.',
+    'Independent replication is supported by this capture.',
+    'The capture gives context for a broader comparison.',
+    'A second source confirms the reported yield.',
   ],
   gaps: ['No independent source was included.'],
   sources: [{ uri: source.uri }],
@@ -47,19 +49,55 @@ test('projects a reviewed Investigation into a cold-open cited report and export
       rationale: 'Absence in this capture does not establish absence elsewhere.',
       citations: [span('measurement date')],
     });
+    investigated = reviewInvestigationClaim(investigated, {
+      attemptId: 'a1', findingIndex: 2, assessment: 'contradicts',
+      rationale: 'The source does not establish independent replication.',
+      citations: [span('17 units')],
+    });
+    investigated = reviewInvestigationClaim(investigated, {
+      attemptId: 'a1', findingIndex: 3, assessment: 'context',
+      rationale: 'This quote is only relevant background for the comparison.',
+      citations: [span('measurement date')],
+    });
 
     const basis = createInvestigationReportBasis(investigated, 'yield', 'a1');
+    assert.deepEqual(validateInvestigationReportBasis(investigated, 'yield', 'a1', JSON.parse(JSON.stringify(basis))), basis);
+    const tamperedBasis = JSON.parse(JSON.stringify(basis));
+    tamperedBasis.sections[0].gaps[0] = 'Removed caller qualification.';
+    assert.throws(() => validateInvestigationReportBasis(investigated, 'yield', 'a1', tamperedBasis), /differs from the selected Investigation/);
+    const changedReviews = reviewInvestigationClaim(investigated, {
+      attemptId: 'a1', findingIndex: 0, assessment: 'supports',
+      rationale: 'A later duplicate review requires explicit reconciliation.',
+      citations: [span('17 units')],
+    });
+    assert.throws(() => validateInvestigationReportBasis(changedReviews, 'yield', 'a1', basis), /caller-review snapshot/);
     assert.equal(basis.topic, 'What yield and qualification are stated?');
     assert.match(basis.sources[0].uri, /research-ai\.invalid\/investigation-source/);
     assert.match(basis.sources[0].uri, /questionSha256=/);
-    assert.match(basis.sections.flatMap(section => section.points).map(point => point.text).join('\n'), /Human review \(supports\)/);
+    const projectedPoints = basis.sections.flatMap(section => section.points).map(point => point.text).join('\n');
+    assert.match(projectedPoints, /Caller review \(supports\)/);
     const gaps = basis.sections.flatMap(section => section.gaps).join('\n');
     assert.match(gaps, /No independent source was included/);
     assert.match(gaps, /caller review unresolved/);
+    assert.match(gaps, /caller review contradicts/);
+    assert.match(gaps, /caller review context/);
     assert.match(gaps, /not explicitly reviewed/);
-    assert.doesNotMatch(basis.sections.flatMap(section => section.points).map(point => point.text).join('\n'), /measurement date is absent/);
+    assert.doesNotMatch(projectedPoints, /measurement date is absent|Independent replication|broader comparison|second source/);
+    const withoutReviews = { ...investigated };
+    delete withoutReviews.claimReviews;
+    const unknownOnly = createInvestigationReportBasis(withoutReviews, 'yield', 'a1');
+    assert.equal(unknownOnly.sections.flatMap(section => section.points).length, 0);
+    assert.match(unknownOnly.sources[0].uri, /uri=https%3A%2F%2Fexample.org%2Fyield-capture/);
+    assert.ok(unknownOnly.limits.some(limit => /no evidence citation is asserted/.test(limit)));
+    const unknownReport = createReport(unknownOnly);
+    assert.equal(projectReportClaimRegister(unknownReport).citedClaims.length, 0);
+    assert.ok(projectReportClaimRegister(unknownReport).unresolvedClaims.length > 0);
 
     const draft = createReport(basis);
+    const initialRegister = projectReportClaimRegister(draft);
+    assert.equal(initialRegister.citedClaims.length, 1, 'contradicts, context, unresolved and missing reviews are not cited claims');
+    assert.match(initialRegister.citedClaims[0].text, /Caller review \(supports\)/);
+    assert.equal(initialRegister.unresolvedClaims.length, 5, 'source gaps and each non-support finding stay explicit');
     const first = basis.sections[0];
     const reviewed = reviseReport(draft, {
       sectionId: first.id,
