@@ -612,6 +612,15 @@ exact retained page or version. The standalone `research-notebook-search`
 command supports offline `search` and `open` actions. See
 [notebook search](docs/notebook-search.md).
 
+`prepareNotebookEvidenceGraph` selects exact pages and note versions across
+Notebook records for a cross-document question. `researchNotebookEvidenceGraph`
+rechecks the supplied Notebook snapshots before using the existing frozen mind-map method, then returns a cold-open graph with
+quoted source/page references and a list-equivalent edge view. Model-extracted
+connections and user-asserted relationships remain separate; gaps and
+currentness qualifications stay visible. The graph is returned to the caller
+without writing a graph or changing Library topics. See
+[cross-document connections](docs/notebook-evidence-graph.md).
+
 `createResearchStudy` composes selected search hits from several notebooks into
 one portable study. Selections preserve the origin notebook digests and exact
 source or note versions, including the full source document behind a page hit.

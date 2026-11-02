@@ -58,6 +58,7 @@
     "docs/document-coverage.md",
     "docs/table-query.md",
     "docs/notebook.md",
+    "docs/notebook-evidence-graph.md",
     "src/notebook-MIT-LICENSE.txt",
     "src/notebook-NOTICE.txt",
     "docs/notebook-search.md",

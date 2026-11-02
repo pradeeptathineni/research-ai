@@ -20,6 +20,9 @@ expectedExports.push('advanceInvestigationPlan', 'createResearchStudyReportBasis
   'createResearchNotebookFromBriefingStoryInspection',
   'projectInvestigationClaimReviews', 'projectInvestigationMethodProgress',
   'projectReportClaimRegister', 'reviewInvestigationClaim');
+expectedExports.push('prepareNotebookEvidenceGraph', 'researchNotebookEvidenceGraph',
+  'createNotebookEvidenceGraph', 'validateNotebookEvidenceGraph', 'assertNotebookEvidenceGraphEdge',
+  'checkNotebookEvidenceGraphSources', 'renderNotebookEvidenceGraph');
 expectedExports.sort();
 const pageText = 'Retained synthetic page.';
 const pageHash = createHash('sha256').update(pageText).digest('hex');
