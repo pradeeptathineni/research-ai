@@ -13,6 +13,15 @@ export type SavedEntityReceipt = {
   reopenReason?: string;
 };
 
+export function projectAssessmentState(state: unknown) {
+  if (state === 'unassessed') return 'unassessed-lead' as const;
+  if (state === 'provisional') return 'provisional-assessment' as const;
+  if (state === 'assessed') return 'assessed-finding' as const;
+  throw new Error('unsupported_assessment_state');
+}
+
+const canonicalRunId = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
+
 /** Read-only view joining a canonical saved record to the receipt that introduced it. */
 export async function inspectSavedEntity(
   id: string,
@@ -37,9 +46,11 @@ export async function inspectSavedEntity(
         runId: typeof receipt.runId === 'string' ? receipt.runId : '',
         query: typeof receipt.query === 'string' ? receipt.query : '',
         kind: typeof receipt.kind === 'string' ? receipt.kind : 'unknown',
-        ...(receipt.queryId ? { queryId: receipt.queryId } : {}),
+        ...(typeof receipt.queryId === 'string' && receipt.queryId
+          ? { queryId: receipt.queryId }
+          : {}),
       };
-      if (!/^[a-f0-9-]{36}$/.test(receipt.runId))
+      if (typeof receipt.runId !== 'string' || !canonicalRunId.test(receipt.runId))
         return {
           ...projected,
           reopenStatus: 'conflict',
@@ -73,12 +84,7 @@ export async function inspectSavedEntity(
     id,
     destination: selected.destination,
     savedState: selected.record.state,
-    assessmentState:
-      assessment.state === 'unassessed'
-        ? 'unassessed-lead'
-        : assessment.state === 'provisional'
-          ? 'provisional-assessment'
-          : 'assessed-finding',
+    assessmentState: projectAssessmentState(assessment?.state),
     confidence: 'Unknown' as const,
     assessment: structuredClone(assessment),
     receipts,
