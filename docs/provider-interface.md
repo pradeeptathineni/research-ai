@@ -171,9 +171,10 @@ The standalone CLI accepts the same closed JSON request and exact capture ref:
 npm run source-archives -- --root PRIVATE_ROOT create '{"request_id":"REQUEST_UUID","capture_request":{"source_ref":EXACT_CURRENT_SOURCE_REF,"mode":"fetch","supersedes":EXACT_PRIOR_CAPTURE_REF}}'
 npm run source-archives -- --root PRIVATE_ROOT request REQUEST_UUID
 npm run source-archives -- --root PRIVATE_ROOT read EXACT_CAPTURE_REF_JSON
+npm run source-archives -- --root PRIVATE_ROOT export EXACT_CAPTURE_REF_JSON OUTPUT_PATH
 ```
 
-Replace each `EXACT_*_REF` token with the full RecordRef object, not a quoted string. `read` prints bounded base64 inside JSON; decoding or saving those bytes is a separate explicit operator action.
+Replace each `EXACT_*_REF` token with the full RecordRef object, not a quoted string. `read` prints bounded base64 inside JSON. `export` writes verified opaque bytes only to the explicit target using exclusive create, mode 0600 and no-follow; it refuses an existing target and does not create parent directories or execute/serve content. If a write is interrupted, the new target may be partial and is left in place for inspection; choose another new path after reviewing it.
 
 When the optional exact `playwright@1.63.0` runtime and its matching local Chromium executable are available, Signals additionally advertises `source-capture-render` and the explicit `source_capture_render` operation. `POST source-captures/render` takes a fresh request UUID, exact current lead/entity ref and optional exact predecessor capture ref. It fetches once through the existing validated HTTPS acquisition, writes the unchanged v1 text capture, and attaches an offline static render of those same response bytes. JavaScript and service workers are disabled, the browser context is offline, and request interception aborts resource attempts. No cookies/profile, URL, HTML, paths, install or replay are accepted. These are browser-level controls, not an OS-level network sandbox. The retained fixed viewport PNG and inert DOM/ARIA text are qualified as a static capture, not a live-site reproduction. A missing browser leaves the original text capture available.
 

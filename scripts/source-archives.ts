@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { exactOwnerRecord } from '../packages/corpus/src/provider-capabilities.js';
 import {
@@ -15,12 +17,15 @@ const usage = `Usage:
   npm run source-archives -- --root PRIVATE_ROOT create REQUEST_JSON
   npm run source-archives -- --root PRIVATE_ROOT request REQUEST_UUID
   npm run source-archives -- --root PRIVATE_ROOT read EXACT_CAPTURE_REF_JSON
+  npm run source-archives -- --root PRIVATE_ROOT export EXACT_CAPTURE_REF_JSON OUTPUT_PATH
 
 Create performs one explicit fetch through the existing source-capture owner. Request
 JSON is literal JSON text, not a filename. Read returns an opaque base64 body only
 for an exact retained capture and raw digest; no HTML is served or executed. The private
 archive index is capped at 2,000,000 serialized bytes and 100 requests; full-size bodies
-will consume much of this finite capacity, and no older archive is evicted.`;
+will consume much of this finite capacity, and no older archive is evicted. Export
+creates only the explicit output file, exclusively with mode 0600 and no-follow; it
+does not create parent directories or replace an existing target.`;
 const parse = (value: string | undefined): unknown => {
   try {
     return JSON.parse(value ?? '') as unknown;
@@ -41,6 +46,63 @@ try {
     const exact = await exactOwnerRecord(root, ref);
     return { bytes: exact.bytes, ref: exact.ref as RecordRef };
   };
+  const exportArchive = async (captureRefValue: unknown, outputPath: string) => {
+    const archived = await readSourceArchive(root, captureRefValue);
+    if (archived.state !== 'available')
+      throw new SourceArchiveError(404, 'source_archive_not_found', archived.reason);
+    const target = resolve(outputPath);
+    const bytes = Buffer.from(archived.bytes_base64, 'base64');
+    let handle: Awaited<ReturnType<typeof open>>;
+    try {
+      handle = await open(
+        target,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o600,
+      );
+    } catch (failure) {
+      const errno = failure as NodeJS.ErrnoException;
+      if (errno.code === 'EEXIST')
+        throw new SourceArchiveError(
+          409,
+          'source_archive_output_exists',
+          `Output target already exists and was not changed: ${target}`,
+        );
+      throw new SourceArchiveError(
+        errno.code === 'ENOENT' ? 400 : 500,
+        'source_archive_output_unavailable',
+        `Could not create the explicit output target ${target}; no parent directories were created and no existing file was changed.`,
+      );
+    }
+    let writeFailure: unknown = null;
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } catch (failure) {
+      writeFailure = failure;
+    }
+    try {
+      await handle.close();
+    } catch (failure) {
+      writeFailure ??= failure;
+    }
+    if (writeFailure)
+      throw new SourceArchiveError(
+        500,
+        'source_archive_export_incomplete',
+        `The exclusive output target ${target} may contain a partial body. It was not removed or overwritten; inspect it before choosing another new path.`,
+      );
+    return {
+      schema_version: 'source-archive-export-v1',
+      state: 'exported',
+      capture_ref: archived.capture_ref,
+      archive_ref: archived.archive_ref,
+      raw_digest: archived.raw_digest,
+      sha256: archived.sha256,
+      byte_count: archived.byte_count,
+      output_path: target,
+      qualification: archived.qualification,
+    };
+  };
   let result: unknown;
   if (command === 'create' && args.length === 1)
     result = await createSourceArchive(root, parse(args[0]), resolveSource);
@@ -48,6 +110,8 @@ try {
     result = await readSourceArchiveRequest(root, args[0]!);
   else if (command === 'read' && args.length === 1)
     result = await readSourceArchive(root, parse(args[0]));
+  else if (command === 'export' && args.length === 2)
+    result = await exportArchive(parse(args[0]), args[1]!);
   else throw new Error('invalid_command');
   console.log(JSON.stringify(result, null, 2));
 } catch (failure) {
