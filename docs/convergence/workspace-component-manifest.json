@@ -45,9 +45,9 @@
       "component": "Library",
       "owner": "signals-ai",
       "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-vetting",
-      "sourceCommit": "3cfd39c31a075e1e18985c57981d4821e80dd601",
-      "sourceTree": "d647c3eab49f0c1ec7fa31f298adf7aaf565fa30",
-      "sourceParent": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
+      "sourceCommit": "40d69b92067076ad6073447fa40e842b9e405836",
+      "sourceTree": "9521df74f6d0e2c3fe3194f214221371a831bb07",
+      "sourceParent": "3cfd39c31a075e1e18985c57981d4821e80dd601",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -123,7 +123,7 @@
         "packages/library/scripts/source-archives.ts",
         "packages/library/scripts/source-watches.ts"
       ],
-      "workspaceTree": "1005cb41c9b6b8e7647cb9fd738cb3a7b7eb88a3",
+      "workspaceTree": "d5df212523190be52c8fce63f3d162963f01e1b8",
       "sourceBlobComparison": {
         "trackedFileCount": 389,
         "missing": 0,
@@ -131,7 +131,7 @@
         "changedPaths": [
           "package.json"
         ],
-        "qualification": "All other workspace Library blobs, including the 13 Prettier-only files, match native 3cfd39 exactly; package.json differs only at dependencies.@pradeeptathineni/research-ai as recorded in workspaceMetadataAdaptation."
+        "qualification": "All native Library blobs match except the documented workspace dependency link in package.json."
       },
       "capabilities": [
         {
@@ -386,9 +386,9 @@
     },
     {
       "component": "Library",
-      "sourceCommit": "3cfd39c31a075e1e18985c57981d4821e80dd601",
+      "sourceCommit": "40d69b92067076ad6073447fa40e842b9e405836",
       "targetPrefix": "packages/library",
-      "workspaceMergeCommit": "ae15647b233c5748fcdb44a7747d9c4fd3bb4f1f",
+      "workspaceMergeCommit": "68378765b0fc1ddbefe0185488f7ef017f687bc4",
       "strategy": "git merge -s subtree -Xsubtree=packages/library"
     }
   ]

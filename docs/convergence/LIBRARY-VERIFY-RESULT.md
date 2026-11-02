@@ -1,6 +1,6 @@
 # Library verify result for RX02
 
-The full gate was run once on 2 November 2026 with Node 24.19.0/npm 12.1.0 from the isolated RX02 workspace, using `npm run verify --workspace signals-ai` and the explicit workspace manifest/lock environment. It exited 1 at lint.
+This historical gate result applies to Library source 3cfd39 (before the saved-entity recovery successor 40d69b); the successor has not had a full verify run. The full gate was run once on 2 November 2026 with Node 24.19.0/npm 12.1.0 from the isolated RX02 workspace, using `npm run verify --workspace signals-ai` and the explicit workspace manifest/lock environment. It exited 1 at lint.
 
 Passed before the stop:
 

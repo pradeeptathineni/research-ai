@@ -6,10 +6,10 @@
       "target": "packages/methods"
     },
     "library": {
-      "revision": "3cfd39c31a075e1e18985c57981d4821e80dd601",
+      "revision": "40d69b92067076ad6073447fa40e842b9e405836",
       "target": "packages/library",
-      "tree": "d647c3eab49f0c1ec7fa31f298adf7aaf565fa30",
-      "parent": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42"
+      "tree": "9521df74f6d0e2c3fe3194f214221371a831bb07",
+      "parent": "3cfd39c31a075e1e18985c57981d4821e80dd601"
     }
   },
   "methods": {
@@ -314,22 +314,22 @@
   "qualificationLimits": [
     "No external Deep consumer runtime was independently mounted",
     "No publish, install, listener, live provider/model, or real store",
-    "Full Library verify ran once on native source 3cfd39 and stopped at ESLint: 111 errors across 27 workspace blobs identical to native; later phases unrun. See docs/convergence/LIBRARY-VERIFY-RESULT.md."
+    "Full Library verify ran once against native 3cfd39 and stopped at lint (111 errors across 27 source-matching files); it has not been rerun on the 40d69b saved-entity recovery successor."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
-    "Library workspace source is exact native 3cfd39, a history-preserving child of 6195b0e. Its only source changes are the bounded Prettier-only correction of the 13 frozen format findings; the package.json workspace link remains the sole non-source adaptation. Library standalone package-lock and fixed archive bytes are unchanged.",
+    "Library workspace source is exact native 40d69b, history-preservingly subtree-merged as child 6837876, whose native parent is 3cfd39. The saved-entity recovery validates retained records against historical receipts and run IDs. The package.json workspace link remains the sole non-source adaptation; standalone lock and fixed archive bytes are unchanged.",
     "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
   ],
   "workbenchConsumerFlow": {
     "command": "npm run workbench:verify",
-    "path": "synthetic JSON Feed → Library refresh and ranked Briefing → explicit exact story/item selection → Methods-owned Research Notebook with exact story/item/source refs, source terms, health and excerpt → cold reopen → caller-authored cited report and claim register",
+    "path": "synthetic JSON Feed \u2192 Library refresh and ranked Briefing \u2192 explicit exact story/item selection \u2192 Methods-owned Research Notebook with exact story/item/source refs, source terms, health and excerpt \u2192 cold reopen \u2192 caller-authored cited report and claim register",
     "networkOrModel": false,
     "qualification": "The Methods owner validates exact references and terms and creates an in-memory Notebook; no new acquisition, ranking, persistence or inference occurs. The generic report is caller-authored and does not claim a Research answer, entailment or truth."
   },
   "savedEntityInspectionFlow": {
     "command": "npm run test --workspace signals-ai -- packages/corpus/src/saved-entity-inspection.test.ts apps/corpus/src/candidate-views.test.tsx",
-    "path": "saved entity record → exact introducing receipt/run IDs → evidence and assessment view; history is read-only and opens the frozen run by ID",
+    "path": "saved entity record \u2192 exact introducing receipt/run IDs \u2192 evidence and assessment view; history is read-only and opens the frozen run by ID",
     "testsPassed": 6,
     "networkOrModel": false,
     "realStore": false
@@ -350,7 +350,8 @@
     "lintFiles": 27,
     "laterPhasesRun": false,
     "sourceAttribution": "All 27 lint-failing Library blobs equal native 3cfd39; none is workspace-only.",
-    "receipt": "docs/convergence/LIBRARY-VERIFY-RESULT.md"
+    "receipt": "docs/convergence/LIBRARY-VERIFY-RESULT.md",
+    "sourceRevision": "3cfd39c31a075e1e18985c57981d4821e80dd601"
   },
   "targetedSavedEntityLint": {
     "files": [
@@ -361,5 +362,20 @@
     "result": "pass",
     "reviewer": "root",
     "scope": "read-only targeted lint; existing nearby findings in provider-capabilities.ts and search-api.ts are outside these changed lines"
+  },
+  "savedEntityRecoveryVerification": {
+    "node": "24.19.0",
+    "npm": "12.1.0",
+    "focusedTests": {
+      "command": "npm run test --workspace signals-ai -- packages/corpus/src/saved-entity-inspection.test.ts apps/corpus/src/candidate-views.test.tsx",
+      "exitCode": 1,
+      "result": "Vitest started but both suites failed before tests ran because the isolated workspace lacks resolvable vitest/config, react-dom/server, and typebox dependencies."
+    },
+    "typecheck": {
+      "command": "npm run typecheck --workspace signals-ai",
+      "exitCode": 2,
+      "result": "TypeScript could not resolve type definitions for node and vitest/globals in the isolated workspace."
+    },
+    "fullVerify": "Not rerun; prior recorded lint111 result remains pinned to source 3cfd39."
   }
 }

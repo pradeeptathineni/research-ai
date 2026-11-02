@@ -33,10 +33,10 @@ remains active.
 ## Library and compatibility
 
 Library source is pinned at
-`3cfd39c31a075e1e18985c57981d4821e80dd601`, imported by subtree merge from
-parent `6195b0e47cc97874ab17e2434b1a1cd7be79fc42`. Its sole content changes
-from 6195b0e are Prettier-only formatting in the 13 files reported by the
-format gate. Its workspace package metadata changes only the Methods dependency
+`40d69b92067076ad6073447fa40e842b9e405836`, imported by history-preserving
+subtree merges from parent `3cfd39c31a075e1e18985c57981d4821e80dd601`. The
+source includes the 13-file Prettier correction and the saved-entity historical
+receipt recovery. Its workspace package metadata changes only the Methods dependency
 specification from the fixed tarball to `file:../methods`. The original Library
 lock, tarball digest/integrity and all five vendored Research archives are
 frozen and verified. Existing CLI names, paths, capability IDs and the four
@@ -49,8 +49,8 @@ receipt/run references and no mutation to retained evidence.
 
 On Node 24.19, the Methods full test gate, the workspace-level Briefing to
 Research consumer flow, Library typecheck/build and focused saved-entity
-inspection tests passed offline. The full Library `verify` reached lint after
+inspection tests passed offline. The recorded full Library `verify` against 3cfd39 reached lint after
 release, corpus and format checks passed, then stopped with 111 ESLint errors
-across 27 source-matching files. No later verify phases ran. No check here
+across 27 source-matching files. That gate has not been rerun on 40d69b; no later verify phases ran. No check here
 establishes live provider quality, public deployment, or compatibility of
 external Deep runtime mounts.
