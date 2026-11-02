@@ -487,9 +487,15 @@ export function exportLiteratureSet(value) {
 
 /** Markdown bibliography and caller-noted evidence map; passage citations remain in notebook answers. */
 export function formatLiteratureSet(value) {
+  return formatLiteratureSetWithScope(value, true);
+}
+
+// The legacy set-only bibliography keeps its historical one-notebook scope
+// note. A cross-notebook synthesis already has a prepared multi-notebook plan.
+function formatLiteratureSetWithScope(value, includeLegacyScope) {
   const state = validateState(value);
   const disagreements = JSON.parse(exportLiteratureSet(state)).export.disagreements;
-  const lines = [`# ${state.title}`, "", "Bibliographic metadata and findings are caller supplied. Retained-source availability means the frozen source exists; it does not mean retraction screening found it clear. No status signal means status is unknown. This export does not verify source identity or make a truth assessment.", "", "Question composition currently supports one notebook at a time; cross-notebook study composition remains a later integration.", "", "## Bibliography"];
+  const lines = [`# ${state.title}`, "", "Bibliographic metadata and findings are caller supplied. Retained-source availability means the frozen source exists; it does not mean retraction screening found it clear. No status signal means status is unknown. This export does not verify source identity or make a truth assessment.", ...(includeLegacyScope ? ["", "Question composition currently supports one notebook at a time; cross-notebook study composition remains a later integration."] : []), "", "## Bibliography"];
   for (const p of state.papers) {
     const m = p.metadata;
     const authors = m.authors?.join(", ");
@@ -561,7 +567,7 @@ export function exportLiteratureStudySynthesis(preparedValue, resultValue) {
       fail("retained literature answer references an unresolved citation");
     return clone(row);
   });
-  const bibliographyMarkdown = formatLiteratureSet(set);
+  const bibliographyMarkdown = formatLiteratureSetWithScope(set, false);
   const result = validateDocumentCoverage(resultValue);
   const citationLedger = {
     schema: "research-literature-citation-ledger.v1",

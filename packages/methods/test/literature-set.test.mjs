@@ -273,7 +273,9 @@ test("cross-notebook literature coverage preserves exact source identity, qualif
     && citation.paperIds.every((paperId) => set.papers.some((paperRow) => paperRow.id === paperId))), true);
   assert.equal(synthesisExport.citations.some((citation) => citation.paperIds.includes(firstAlias.id)), true);
   assert.deepEqual(synthesisExport.duplicateSuggestions, deduplicateLiteraturePapers(set.papers));
-  assert.equal(synthesisExport.bibliographyMarkdown, formatLiteratureSet(set));
+  assert.notEqual(synthesisExport.bibliographyMarkdown, formatLiteratureSet(set));
+  assert.doesNotMatch(synthesisExport.bibliographyMarkdown, /cross-notebook study composition remains a later integration/u);
+  assert.match(formatLiteratureSet(set), /cross-notebook study composition remains a later integration/u);
   assert.match(synthesisExport.content, /Caller asserts retraction/u);
   assert.match(synthesisExport.content, /The reason for the disagreement is not established/u);
   assert.match(synthesisExport.content, /Exact retained citation bindings/u);
