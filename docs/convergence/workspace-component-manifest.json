@@ -44,10 +44,10 @@
     {
       "component": "Library",
       "owner": "signals-ai",
-      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-saved-entity-hardening",
-      "sourceCommit": "73e9925d7175a67b571da9e242aa91e28930fdf5",
-      "sourceTree": "ca1a1c7cd34574b66195386f058347ed56bd2a25",
-      "sourceParent": "f06192c72fdfab0384d465c240d21f295764afdf",
+      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-gate-integrated",
+      "sourceCommit": "17af801a3df3d4231f9654207584a1691020dae1",
+      "sourceTree": "39827496d40bda6485ea5f3f925a4d488778de85",
+      "sourceParent": "15bb150a0400b0884b8d6857ba5fcfaae13c7d9a",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -123,7 +123,7 @@
         "packages/library/scripts/source-archives.ts",
         "packages/library/scripts/source-watches.ts"
       ],
-      "workspaceTree": "079905e7496c5f8c971ec491dee553e3d3fe0871",
+      "workspaceTree": "7cecbc6be978706d8b96928a519a2e57c6d06f9d",
       "sourceBlobComparison": {
         "trackedFileCount": 389,
         "missing": 0,
@@ -405,6 +405,78 @@
               "gitBlobOid": "f8fe958f683531f309def98292aa249595d6f6e7"
             }
           ]
+        },
+        {
+          "fromCommit": "73e9925d7175a67b571da9e242aa91e28930fdf5",
+          "toCommit": "17af801a3df3d4231f9654207584a1691020dae1",
+          "hashAlgorithm": "Git blob object ID (SHA-1)",
+          "changedFileCount": 16,
+          "files": [
+            {
+              "path": "packages/library/packages/corpus/src/briefing/json-feed-media.test.ts",
+              "gitBlobOid": "60678a9b25a97c93da05a9b7e5e15548f50021a7"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/library-intake-workflow.test.ts",
+              "gitBlobOid": "d7214a80d6e8c847f3c61d7beb587ccdb156fa34"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/project-opportunity-brief.ts",
+              "gitBlobOid": "f9a430ccee62de3d3e65142a342a220d1b954760"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/project-topic-relevance.test.ts",
+              "gitBlobOid": "aeebe620467e888d0f45282247fbb1ae21c24991"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/project-topic-relevance.ts",
+              "gitBlobOid": "d749c1955af9e0086808e3457a347c4c38a06c5e"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/projects.ts",
+              "gitBlobOid": "d7d24b925eb4a371ddd556f8eded8f741bb92793"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/search-settings.ts",
+              "gitBlobOid": "48f1d20b9bda10cbb4bb502e4b852dd79b3b52bb"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/source-archive-workflow.test.ts",
+              "gitBlobOid": "2100083acd73f360dba30c8036629898e53ab261"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/source-archives.ts",
+              "gitBlobOid": "b13b3bd16535cfe588b4ec944c839755fa6ac011"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/source-captures.ts",
+              "gitBlobOid": "3bf0792fc856672afe131bbd5b9b655943a976ab"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/source-change-reviews.test.ts",
+              "gitBlobOid": "94ce42aa4a226d7a866d94843f2096f43f5cb4f2"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/source-change-reviews.ts",
+              "gitBlobOid": "b4b61b17fc161d13dc95dc9776bf88bccdb1efe1"
+            },
+            {
+              "path": "packages/library/scripts/project-topic-relevance.ts",
+              "gitBlobOid": "2f97946ed2b682938b74a52a78de4b13e1ff690b"
+            },
+            {
+              "path": "packages/library/scripts/source-archives.ts",
+              "gitBlobOid": "80a2f35ca889e7413936f3234b0e9f939f772fa0"
+            },
+            {
+              "path": "packages/library/scripts/source-change-reviews.ts",
+              "gitBlobOid": "40037399c0f1c4af669dbefab58a349b73496a40"
+            },
+            {
+              "path": "packages/library/scripts/source-watches.ts",
+              "gitBlobOid": "6cec56529a5fb94cd275fd9c6d67ef767f92e563"
+            }
+          ]
         }
       ]
     },
@@ -460,9 +532,9 @@
     },
     {
       "component": "Library",
-      "sourceCommit": "73e9925d7175a67b571da9e242aa91e28930fdf5",
+      "sourceCommit": "17af801a3df3d4231f9654207584a1691020dae1",
       "targetPrefix": "packages/library",
-      "workspaceMergeCommit": "a0e33cdc8a91fdee6e9931d924799492549dd80f",
+      "workspaceMergeCommit": "94a74980991f9af8cbca1468d4196c7d93b7d123",
       "strategy": "git merge -s subtree -Xsubtree=packages/library"
     }
   ]

@@ -6,10 +6,10 @@
       "target": "packages/methods"
     },
     "library": {
-      "revision": "73e9925d7175a67b571da9e242aa91e28930fdf5",
+      "revision": "17af801a3df3d4231f9654207584a1691020dae1",
       "target": "packages/library",
-      "tree": "ca1a1c7cd34574b66195386f058347ed56bd2a25",
-      "parent": "f06192c72fdfab0384d465c240d21f295764afdf"
+      "tree": "39827496d40bda6485ea5f3f925a4d488778de85",
+      "parent": "15bb150a0400b0884b8d6857ba5fcfaae13c7d9a"
     }
   },
   "methods": {
@@ -312,13 +312,12 @@
     "originalLibraryLockSha256": "6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa"
   },
   "qualificationLimits": [
-    "Historical full Library verify ran once against native 3cfd39 and stopped at lint (111 errors across 27 source-matching files); no full verify was run on 40d69b, f06192c, or final 73e9925.",
-    "Native lint-only result at f06192c was 71 errors across 15 files; it is not a full verify result. The final 73e9925 saved-entity files passed targeted lint, TypeScript, and inspection tests (6/6) in the native clone.",
-    "The explicit workspace dependency guard in this isolated checkout could not complete because the clone has no node_modules/@pradeeptathineni/research-ai workspace link; no package installation or link creation was performed."
+    "The explicit workspace guard in this isolated clone cannot complete because node_modules/@pradeeptathineni/research-ai is absent; no package install or link workaround was used.",
+    "Final 17af801 full ESLint (zero errors), TypeScript, release, corpus, format and production build passed. quality:structure still fails on baseline Knip unused exports; jscpd count improved from 21 at baseline73 to 20. One projects listener test is blocked by sandbox EPERM. External npm audit was automatically rejected because of dependency metadata disclosure and was not retried; the full verify gate is not passed."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
-    "Library workspace source is exact native 73e9925, a history-preserving child of combined lint successor f06192c. The package.json workspace link is the sole source-blob adaptation; standalone package lock and fixed archive bytes remain unchanged.",
+    "Library workspace source is exact native 17af801, imported through a history-preserving subtree merge. All 389 files match native source except the workspace Methods link in package.json; standalone package lock and fixed archive bytes remain unchanged.",
     "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
   ],
   "workbenchConsumerFlow": {
@@ -362,7 +361,7 @@
     ],
     "result": "pass",
     "reviewer": "native Library owner",
-    "scope": "targeted lint for saved-entity recovery; no full package lint claim",
+    "scope": "targeted saved-entity lint; no full verify claim",
     "sourceRevision": "73e9925d7175a67b571da9e242aa91e28930fdf5"
   },
   "savedEntityRecoveryVerification": {
@@ -383,13 +382,46 @@
       "result": "blocked",
       "reason": "ENOENT: isolated clone has no node_modules/@pradeeptathineni/research-ai workspace link; no installation or link creation performed"
     },
-    "fullVerify": "Not run on final source; historical 3cfd39 full verify receipt remains separate."
+    "fullVerify": "Not passed on final source; see libraryFinalGateEvidence."
   },
   "libraryCurrentLint": {
+    "sourceRevision": "17af801a3df3d4231f9654207584a1691020dae1",
+    "errors": 0,
+    "scope": "full ESLint command; not a full verify"
+  },
+  "libraryPriorLint": {
     "sourceRevision": "f06192c72fdfab0384d465c240d21f295764afdf",
     "errors": 71,
     "files": 15,
-    "scope": "lint-only result; no full verify claim",
-    "finalSavedEntityTargetedLint": "pass on 73e9925"
+    "scope": "lint-only; not a full verify"
+  },
+  "libraryFinalGateEvidence": {
+    "sourceRevision": "17af801a3df3d4231f9654207584a1691020dae1",
+    "fullESLint": "pass; zero errors",
+    "typecheck": "pass",
+    "productionBuild": "pass",
+    "format": "pass",
+    "focusedSourceContinuityTests": {
+      "result": "pass",
+      "testsPassed": 10
+    },
+    "projectTopicRelevanceTest": "pass",
+    "projectsListenerCase": {
+      "result": "blocked",
+      "reason": "EPERM from sandbox"
+    },
+    "fullVerify": "not passed; quality:structure baseline Knip findings, projects listener EPERM, and external npm audit rejection remain.",
+    "qualityStructure": {
+      "result": "fail",
+      "knip": "same unused-export findings as baseline 73e9925",
+      "jscpd": {
+        "baselineDuplicateCount": 21,
+        "candidateDuplicateCount": 20
+      }
+    },
+    "externalNpmAudit": {
+      "result": "automatically rejected",
+      "reason": "dependency metadata disclosure; not retried"
+    }
   }
 }

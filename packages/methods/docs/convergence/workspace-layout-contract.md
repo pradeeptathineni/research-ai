@@ -33,10 +33,9 @@ remains active.
 ## Library and compatibility
 
 Library source is pinned at
-`73e9925d7175a67b571da9e242aa91e28930fdf5`, imported by history-preserving subtree merges from parent
-`f06192c72fdfab0384d465c240d21f295764afdf`. The source includes the bounded lint corrections and saved-entity
-recovery hardening. Its per-file successor blob OIDs are recorded in
-`workspace-component-manifest.json`. Its workspace package metadata changes only the Methods dependency
+`17af801a3df3d4231f9654207584a1691020dae1`, imported by history-preserving subtree merge from parent
+`15bb150a0400b0884b8d6857ba5fcfaae13c7d9a`. The source includes the project-lint and saved-entity changes; the
+per-file successor blob OIDs are recorded in `workspace-component-manifest.json`. Its workspace package metadata changes only the Methods dependency
 specification from the fixed tarball to `file:../methods`. The original Library
 lock, tarball digest/integrity and all five vendored Research archives are
 frozen and verified. Existing CLI names, paths, capability IDs and the four
@@ -51,9 +50,11 @@ At earlier RX02 checkpoints, the Methods full test gate, the workspace-level
 Briefing-to-Research consumer flow, Library typecheck/build and focused
 saved-entity inspection tests passed offline. The recorded full Library `verify` against 3cfd39 reached lint after
 release, corpus and format checks passed, then stopped with 111 ESLint errors
-across 27 source-matching files. A later lint-only result at f06192c reported
-71 errors across 15 files; it is not a full gate. The final 73e9925 saved-entity
-files passed targeted lint, TypeScript and inspection tests (6/6). No full verify
-was run on the final source. No check here
+across 27 source-matching files. Later lint-only evidence at f06192c reported 71 errors across 15 files. Final
+17af801 full ESLint, TypeScript, build and format checks passed, as did source
+continuity (10/10) and the project relevance test. The full verify gate is not passed: `quality:structure` retains baseline Knip
+unused exports (jscpd count improves from 21 to 20), a projects listener case
+is blocked by sandbox EPERM, and external `npm audit` was automatically
+rejected for dependency metadata disclosure and not retried. No check here
 establishes live provider quality, public deployment, or compatibility of
 external Deep runtime mounts.
