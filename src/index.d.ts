@@ -1281,6 +1281,20 @@ export interface ResearchBriefingNotebookSelection {
   topic?: string;
   id?: string;
 }
+export interface ResearchBriefingStoryInspection {
+  story: {
+    record: ResearchBriefingWorkbenchInput["story"];
+    reference: ResearchBriefingRecordReference & { kind: "briefing-story" };
+  };
+  members: Array<{
+    itemId: string;
+    item: { record: ResearchBriefingWorkbenchItem["item"] & { sourceId: string }; reference: ResearchBriefingRecordReference & { kind: "briefing-item" } } | null;
+    source: { record: ResearchBriefingWorkbenchItem["source"]; reference: ResearchBriefingRecordReference & { kind: "briefing-source" } } | null;
+    itemAvailability: "retained" | "unavailable";
+    sourceAvailability: "retained" | "unavailable";
+  }>;
+  sourceTerms: ResearchBriefingWorkbenchResponse["sourceTerms"];
+}
 /**
  * Returns a cold-valid in-memory Notebook from explicit refs in a native Briefing workbench
  * response. It performs no persistence, inference or network request; callers save through
@@ -1288,6 +1302,11 @@ export interface ResearchBriefingNotebookSelection {
  */
 export function createResearchNotebookFromBriefingSelection(
   workbench: ResearchBriefingWorkbenchResponse,
+  selection: ResearchBriefingNotebookSelection,
+): ResearchNotebook;
+/** Exact retained-story variant, including stories outside ranking; unavailable or unbound joins refuse. */
+export function createResearchNotebookFromBriefingStoryInspection(
+  inspection: ResearchBriefingStoryInspection,
   selection: ResearchBriefingNotebookSelection,
 ): ResearchNotebook;
 export interface PreparedNotebookQuestion {

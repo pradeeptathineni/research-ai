@@ -71,11 +71,14 @@ async function consumer() {
   return [ready.available, sessionCompleted(outcome), direct.cleanup.complete, research.receipt.cleanup.error];
 }
 void consumer;
-import { createResearchNotebookFromBriefingSelection } from '@pradeeptathineni/research-ai';
-import type { ResearchBriefingNotebookSelection, ResearchBriefingWorkbenchResponse, ResearchNotebook as ResearchNotebookFromBriefing } from '@pradeeptathineni/research-ai';
+import { createResearchNotebookFromBriefingSelection, createResearchNotebookFromBriefingStoryInspection } from '@pradeeptathineni/research-ai';
+import type { ResearchBriefingNotebookSelection, ResearchBriefingWorkbenchResponse, ResearchBriefingStoryInspection, ResearchNotebook as ResearchNotebookFromBriefing } from '@pradeeptathineni/research-ai';
 declare const currentBriefingWorkbench: ResearchBriefingWorkbenchResponse;
 declare const selectedBriefingItems: ResearchBriefingNotebookSelection;
 const seededNotebook: ResearchNotebookFromBriefing = createResearchNotebookFromBriefingSelection(currentBriefingWorkbench, selectedBriefingItems);
+declare const retainedBriefingStory: ResearchBriefingStoryInspection;
+const retainedStoryNotebook: ResearchNotebookFromBriefing = createResearchNotebookFromBriefingStoryInspection(retainedBriefingStory, selectedBriefingItems);
+void retainedStoryNotebook;
 void seededNotebook;
 import { createMindMap, validateMindMap, reviseMindMap, renderMindMap, mindMapResearch, mindMapLimits } from '@pradeeptathineni/research-ai';
 import type { ResearchMindMap, MindMapNode, MindMapCitation, MindMapRelation, MindMapEdit, MindMapTree, MindMapTreeNode } from '@pradeeptathineni/research-ai';

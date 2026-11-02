@@ -18,11 +18,11 @@ function recordReference(value, kind) {
     && typeof value.revision === "string" && /^sha256:[a-f0-9]{64}$/.test(value.revision);
 }
 
-function sourceTerms(workbench, source) {
+function sourceTerms(sourceTermsRows, source) {
   if (!(source.termsRef === null || (typeof source.termsRef === "string"
       && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(source.termsRef))))
     invalid("source terms reference is malformed");
-  const matching = workbench.sourceTerms.filter((policy) => policy?.sourceId === source.id);
+  const matching = sourceTermsRows.filter((policy) => policy?.sourceId === source.id);
   let policy = null;
   if (source.termsRef !== null) {
     const exact = matching.filter((candidate) => candidate.id === source.termsRef);
@@ -76,19 +76,80 @@ export function createResearchNotebookFromBriefingSelection(workbench, selection
       && canonical(entry.input.storyReference) === canonical(selection.storyReference));
   if (storyMatches.length !== 1) invalid("selected story must match exactly one ranked owner record");
   const input = storyMatches[0].input;
-  if (!plain(input.story) || input.story.id !== selection.storyReference.id
-      || !Array.isArray(input.story.itemIds) || !Array.isArray(input.items))
+  return buildBriefingNotebook(input.story, input.storyReference, input.items, workbench.sourceTerms, selection);
+}
+
+/**
+ * Builds the same portable Notebook from one exact current retained-story inspection.
+ * This supports stories outside the ranked workbench; it does not rank, infer siblings,
+ * persist or fetch anything.
+ */
+export function createResearchNotebookFromBriefingStoryInspection(inspection, selection) {
+  if (!plain(inspection) || !plain(inspection.story)
+      || !recordReference(inspection.story.reference, "briefing-story")
+      || !Array.isArray(inspection.members) || !Array.isArray(inspection.sourceTerms))
+    invalid("exact retained story inspection required");
+  if (!plain(inspection.story.record)
+      || inspection.story.record.id !== inspection.story.reference.id
+      || `sha256:${hash(canonical(inspection.story.record))}` !== inspection.story.reference.revision)
+    invalid("story record does not match its exact reference");
+  if (!plain(selection) || !recordReference(selection.storyReference, "briefing-story")
+      || canonical(selection.storyReference) !== canonical(inspection.story.reference)
+      || !Array.isArray(selection.itemReferences) || selection.itemReferences.length < 1
+      || selection.itemReferences.length > researchNotebookLimits.sources
+      || Object.keys(selection).some((key) => !["storyReference", "itemReferences", "title", "topic", "id"].includes(key)))
+    invalid("explicit exact story and item selection required");
+  const selectedKeys = new Set();
+  for (const reference of selection.itemReferences) {
+    if (!recordReference(reference, "briefing-item")) invalid("selected item reference is malformed");
+    const key = canonical(reference);
+    if (selectedKeys.has(key)) invalid("selected item references must be unique");
+    selectedKeys.add(key);
+  }
+  const members = inspection.members.map((member) => {
+    if (!plain(member) || typeof member.itemId !== "string") invalid("story member inspection is malformed");
+    if (member.itemAvailability !== "retained" || member.sourceAvailability !== "retained"
+        || !plain(member.item) || !plain(member.source))
+      return { item: null, itemReference: null, source: null, sourceReference: null };
+    return {
+      item: member.item.record,
+      itemReference: member.item.reference,
+      source: member.source.record,
+      sourceReference: member.source.reference,
+    };
+  });
+  return buildBriefingNotebook(
+    inspection.story.record,
+    inspection.story.reference,
+    members,
+    inspection.sourceTerms,
+    selection,
+    true,
+  );
+}
+
+function buildBriefingNotebook(story, storyReference, items, sourceTermsValue, selection, verifyExactRecords = false) {
+  if (!plain(story) || story.id !== storyReference.id
+      || !Array.isArray(story.itemIds) || !Array.isArray(items))
     invalid("selected story record is inconsistent");
 
   const prepared = [];
   for (const itemReference of selection.itemReferences) {
-    const matches = input.items.filter((entry) => plain(entry)
+    const matches = items.filter((entry) => plain(entry)
       && canonical(entry.itemReference) === canonical(itemReference));
     if (matches.length !== 1) invalid("selected item is not uniquely present in the selected story");
     const entry = matches[0];
     const item = entry.item;
     const source = entry.source;
-    if (!plain(item) || item.id !== itemReference.id || !input.story.itemIds.includes(item.id)
+    if (verifyExactRecords && (!plain(item) || !recordReference(entry.itemReference, "briefing-item")
+        || item.id !== entry.itemReference.id
+        || `sha256:${hash(canonical(item))}` !== entry.itemReference.revision
+        || !plain(source) || !recordReference(entry.sourceReference, "briefing-source")
+        || source.id !== entry.sourceReference.id
+        || `sha256:${hash(canonical(source))}` !== entry.sourceReference.revision
+        || item.sourceId !== source.id))
+      invalid("selected story member records do not match their exact references");
+    if (!plain(item) || item.id !== itemReference.id || !story.itemIds.includes(item.id)
         || !plain(source) || !recordReference(entry.sourceReference, "briefing-source")
         || source.id !== entry.sourceReference.id
         || typeof item.title !== "string" || typeof item.canonicalUrl !== "string"
@@ -121,7 +182,7 @@ export function createResearchNotebookFromBriefingSelection(workbench, selection
         excerptSha256,
         observedAt: item.observedAt,
         sourceHealth: source.health,
-        sourceTerms: sourceTerms(workbench, source),
+        sourceTerms: sourceTerms(sourceTermsValue, source),
         assessmentStatus: "unassessed-lead",
       },
     });

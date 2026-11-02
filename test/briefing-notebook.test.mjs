@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createResearchNotebookFromBriefingSelection } from "../src/briefing-notebook.mjs";
+import { createResearchNotebookFromBriefingSelection, createResearchNotebookFromBriefingStoryInspection } from "../src/briefing-notebook.mjs";
 import { renderResearchNotebook, validateResearchNotebook } from "../src/notebook.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
+const canonical = (value) => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
+  : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
+  : JSON.stringify(value);
 const reference = (kind, id, bytes) => ({
   owner: "signals-ai",
   kind,
@@ -129,4 +132,48 @@ test("Briefing seed includes only explicit members and refuses unresolved or blo
     storyReference: value.storyReference,
     itemReferences: [value.secondItemReference],
   }), /does not match the exact source reference/);
+});
+
+test("exact retained-story inspection seeds a selected story outside ranking and refuses detached joins", () => {
+  const value = fixture();
+  const story = { id: "story:retained-unranked", itemIds: [value.firstItemReference.id, value.secondItemReference.id] };
+  const first = value.workbench.ranked[0].input.items[0];
+  const second = value.workbench.ranked[0].input.items[1];
+  const inspectedMembers = [first, second].map((member) => ({
+    item: { ...member.item, sourceId: member.source.id }, source: member.source,
+  }));
+  const exactRef = (kind, record) => ({
+    owner: "signals-ai", kind, id: record.id, revision: `sha256:${sha(canonical(record))}`,
+  });
+  const inspection = {
+    story: { record: story, reference: exactRef("briefing-story", story) },
+    members: inspectedMembers.map((member) => ({
+      itemId: member.item.id,
+      item: { record: member.item, reference: exactRef("briefing-item", member.item) },
+      source: { record: member.source, reference: exactRef("briefing-source", member.source) },
+      itemAvailability: "retained", sourceAvailability: "retained",
+    })),
+    sourceTerms: value.workbench.sourceTerms,
+  };
+  const selected = {
+    storyReference: inspection.story.reference,
+    itemReferences: [inspection.members[1].item.reference],
+  };
+  const notebook = createResearchNotebookFromBriefingStoryInspection(inspection, selected);
+  assert.equal(notebook.sources.length, 1);
+  assert.equal(notebook.sources[0].briefingOrigin.storyReference.revision, inspection.story.reference.revision);
+  assert.equal(notebook.sources[0].briefingOrigin.itemReference.id, value.secondItemReference.id);
+  assert.equal(notebook.sources[0].briefingOrigin.sourceTerms.status, "recorded");
+  const unrelatedStaleMember = structuredClone(inspection);
+  unrelatedStaleMember.members[0].source.record.attribution = "changed outside the explicit selection";
+  assert.equal(createResearchNotebookFromBriefingStoryInspection(unrelatedStaleMember, selected).sources.length, 1);
+  assert.throws(() => createResearchNotebookFromBriefingStoryInspection(inspection, {
+    ...selected, storyReference: value.storyReference,
+  }), /explicit exact story/);
+  const unavailable = structuredClone(inspection);
+  unavailable.members[1].sourceAvailability = "unavailable";
+  assert.throws(() => createResearchNotebookFromBriefingStoryInspection(unavailable, selected), /not uniquely present/);
+  const detached = structuredClone(inspection);
+  detached.members[1].source.record.attribution = "different revision";
+  assert.throws(() => createResearchNotebookFromBriefingStoryInspection(detached, selected), /exact references/);
 });

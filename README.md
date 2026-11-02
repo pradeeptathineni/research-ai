@@ -599,6 +599,12 @@ persist a notebook, fetch a URL, or infer a Research result. Blocked terms
 refuse the bridge, and unknown terms remain unknown. See the Briefing handoff
 section in [notebook usage and limits](docs/notebook.md).
 
+For a user-selected retained story outside the ranked workbench, callers can
+use `createResearchNotebookFromBriefingStoryInspection(inspection, selection)`.
+It requires exact current story/member/source references and source terms;
+unavailable joins, changed references and blocked terms refuse. It creates the
+same in-memory unassessed leads without ranking or adding siblings.
+
 `searchResearchNotebooks(notebooks, query, options)` searches only the explicit
 validated notebook selection for retained source pages and note versions.
 `openNotebookSearchHit` revalidates and replays a result before returning the

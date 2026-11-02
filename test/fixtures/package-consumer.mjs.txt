@@ -17,6 +17,7 @@ const expectedExports = ['addLiteraturePaper', 'addWorkflowPerspective', 'advanc
 expectedExports.push('advanceInvestigationPlan', 'createResearchStudyReportBasis',
   'exportLiteratureStudySynthesis', 'validateResearchStudyReportBasis',
   'createResearchNotebookFromBriefingSelection',
+  'createResearchNotebookFromBriefingStoryInspection',
   'projectInvestigationClaimReviews', 'projectInvestigationMethodProgress',
   'projectReportClaimRegister', 'reviewInvestigationClaim');
 expectedExports.sort();
