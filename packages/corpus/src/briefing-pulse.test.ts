@@ -69,4 +69,27 @@ describe('Briefing social pulse', () => {
       perHour: null,
     });
   });
+
+  it('groups offset-equivalent instants and counts only distinct instants', () => {
+    const rows = summarizeBriefingPulse([
+      metric('latest', 'ordered', 'hn', 'points', 15, '2026-11-01T10:00:00.000Z'),
+      metric('earlier', 'ordered', 'hn', 'points', 5, '2026-11-01T11:00:00.000+02:00'),
+      metric('duplicate', 'ordered', 'hn', 'points', 5, '2026-11-01T09:00:00.000Z'),
+      metric('conflict-a', 'offset-conflict', 'hn', 'points', 2, '2026-11-01T09:00:00.000Z'),
+      metric('conflict-b', 'offset-conflict', 'hn', 'points', 8, '2026-11-01T11:00:00.000+02:00'),
+    ]);
+    expect(rows.find((row) => row.itemId === 'ordered')).toMatchObject({
+      firstObservedAt: '2026-11-01T09:00:00.000Z',
+      latestObservedAt: '2026-11-01T10:00:00.000Z',
+      observationCount: 2,
+      elapsedHours: 1,
+      status: 'available',
+    });
+    expect(rows.find((row) => row.itemId === 'offset-conflict')).toMatchObject({
+      status: 'ambiguous-observations',
+      observationCount: 1,
+      latestValue: null,
+      perHour: null,
+    });
+  });
 });

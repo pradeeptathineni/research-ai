@@ -27,43 +27,45 @@ export function summarizeBriefingPulse(
 
   return [...groups.values()]
     .map((rows): SocialPulseSummary => {
-      const sorted = [...rows].sort(
-        (a, b) => a.observedAt.localeCompare(b.observedAt) || a.id.localeCompare(b.id),
-      );
-      const first = sorted[0]!;
-      const last = sorted.at(-1)!;
-      const times = new Map<string, Set<number>>();
-      for (const row of sorted) {
-        const values = times.get(row.observedAt) ?? new Set<number>();
-        values.add(row.value);
-        times.set(row.observedAt, values);
+      const instants = new Map<number, MetricObservation[]>();
+      for (const row of rows) {
+        const instant = Date.parse(row.observedAt);
+        instants.set(instant, [...(instants.get(instant) ?? []), row]);
       }
-      const ambiguous = [...times.values()].some((values) => values.size > 1);
-      const distinctTimes = [...times.keys()];
+      const points = [...instants.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([instant, observations]) => ({
+          instant,
+          observations: observations.sort((a, b) => a.id.localeCompare(b.id)),
+          values: new Set(observations.map((observation) => observation.value)),
+        }));
+      const firstPoint = points[0]!;
+      const lastPoint = points.at(-1)!;
+      const first = firstPoint.observations[0]!;
+      const last = lastPoint.observations.at(-1)!;
+      const ambiguous = points.some((point) => point.values.size > 1);
+      const distinctTimes = points.length;
       const elapsedHours =
-        distinctTimes.length > 1
-          ? (Date.parse(last.observedAt) - Date.parse(first.observedAt)) / 3_600_000
-          : null;
-      const decreased = sorted.some(
-        (row, index) => index > 0 && row.value < sorted[index - 1]!.value,
+        distinctTimes > 1 ? (lastPoint.instant - firstPoint.instant) / 3_600_000 : null;
+      const decreased = points.some(
+        (point, index) => index > 0 && [...point.values][0]! < [...points[index - 1]!.values][0]!,
       );
       const status: SocialPulseSummary['status'] = ambiguous
         ? 'ambiguous-observations'
         : decreased
           ? 'counter-decreased'
-          : distinctTimes.length < 2 || !(elapsedHours! > 0)
+          : distinctTimes < 2 || !(elapsedHours! > 0)
             ? 'insufficient-observations'
             : 'available';
       const calculated = status === 'available';
       const delta = calculated ? last.value - first.value : null;
-      const latestValues = times.get(last.observedAt)!;
       return {
         itemId: first.itemId,
         platform: first.platform,
         name: first.name,
-        latestValue: latestValues.size === 1 ? last.value : null,
+        latestValue: lastPoint.values.size === 1 ? last.value : null,
         latestObservedAt: last.observedAt,
-        observationCount: rows.length,
+        observationCount: distinctTimes,
         firstObservedAt: first.observedAt,
         delta,
         elapsedHours: calculated ? elapsedHours : null,
