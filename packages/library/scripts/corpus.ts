@@ -3,6 +3,7 @@ import {
   previewPublicData,
   publishPublicData,
   reviewPublicDataPreview,
+  verifyPublicSiteArtifacts,
 } from '../packages/corpus/src/public-export.js';
 import { loadPublicCorpus } from '../packages/corpus/src/public-corpus.js';
 import { filterPublicOptions, type PublicFilters } from '../packages/domain/src/public-corpus.js';
@@ -197,7 +198,17 @@ if (operation === 'check') {
   });
   const result = await exportReviewedPublicData(corpus, 'dist', entities, review);
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+} else if (operation === 'verify-reviewed-site') {
+  if (args.length !== 1 || !/^--preview-sha256=[a-f0-9]{64}$/.test(args[0]!))
+    throw new Error('Usage: corpus verify-reviewed-site --preview-sha256=SHA256');
+  const entities = await loadEntities();
+  const preview = previewPublicData(corpus, entities);
+  const expectedSha256 = args[0]!.slice('--preview-sha256='.length);
+  if (preview.sha256 !== expectedSha256)
+    throw new Error('Current public inputs differ from the reviewed preview.');
+  const result = await verifyPublicSiteArtifacts(preview, 'dist/public-site');
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 } else
   throw new Error(
-    'Usage: corpus check | search --query=TEXT [--type=VALUE] | build | preview | build-reviewed --review-sha256=SHA256 --reviewer=LABEL',
+    'Usage: corpus check | search --query=TEXT [--type=VALUE] | build | preview | build-reviewed --review-sha256=SHA256 --reviewer=LABEL | verify-reviewed-site --preview-sha256=SHA256',
   );

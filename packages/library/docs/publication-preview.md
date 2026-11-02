@@ -10,6 +10,8 @@ review to their revision.
 ```sh
 npm run corpus -- preview > public-preview.json
 npm run corpus -- build-reviewed --review-sha256=PREVIEW_SHA256 --reviewer="human review label"
+npx vite build --config apps/corpus/vite.config.ts
+npm run corpus -- verify-reviewed-site --preview-sha256=PREVIEW_SHA256
 ```
 
 Inspect every `artifacts[]` entry in the preview. It contains the relative path,
@@ -23,6 +25,12 @@ directory and atomic symlink-pointer rename. It returns the exact artifact paths
 and digests written. If staging fails before the pointer rename, the writer
 attempts to remove that attempt's temporary directory and leaves the prior
 pointer intact.
+
+`verify-reviewed-site` reloads those same public inputs, checks that their
+preview digest still matches, and compares every public JSON/bundle artifact
+copied into `dist/public-site` byte-for-byte. It also rejects extra top-level
+JSON or bundle files, symlinks and missing artifacts. The Pages workflow uploads
+only after this check passes.
 
 The callable workflow is `previewPublicData(corpus, entities)`,
 `reviewPublicDataPreview(preview, { confirmedSha256, reviewer, reviewedAt })`,
@@ -38,4 +46,11 @@ records, credentials, caches, or the `.signals` private collection.
 command retain their existing direct-export behavior for compatibility; they do
 not acquire a review gate from this API. Neither export function performs Git
 operations or publishes to the remote Pages site. External publication remains
-a separate action-time reviewed operation.
+a separate action-time reviewed operation. The package Pages workflow is
+manual-dispatch only: the operator supplies the exact preview digest, the
+workflow uses the authenticated GitHub actor as its reviewer label, exports
+that preview, builds the site and verifies copied bytes before upload. Local
+`build` and `dev` retain the direct compatibility build. In the converged
+Research workspace this workflow remains under `packages/library/.github`; it
+is not a root GitHub Actions workflow until an owner explicitly integrates it
+at the repository root.

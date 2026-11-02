@@ -1,9 +1,12 @@
 name: Public Corpus preview
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      preview_sha256:
+        description: SHA-256 from the inspected local public-data preview
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,6 +18,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      REVIEWED_PREVIEW_SHA256: ${{ inputs.preview_sha256 }}
+      REVIEWER: ${{ github.actor }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -25,13 +31,20 @@ jobs:
       - run: npm run release:check
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
-      - run: npm run corpus:build
+      - name: Export the exact reviewed public-data preview
+        run: |
+          [[ "$REVIEWED_PREVIEW_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          npm run corpus -- build-reviewed --review-sha256="$REVIEWED_PREVIEW_SHA256" --reviewer="$REVIEWER"
+      - run: npx vite build --config apps/corpus/vite.config.ts
       - name: Install the pinned private PDF test parser
         run: |
           python3 -m venv "$RUNNER_TEMP/signals-private-documents"
           "$RUNNER_TEMP/signals-private-documents/bin/python" -m pip install --disable-pip-version-check --require-hashes -r requirements-private-documents.txt
           echo "$RUNNER_TEMP/signals-private-documents/bin" >> "$GITHUB_PATH"
       - run: npm test
+      - run: node --experimental-strip-types --test scripts/public-site-integrity.test.mjs
+      - name: Verify Vite copied every public artifact byte from the reviewed preview
+        run: npm run corpus -- verify-reviewed-site --preview-sha256="$REVIEWED_PREVIEW_SHA256"
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

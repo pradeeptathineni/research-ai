@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import type * as Fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { loadPublicCorpus } from './public-corpus.js';
 import { publishPublicData } from './public-export.js';
@@ -11,6 +11,7 @@ import {
   previewPublicData,
   reviewPublicDataPreview,
   exportReviewedPublicData,
+  verifyPublicSiteArtifacts,
 } from './public-export.js';
 import { evidenceDigest } from '../../domain/src/evidence-exchange.js';
 import { assessEntity } from '../../domain/src/search-score.js';
@@ -308,6 +309,37 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
     expect(actual).toBe(artifact.bytes);
     expect(evidenceDigest(actual)).toBe(artifact.sha256);
   }
+  const reviewedSite = join(destination, 'reviewed-site');
+  await mkdir(reviewedSite);
+  for (const artifact of preview.artifacts) {
+    const path = join(reviewedSite, artifact.path);
+    await mkdir(dirname(path), { recursive: true });
+    const copied = await readFile(join(pointer, artifact.path), 'utf8');
+    expect(copied).toBe(artifact.bytes);
+    await writeFile(path, copied);
+  }
+  expect(await verifyPublicSiteArtifacts(preview, reviewedSite)).toMatchObject({
+    verified: true,
+    previewSha256: preview.sha256,
+  });
+  const directBuild = await publishPublicData(publicCorpus, destination, changedEntity);
+  expect(directBuild).toBeUndefined();
+  const directPreview = previewPublicData(publicCorpus, changedEntity);
+  expect(await readFile(join(pointer, 'entities.json'), 'utf8')).toBe(
+    directPreview.artifacts.find((artifact) => artifact.path === 'entities.json')!.bytes,
+  );
+  const directSite = join(destination, 'direct-site');
+  await mkdir(directSite);
+  for (const artifact of directPreview.artifacts) {
+    const path = join(directSite, artifact.path);
+    await mkdir(dirname(path), { recursive: true });
+    const copied = await readFile(join(pointer, artifact.path), 'utf8');
+    expect(copied).toBe(artifact.bytes);
+    await writeFile(path, copied);
+  }
+  await expect(verifyPublicSiteArtifacts(preview, directSite)).rejects.toThrow(
+    /differ from the reviewed preview/,
+  );
   await expect(
     readFile(join(pointer, 'bundles/synthetic-withdrawn.json'), 'utf8'),
   ).rejects.toMatchObject({ code: 'ENOENT' });

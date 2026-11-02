@@ -6,6 +6,7 @@ import { parsePublicIndex } from '../../domain/src/public-index.js';
 import { parseEvidenceBundle } from '../../domain/src/evidence-exchange.js';
 import { validateEntity, type StoredEntity } from './search-store.js';
 import { projectLegacyLibrary, projectNativeLibrary } from '../../domain/src/library-search.js';
+import { verifyPublicSiteArtifactBytes } from './public-site-integrity.js';
 
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 const canonical = (value: unknown): string =>
@@ -289,6 +290,12 @@ export async function exportReviewedPublicData(
     previewSha256: currentSha256,
     artifacts: artifacts.map(({ path, sha256, byteLength }) => ({ path, sha256, byteLength })),
   };
+}
+
+/** Verifies the static site's public-data files are the exact reviewed preview bytes. */
+export async function verifyPublicSiteArtifacts(preview: PublicDataPreview, directory: string) {
+  verifyPreview(preview);
+  return verifyPublicSiteArtifactBytes(preview.artifacts, preview.sha256, directory);
 }
 
 /** Compatibility path retained for the existing build command. */
