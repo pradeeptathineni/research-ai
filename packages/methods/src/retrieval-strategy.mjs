@@ -121,6 +121,10 @@ export function openResearchRetrievalSource(notebooks, resultValue, sourceId) {
   const entry = resultValue.corpus.sources.find(({ id }) => id === sourceId);
   const retained = current.find(({ id }) => id === sourceId);
   if (!entry || !retained || retained.sha256 !== originalById.get(sourceId)) bad("selected source is missing or changed since ranking");
+  const sourceBinding = entry.kind === "document"
+    ? hash(canonical({ source: entry.source_sha256, page: entry.content_sha256 }))
+    : entry.kind === "note" ? entry.content_sha256 : null;
+  if (sourceBinding !== originalById.get(sourceId)) bad("source metadata does not match its sealed per-hit digest");
   if (!Object.values(resultValue.arm?.rankings ?? {}).some((ids) => Array.isArray(ids) && ids.includes(sourceId)))
     bad("source ID is not in a retained question ranking");
   const stableId = `notebook-hit-${hash(canonical({ notebookId: entry.notebook_id, kind: entry.kind,

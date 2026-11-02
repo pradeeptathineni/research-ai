@@ -6,6 +6,9 @@ import { createResearchNotebook, reviseResearchNotebook, exportResearchRetrieval
 import { createHash } from "node:crypto";
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
+const canonical = (v) => Array.isArray(v) ? `[${v.map(canonical).join(",")}]`
+  : v && typeof v === "object" ? `{${Object.keys(v).sort().filter((k) => v[k] !== undefined)
+    .map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}` : JSON.stringify(v);
 function corpus() {
   let n = createResearchNotebook("Synthetic retrieval");
   n = reviseResearchNotebook(n, { type: "add-source", document: { id: "source:doc", title: "Astronomy", sha256: sha("doc-v1"), pages: [{ number: 1, text: "Comets follow elliptical orbits.", sha256: sha("Comets follow elliptical orbits.") }] } });
@@ -51,6 +54,10 @@ test("strategy arms rank exact retained sources, fall back offline, and cold-reo
   assert.equal(reopened.text, "A retained note about distant icy bodies.");
   assert.equal(reopened.version, 1);
   assert.equal(reopened.corpusCurrentness, "current");
+  const tampered = JSON.parse(JSON.stringify(cold));
+  tampered.corpus.sources.find((source) => source.id === note.id).content_sha256 = "f".repeat(64);
+  tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
+  assert.throws(() => openResearchRetrievalSource([notebook], tampered, note.id), /metadata does not match/);
   const revised = reviseResearchNotebook(notebook, { type: "add-note", title: "Unrelated", text: "Added after the ranking was saved." });
   const reopenAfterUnrelatedChange = openResearchRetrievalSource([revised], cold, note.id);
   assert.equal(reopenAfterUnrelatedChange.text, reopened.text);
