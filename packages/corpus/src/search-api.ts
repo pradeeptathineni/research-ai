@@ -20,6 +20,13 @@ import {
   SourceChangeReviewError,
 } from './source-change-reviews.js';
 import {
+  checkSourceWatch,
+  createSourceWatch,
+  listSourceWatches,
+  readSourceWatch,
+  SourceWatchError,
+} from './source-watches.js';
+import {
   createProjectTopicRelevance,
   listProjectTopicRelevance,
   previewProjectTopicRelevance,
@@ -570,7 +577,11 @@ export function searchApi(
         };
         const readBriefingContext = async (ref: RecordRef) => {
           if (ref.kind !== 'briefing-item')
-            throw new SourceCaptureError(400, 'invalid_source_capture_request', 'Only an exact Briefing item can be captured through this path.');
+            throw new SourceCaptureError(
+              400,
+              'invalid_source_capture_request',
+              'Only an exact Briefing item can be captured through this path.',
+            );
           const briefRef = { owner: ref.owner, kind: ref.kind, id: ref.id, revision: ref.revision };
           const context = await readBriefingCaptureContext(root, briefRef);
           const sourceRef = {
@@ -585,7 +596,11 @@ export function searchApi(
             exactSource.ref.revision !== sourceRef.revision ||
             exactSource.ref.digest !== sourceRef.digest
           )
-            throw new SourceCaptureError(409, 'provider_record_changed', 'The linked Briefing source changed.');
+            throw new SourceCaptureError(
+              409,
+              'provider_record_changed',
+              'The linked Briefing source changed.',
+            );
           return {
             item_reference: {
               owner: 'signals-ai' as const,
@@ -622,16 +637,11 @@ export function searchApi(
           );
           json(
             201,
-            await createSourceCapture(
-              root,
-              payload,
-              resolveSource,
-              {
-                ...(captureId === undefined ? {} : { captureId: captureId as string }),
-                readBriefingContext,
-                ...(sourceCaptureFetcher ? { fetcher: sourceCaptureFetcher } : {}),
-              },
-            ),
+            await createSourceCapture(root, payload, resolveSource, {
+              ...(captureId === undefined ? {} : { captureId: captureId as string }),
+              readBriefingContext,
+              ...(sourceCaptureFetcher ? { fetcher: sourceCaptureFetcher } : {}),
+            }),
           );
         } else if (route === 'source-captures' && !mutation) {
           const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
@@ -783,7 +793,49 @@ export function searchApi(
           request.headers['x-signals-owner-epoch'],
         );
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        if (route === 'source-change-reviews' && mutation) {
+        if (route === 'source-change-reviews/watches' && !mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch listing does not accept query fields.',
+            );
+          json(200, await listSourceWatches(root));
+        } else if (route === 'source-change-reviews/watches' && mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch creation does not accept query fields.',
+            );
+          json(201, await createSourceWatch(root, body));
+        } else if (route === 'source-change-reviews/watches/check' && mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch checks do not accept query fields.',
+            );
+          if (!body || typeof body !== 'object' || Array.isArray(body))
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Supply exact watch and new-capture references.',
+            );
+          const input = body as Record<string, unknown>;
+          json(200, await checkSourceWatch(root, input.watch_ref, input.new_capture_ref));
+        } else if (/^source-change-reviews\/watches\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (params.size)
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch reads do not accept query fields.',
+            );
+          json(
+            200,
+            await readSourceWatch(root, route.slice('source-change-reviews/watches/'.length)),
+          );
+        } else if (route === 'source-change-reviews' && mutation) {
           if (params.size)
             throw new SourceChangeReviewError(
               400,

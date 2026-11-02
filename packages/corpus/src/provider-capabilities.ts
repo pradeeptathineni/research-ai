@@ -197,6 +197,7 @@ export async function providerCapabilities(
       { id: 'library-explore', versions: ['1.0'] },
       { id: 'source-capture', versions: ['1.0'] },
       { id: 'source-change-review', versions: ['1.0'] },
+      { id: 'source-watch', versions: ['1.0'] },
       { id: 'project-topic-relevance', versions: ['1.0'] },
       { id: 'project-opportunity-brief', versions: ['1.0'] },
       { id: 'project-opportunity-brief-reassessment', versions: ['1.0'] },
@@ -393,6 +394,30 @@ export async function providerCapabilities(
       {
         name: 'read_source_change_reviews',
         target_kinds: ['source_change_review', 'source_capture', 'entity'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'create_source_watch',
+        target_kinds: ['source-watch', 'source_capture'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
+        name: 'read_source_watch',
+        target_kinds: ['source-watch'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'list_source_watches',
+        target_kinds: ['source-watch'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'check_source_watch',
+        target_kinds: ['source-watch', 'source_capture'],
         mutating: false,
         authority_required: false,
       },
@@ -733,7 +758,11 @@ async function ownedBytes(
         const code = String((error as { code?: unknown }).code ?? 'briefing_record_unavailable');
         if (status === 404) fail(404, code, 'The exact Briefing record is missing.');
       }
-      fail(503, 'briefing_record_unavailable', 'The exact Briefing record could not be read safely.');
+      fail(
+        503,
+        'briefing_record_unavailable',
+        'The exact Briefing record could not be read safely.',
+      );
     }
   }
   if (kind === 'project') {
