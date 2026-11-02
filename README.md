@@ -416,6 +416,15 @@ while terminal, cleanup, and usage accounting remain available. Source quotes
 establish occurrence, not entailment or truth. No provider call occurs on
 create, edit, reopen or export.
 
+`createInvestigationReportBasis(investigation, questionId, attemptId)` carries
+one exact current Investigation branch into this same cited-report workflow.
+Only caller-authored `supports` reviews become cited paragraphs; missing,
+conflicting, `contradicts`, `context`, and unresolved reviews stay explicit
+unknown gaps. `validateInvestigationReportBasis` re-derives the exact basis
+before a consumer accepts it. See
+[Investigation reports](docs/investigation-reports.md) for the offline
+projection and revision flow.
+
 ## What each session enforces
 
 - `codex exec --ephemeral --sandbox read-only --ignore-user-config --ignore-rules`

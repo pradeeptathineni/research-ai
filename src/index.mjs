@@ -11,6 +11,7 @@ export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, render
 export { createReport, validateReport, reviseReport, draftReportSection, renderReport, projectReportClaimRegister } from './report.mjs';
 export { exportReportHtml } from './report-export.mjs';
 export { createInvestigation, reviseInvestigation, validateInvestigation, getInvestigationIncompleteCandidate, planInvestigation, projectInvestigationMethodProgress, reviewInvestigationClaim, projectInvestigationClaimReviews, advanceInvestigation, advanceInvestigationPlan, resumeInvestigation, renderInvestigation } from './investigation.mjs';
+export { createInvestigationReportBasis, validateInvestigationReportBasis } from './investigation-report.mjs';
 export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';
