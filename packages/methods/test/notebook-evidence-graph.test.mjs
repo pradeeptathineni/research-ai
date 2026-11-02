@@ -66,9 +66,53 @@ test("cross-notebook graph binds exact pages, separates extracted and asserted e
   assert.deepEqual(coldList.edges.at(-1).citations, []);
   assert.equal(coldList.edges.length, listed.edges.length + 1);
 
+  const alteredWithoutRehash = structuredClone(cold);
+  alteredWithoutRehash.question += " changed";
+  assert.throws(() => validateNotebookEvidenceGraph(alteredWithoutRehash), /graph digest or header/u);
+  const fullyRehashed = structuredClone(cold);
+  fullyRehashed.map.sources[2].text += " changed";
+  fullyRehashed.map.sources[2].sha256 = sha(fullyRehashed.map.sources[2].text);
+  fullyRehashed.map.origin.receipt.contentSha256 = sha(JSON.stringify({ question: fullyRehashed.map.question,
+    sources: fullyRehashed.map.sources, root: fullyRehashed.map.root, limits: fullyRehashed.map.limits }));
+  const { sha256: _graphDigest, ...unsignedGraph } = fullyRehashed;
+  fullyRehashed.sha256 = sha(canonical(unsignedGraph));
+  const coldTampered = validateNotebookEvidenceGraph(fullyRehashed);
+  const tamperedCurrentness = checkNotebookEvidenceGraphSources(coldTampered, [first, second]);
+  assert.equal(tamperedCurrentness.sources[2].status, "changed", "live source comparison catches note text edits after all unkeyed hashes are recomputed");
+
   const newerFirst = reviseResearchNotebook(first, { type: "add-note", title: "Later scope", text: "This new note is outside the selected graph." });
-  const currentness = checkNotebookEvidenceGraphSources(cold, [newerFirst, second]);
+  const supersededFirst = reviseResearchNotebook(newerFirst, { type: "edit-note", id: first.notes[0].id,
+    title: "Scope revision", text: "The researcher revised the note after the graph was produced." });
+  const currentness = checkNotebookEvidenceGraphSources(cold, [supersededFirst, second]);
   assert.deepEqual(currentness.sources.map(({ status, notebookSnapshot }) => [status, notebookSnapshot]), [["current", "changed"], ["current", "current"], ["current", "changed"]]);
+  assert.equal(currentness.sources[2].latestVersion, 2);
+  assert.equal(currentness.sources[2].superseded, true);
+  assert.throws(() => checkNotebookEvidenceGraphSources(cold, [supersededFirst, second, supersededFirst]), /duplicate current Notebook snapshots/u);
+  const copied = reviseResearchNotebook(createResearchNotebook("Copied evidence"), { type: "add-source", document: first.sources[0].document });
+  assert.throws(() => prepareNotebookEvidenceGraph(question, [first, copied], [
+    { notebookId: first.id, kind: "document", recordId: first.sources[0].id, page: 1 },
+    { notebookId: copied.id, kind: "document", recordId: copied.sources[0].id, page: 1 },
+  ]), /at least two distinct documents or notes/u);
+  const mixedNotebookDigest = structuredClone(cold);
+  mixedNotebookDigest.sources[0].reference.notebookSha256 = "f".repeat(64);
+  const { sha256: _mixedGraphDigest, ...unsignedMixedGraph } = mixedNotebookDigest;
+  mixedNotebookDigest.sha256 = sha(canonical(unsignedMixedGraph));
+  assert.throws(() => validateNotebookEvidenceGraph(mixedNotebookDigest), /source reference/u);
+
+  const paidFixture = await fakeCodex({ events: [message(JSON.stringify(raw)), { type: "turn.completed" }] });
+  t.after(() => paidFixture.cleanup());
+  const snapshotsAtDispatch = [first, second];
+  let revisedDuringRun = false;
+  const postRunRefusal = await researchNotebookEvidenceGraph(prepared, snapshotsAtDispatch, { lease: paidFixture.lease,
+    model: "fixture", progress: () => {
+      if (!revisedDuringRun) {
+        revisedDuringRun = true;
+        snapshotsAtDispatch[0] = reviseResearchNotebook(first, { type: "add-note", title: "Concurrent change", text: "Snapshot changed while execution ran." });
+      }
+    } });
+  assert.equal(postRunRefusal.status, "invalid");
+  assert.equal(postRunRefusal.failure, "graph_validation_failed");
+  assert.equal(postRunRefusal.receipt.outcome.cleanup.complete, true, "a successful execution receipt survives graph-binding failure");
   assert.throws(() => prepareNotebookEvidenceGraph(question, [first], [
     { notebookId: first.id, kind: "document", recordId: first.sources[0].id, page: 1 },
     { notebookId: first.id, kind: "document", recordId: first.sources[0].id, page: 1 },

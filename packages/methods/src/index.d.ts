@@ -840,7 +840,11 @@ export function prepareNotebookEvidenceGraph(question: string, notebooks: Resear
   | { notebookId: string; kind: "note"; recordId: string; version: number }
 >): PreparedNotebookEvidenceGraph;
 /** Runs the existing frozen mind-map research over only the prepared Notebook material. */
-export function researchNotebookEvidenceGraph(prepared: PreparedNotebookEvidenceGraph, notebooks: ResearchNotebook[], options?: Omit<Parameters<typeof mindMapResearch>[1], "sources">): Promise<{ status: "complete" | "failed" | "cancelled"; graph: NotebookEvidenceGraph | null; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"] }>;
+export function researchNotebookEvidenceGraph(prepared: PreparedNotebookEvidenceGraph, notebooks: ResearchNotebook[], options?: Omit<Parameters<typeof mindMapResearch>[1], "sources">): Promise<
+  | { status: "complete"; graph: NotebookEvidenceGraph; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"] }
+  | { status: "failed" | "cancelled"; graph: null; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"] }
+  | { status: "invalid"; graph: null; receipt: Awaited<ReturnType<typeof mindMapResearch>>["receipt"]; failure: "graph_validation_failed"; reason: string }
+>;
 /** Binds a completed model-generated map to the exact prepared Notebook page/note versions. */
 export function createNotebookEvidenceGraph(prepared: PreparedNotebookEvidenceGraph, notebooks: ResearchNotebook[], map: ResearchMindMap): NotebookEvidenceGraph;
 /** Cold-validates graph, exact Notebook references, quotations, edges and assertions. */
@@ -848,7 +852,7 @@ export function validateNotebookEvidenceGraph(value: unknown): NotebookEvidenceG
 /** Adds an explicit user-asserted edge, kept separate from model-extracted connections. */
 export function assertNotebookEvidenceGraphEdge(value: NotebookEvidenceGraph, input: { id: string; from: string; to: string; label: string; relation: "related" | "supports" | "contrasts" | "qualifies" | "elaborates"; assertedBy: string }): NotebookEvidenceGraph;
 /** Checks only whether each exact selected record remains current, changed, or missing in supplied snapshots. */
-export function checkNotebookEvidenceGraphSources(value: NotebookEvidenceGraph, notebooks: ResearchNotebook[]): { version: "research-notebook-evidence-graph-currentness-v1"; graphSha256: string; sources: Array<NotebookEvidenceGraphReference & { status: "current" | "changed" | "missing"; notebookSnapshot: "current" | "changed" | "missing" }>; qualification: string };
+export function checkNotebookEvidenceGraphSources(value: NotebookEvidenceGraph, notebooks: ResearchNotebook[]): { version: "research-notebook-evidence-graph-currentness-v1"; graphSha256: string; sources: Array<NotebookEvidenceGraphReference & { status: "current" | "changed" | "missing"; notebookSnapshot: "current" | "changed" | "missing"; latestVersion?: number; superseded?: boolean }>; qualification: string };
 /** Emits a cold-open graph JSON, connected-edge list projection, or readable Markdown. */
 export function renderNotebookEvidenceGraph(value: NotebookEvidenceGraph, options?: { format?: "json" | "list" | "markdown" }): string;
 

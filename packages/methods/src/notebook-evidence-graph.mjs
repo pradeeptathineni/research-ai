@@ -21,6 +21,8 @@ const mapCoverage = (root) => {
   return hasGap(root) ? "partial" : "unknown";
 };
 const coverageQualification = "Partial means at least one explicit gap is retained. With no reported gap, coverage remains unknown; absence of a gap does not establish completeness.";
+const connectionIdentity = (ref) => ref.kind === "document"
+  ? `document:${ref.documentId}:${ref.documentSha256}` : `note:${ref.recordId}`;
 
 function resolveSelections(notebooksValue, selections) {
   if (!Array.isArray(notebooksValue) || notebooksValue.length < 1 || notebooksValue.length > 8) fail("provide 1-8 notebook snapshots");
@@ -56,9 +58,8 @@ function resolveSelections(notebooksValue, selections) {
     if (!content(text, 48000)) fail(`selection ${index + 1} has empty or invalid extracted text`);
     return { uri: sourceUri(ref), text, ref };
   });
-  const distinctDocuments = new Set(sources.filter((s) => s.ref.kind === "document").map((s) => `${s.ref.notebookId}:${s.ref.documentId}`));
-  const distinctRecords = new Set(sources.map((s) => `${s.ref.notebookId}:${s.ref.recordId}`));
-  if (distinctDocuments.size + sources.filter((s) => s.ref.kind === "note").length < 2 || distinctRecords.size < 2)
+  const distinctEvidenceRecords = new Set(sources.map((s) => connectionIdentity(s.ref)));
+  if (distinctEvidenceRecords.size < 2)
     fail("select records from at least two distinct documents or notes");
   if (sources.reduce((total, source) => total + source.text.length, 0) > 48000) fail("selected text exceeds 48,000 UTF-16 units");
   const usedNotebooks = [...new Map(sources.map((source) => [source.ref.notebookId, byId.get(source.ref.notebookId)])).values()];
@@ -130,23 +131,22 @@ function validateGraph(value) {
   if (!isDeepStrictEqual(value.notebooks, [...new Map(value.sources.map((source) => [source.reference.notebookId, source.reference.notebookSha256])).entries()].map(([id, sha256]) => ({ id, sha256 })))) fail("notebook bindings do not match selected sources");
   const refs = [];
   const sourceIdentities = new Set();
-  const distinctDocuments = new Set();
-  const distinctRecords = new Set();
+  const distinctEvidenceRecords = new Set();
   for (const [index, source] of value.sources.entries()) {
     const ref = source?.reference;
     if (!keys(source, ["uri", "reference"]) || source.uri !== map.sources[index].uri || !keys(ref, ["notebookId", "notebookSha256", "kind", "recordId", "recordDigest", "documentId", "documentSha256", "page", "pageSha256", "version"])
         || !/^notebook:[0-9a-f-]{36}$/.test(ref.notebookId) || !digestPattern.test(ref.notebookSha256) || !["document", "note"].includes(ref.kind)
         || !/^(?:source|note):[0-9a-f-]{36}$/.test(ref.recordId) || !digestPattern.test(ref.recordDigest) || source.uri !== sourceUri(ref)
+        || value.notebooks.find((notebook) => notebook.id === ref.notebookId)?.sha256 !== ref.notebookSha256
         || (ref.kind === "document" ? (!ref.recordId.startsWith("source:") || !line(ref.documentId, 200) || !digestPattern.test(ref.documentSha256 ?? "") || !Number.isSafeInteger(ref.page) || ref.page < 1 || !digestPattern.test(ref.pageSha256 ?? "") || ref.version !== null || map.sources[index].sha256 !== ref.pageSha256)
           : (!ref.recordId.startsWith("note:") || ref.documentId !== null || ref.documentSha256 !== null || ref.page !== null || ref.pageSha256 !== null || !Number.isSafeInteger(ref.version) || ref.version < 1))) fail(`source reference ${index + 1}`);
     refs.push(source.reference);
     const identity = `${ref.notebookId}:${ref.kind}:${ref.recordId}:${ref.page ?? ref.version}`;
     if (sourceIdentities.has(identity)) fail("duplicate selected record version");
     sourceIdentities.add(identity);
-    distinctRecords.add(`${ref.notebookId}:${ref.recordId}`);
-    if (ref.kind === "document") distinctDocuments.add(`${ref.notebookId}:${ref.documentId}`);
+    distinctEvidenceRecords.add(connectionIdentity(ref));
   }
-  if (distinctDocuments.size + refs.filter((ref) => ref.kind === "note").length < 2 || distinctRecords.size < 2) fail("graph must span at least two documents or notes");
+  if (distinctEvidenceRecords.size < 2) fail("graph must span at least two documents or notes");
   const expected = nodeEdges(map.root, refs);
   const ids = new Set(expected.nodes.map((node) => node.id));
   const assertionIds = new Set();
@@ -175,7 +175,12 @@ export async function researchNotebookEvidenceGraph(preparedValue, notebooks, op
   const prepared = verifyPreparedAgainstNotebooks(preparedValue, notebooks);
   const result = await mindMapResearch(prepared.question, { ...options, sources: prepared.sources.map(({ uri, text }) => ({ uri, text })) });
   if (result.status !== "complete" || !result.map) return { status: result.status, graph: null, receipt: result.receipt };
-  return { status: "complete", graph: createNotebookEvidenceGraph(prepared, notebooks, result.map), receipt: result.receipt };
+  try {
+    return { status: "complete", graph: createNotebookEvidenceGraph(prepared, notebooks, result.map), receipt: result.receipt };
+  } catch (error) {
+    return { status: "invalid", graph: null, receipt: result.receipt, failure: "graph_validation_failed",
+      reason: typeof error?.message === "string" ? error.message.slice(0, 500) : "completed map could not be bound to Notebook sources" };
+  }
 }
 
 /** Creates a cold-open graph closure after a completed map; no notebook data is written. */
@@ -206,7 +211,8 @@ export function checkNotebookEvidenceGraphSources(value, notebooksValue) {
   const graph = validateGraph(value);
   if (!Array.isArray(notebooksValue)) fail("notebook snapshots must be an array");
   const notebooks = new Map(notebooksValue.map((value) => { const notebook = validateResearchNotebook(value); return [notebook.id, notebook]; }));
-  const sources = graph.value.sources.map(({ reference }) => {
+  if (notebooks.size !== notebooksValue.length) fail("duplicate current Notebook snapshots");
+  const sources = graph.value.sources.map(({ reference }, index) => {
     const expected = reference, notebook = notebooks.get(expected.notebookId);
     if (!notebook) return { ...clone(expected), status: "missing", notebookSnapshot: "missing" };
     const snapshot = notebook.sha256 === expected.notebookSha256 ? "current" : "changed";
@@ -215,13 +221,19 @@ export function checkNotebookEvidenceGraphSources(value, notebooksValue) {
       const page = source?.document.pages.find((row) => row.number === expected.page);
       if (!source || !page) return { ...clone(expected), status: "missing", notebookSnapshot: snapshot };
       const current = source.digest === expected.recordDigest && source.document.id === expected.documentId
-        && source.document.sha256 === expected.documentSha256 && page.sha256 === expected.pageSha256;
+        && source.document.sha256 === expected.documentSha256 && page.sha256 === expected.pageSha256
+        && page.text === graph.map.sources[index].text;
       return { ...clone(expected), status: current ? "current" : "changed", notebookSnapshot: snapshot };
     }
     const note = notebook.notes.find((row) => row.id === expected.recordId);
     const current = note?.versions.find((row) => row.version === expected.version);
-    if (!current) return { ...clone(expected), status: "missing", notebookSnapshot: snapshot };
-    return { ...clone(expected), status: current.sha256 === expected.recordDigest ? "current" : "changed", notebookSnapshot: snapshot };
+    if (!current) return { ...clone(expected), status: "missing", notebookSnapshot: snapshot,
+      ...(note ? { latestVersion: note.versions.at(-1).version, superseded: note.versions.at(-1).version > expected.version } : {}) };
+    const latestVersion = note.versions.at(-1).version;
+    const exactVersion = current.sha256 === expected.recordDigest
+      && `${current.title}\n\n${current.text}` === graph.map.sources[index].text;
+    return { ...clone(expected), status: exactVersion ? "current" : "changed", notebookSnapshot: snapshot,
+      latestVersion, superseded: latestVersion > expected.version };
   });
   return { version: "research-notebook-evidence-graph-currentness-v1", graphSha256: graph.value.sha256,
     sources, qualification: "Currentness is checked only for the selected notebook records; the extracted relationships remain fallible research judgments." };
