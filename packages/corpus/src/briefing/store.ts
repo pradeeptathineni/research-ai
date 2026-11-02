@@ -24,11 +24,14 @@ import {
   type BriefingReadApi,
   type BriefingRecord,
   type BriefingRecordReference,
+  type BriefingRankInput,
   type Event,
   type Feedback,
   type FeedbackReceipt,
   type Interest,
   type InterestPreference,
+  type InterestPreferenceStatus,
+  type InterestTuningValue,
   type Item,
   type MetricObservation,
   type RankingPreferences,
@@ -268,8 +271,12 @@ export function lobstersPublicFeed(uri: string): boolean {
   }
 }
 
-async function projectedInterests(root: string, state: State): Promise<Interest[]> {
-  const settings = await loadSettings(root);
+async function projectedInterests(
+  root: string,
+  state: State,
+  settingsInput?: Awaited<ReturnType<typeof loadSettings>>,
+): Promise<Interest[]> {
+  const settings = settingsInput ?? (await loadSettings(root));
   const overrides = new Map(state.interestPreferences.map((item) => [item.id, item]));
   return settings.queries.map((query) => {
     const preference = overrides.get(query.id);
@@ -294,11 +301,15 @@ async function projectedInterests(root: string, state: State): Promise<Interest[
   });
 }
 
-async function projectedSources(root: string, state: State): Promise<Source[]> {
-  const [settings, saved, interests] = await Promise.all([
-    loadSettings(root),
+async function projectedSources(
+  root: string,
+  state: State,
+  settingsInput?: Awaited<ReturnType<typeof loadSettings>>,
+): Promise<Source[]> {
+  const settings = settingsInput ?? (await loadSettings(root));
+  const [saved, interests] = await Promise.all([
     readPrivateJson(root, 'source-state.json', {}, 2000000),
-    projectedInterests(root, state),
+    projectedInterests(root, state, settings),
   ]);
   if (!saved || typeof saved !== 'object' || Array.isArray(saved))
     throw new Error('invalid_source_state');
@@ -389,6 +400,75 @@ async function projectedSources(root: string, state: State): Promise<Source[]> {
   });
 }
 
+function rankInputsFromState(
+  state: State,
+  interests: Interest[],
+  sources: Source[],
+  options: { interestId?: string; after?: string; limit?: number },
+): BriefingRankInput[] {
+  const items = state.items.filter(
+    (item) =>
+      (!options.interestId || item.interestIds.includes(options.interestId)) &&
+      (!options.after || item.observedAt >= options.after),
+  );
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+  const stories = state.stories
+    .filter((story) => story.itemIds.some((id) => itemMap.has(id)))
+    .slice(0, options.limit ?? 100);
+  return stories.flatMap((story) => {
+    const members = story.itemIds.flatMap((id) => {
+      const item = itemMap.get(id);
+      const source = sources.find((record) => record.id === item?.sourceId);
+      if (!item || !source) return [];
+      return [
+        {
+          item,
+          itemReference: recordRef(item, 'briefing-item', item.id).reference,
+          source,
+          sourceReference: recordRef(source, 'briefing-source', source.id).reference,
+          interests: interests.filter((interest) => item.interestIds.includes(interest.id)),
+          seen: state.seen[item.id] ??
+            state.seen[story.id] ?? {
+              status: 'unknown' as const,
+              reason: 'not-recorded' as const,
+            },
+        },
+      ];
+    });
+    if (!members.length) return [];
+    const memberItemIds = new Set(members.map((member) => member.item.id));
+    const events = state.events.filter(
+      (event) => event.itemId !== undefined && memberItemIds.has(event.itemId),
+    );
+    if (events.length > 100) throw new Error('briefing_story_event_limit_exceeded');
+    return [
+      {
+        story,
+        storyReference: recordRef(story, 'briefing-story', story.id).reference,
+        items: members,
+        ...(events.length ? { events } : {}),
+        metrics: [
+          ...new Map(
+            [
+              ...members.flatMap((member) =>
+                member.item.metrics.filter((metric) => metric.itemId === member.item.id),
+              ),
+              ...state.metrics.filter((metric) =>
+                members.some((member) => member.item.id === metric.itemId),
+              ),
+            ].map((metric) => [metric.id, metric]),
+          ).values(),
+        ],
+        feedback: state.feedback.filter(
+          (feedback) =>
+            feedback.targetId === story.id ||
+            members.some((member) => feedback.targetId === member.item.id),
+        ),
+      },
+    ];
+  });
+}
+
 function makeApi(root: string): BriefingReadApi {
   const mutate = <T>(requestId: string, body: unknown, change: (state: State) => T | Promise<T>) =>
     withWriter(root, async () => {
@@ -470,68 +550,7 @@ function makeApi(root: string): BriefingReadApi {
       const state = await readState(root);
       const interests = await projectedInterests(root, state);
       const sources = await projectedSources(root, state);
-      const items = state.items.filter(
-        (item) =>
-          (!options.interestId || item.interestIds.includes(options.interestId)) &&
-          (!options.after || item.observedAt >= options.after),
-      );
-      const itemMap = new Map(items.map((item) => [item.id, item]));
-      const stories = state.stories
-        .filter((story) => story.itemIds.some((id) => itemMap.has(id)))
-        .slice(0, options.limit ?? 100);
-      return stories.flatMap((story) => {
-        const members = story.itemIds.flatMap((id) => {
-          const item = itemMap.get(id);
-          const source = sources.find((record) => record.id === item?.sourceId);
-          if (!item || !source) return [];
-          return [
-            {
-              item,
-              itemReference: recordRef(item, 'briefing-item', item.id).reference,
-              source,
-              sourceReference: recordRef(source, 'briefing-source', source.id).reference,
-              interests: interests.filter((interest) => item.interestIds.includes(interest.id)),
-              seen: state.seen[item.id] ??
-                state.seen[story.id] ?? {
-                  status: 'unknown' as const,
-                  reason: 'not-recorded' as const,
-                },
-            },
-          ];
-        });
-        if (!members.length) return [];
-        const memberItemIds = new Set(members.map((member) => member.item.id));
-        const events = state.events.filter(
-          (event) => event.itemId !== undefined && memberItemIds.has(event.itemId),
-        );
-        if (events.length > 100)
-          throw new Error('briefing_story_event_limit_exceeded');
-        return [
-          {
-            story,
-            storyReference: recordRef(story, 'briefing-story', story.id).reference,
-            items: members,
-            ...(events.length ? { events } : {}),
-            metrics: [
-              ...new Map(
-                [
-                  ...members.flatMap((member) => member.item.metrics.filter(
-                    (metric) => metric.itemId === member.item.id,
-                  )),
-                  ...state.metrics.filter((metric) =>
-                    members.some((member) => member.item.id === metric.itemId),
-                  ),
-                ].map((metric) => [metric.id, metric]),
-              ).values(),
-            ],
-            feedback: state.feedback.filter(
-              (feedback) =>
-                feedback.targetId === story.id ||
-                members.some((member) => feedback.targetId === member.item.id),
-            ),
-          },
-        ];
-      });
+      return rankInputsFromState(state, interests, sources, options);
     },
     async recordFeedback(request) {
       const result = await mutate(request.requestId, request, async (state) => {
@@ -610,16 +629,23 @@ function makeApi(root: string): BriefingReadApi {
     },
     async setInterestPreference(request) {
       return mutate(request.requestId, request, async (state) => {
+        const current = (await projectedInterests(root, state)).find(
+          (interest) => interest.id === request.interestId,
+        );
+        if (!current) throw new Error('invalid_interest_preference');
+        if (
+          request.expected &&
+          (current.weight !== request.expected.weight ||
+            current.halfLifeDays !== request.expected.halfLifeDays)
+        )
+          throw new Error('briefing_interest_preference_changed');
         const value = {
           id: request.interestId,
           weight: request.weight,
           halfLifeDays: request.halfLifeDays,
           updatedAt: currentTime(),
         };
-        if (
-          !Value.Check(InterestPreferenceSchema, value) ||
-          !(await projectedInterests(root, state)).some((interest) => interest.id === value.id)
-        )
+        if (!Value.Check(InterestPreferenceSchema, value))
           throw new Error('invalid_interest_preference');
         const prior = state.interestPreferences.findIndex((item) => item.id === value.id);
         if (prior >= 0) state.interestPreferences[prior] = value;
@@ -795,6 +821,30 @@ export async function listBriefingPreferences(root: string) {
   };
 }
 
+/** One retained owner snapshot for comparing a current and draft Interest rank. */
+export async function readBriefingInterestPreviewSnapshot(root: string, interestId: string) {
+  const state = await readState(root);
+  const settings = await loadSettings(root);
+  const [interests, sources] = await Promise.all([
+    projectedInterests(root, state, settings),
+    projectedSources(root, state, settings),
+  ]);
+  const interest = interests.find((entry) => entry.id === interestId);
+  if (!interest) throw new Error('unknown_briefing_interest');
+  return {
+    interest: {
+      interestId: interest.id,
+      weight: interest.weight,
+      halfLifeDays: interest.halfLifeDays,
+    },
+    rankInputs: rankInputsFromState(state, interests, sources, { limit: 512 }),
+    ranking: state.rankingPreferences ?? {
+      velocityWeight: DEFAULT_VELOCITY_WEIGHT,
+      updatedAt: '1970-01-01T00:00:00.000Z',
+    },
+  };
+}
+
 function briefingRefreshInputDigest(interest?: string) {
   return hash(
     canonical({ operation: 'briefing.refreshDue', once: true, interest: interest ?? null }),
@@ -874,6 +924,45 @@ export async function readBriefingRefresh(root: string, requestId: string) {
   return receipt && receipt.requestId === requestId
     ? { found: true as const, receipt: structuredClone(receipt) }
     : { found: false as const, requestId };
+}
+
+/** Cold readback for a preference-write request; other request ledger entries stay hidden. */
+export async function readBriefingInterestPreference(
+  root: string,
+  requestId: string,
+): Promise<InterestPreferenceStatus> {
+  if (!Value.Check(Type.String({ format: 'uuid' }), requestId))
+    throw new Error('invalid_briefing_interest_status_request_id');
+  const state = await readState(root);
+  const saved = state.requests[requestId]?.result;
+  if (!Value.Check(InterestPreferenceSchema, saved))
+    return {
+      status: 'not-found',
+      requestId,
+      qualification:
+        'No exact InterestPreference result was found; this does not prove the request did not execute.',
+    };
+  const preference = structuredClone(saved);
+  const projected = (await projectedInterests(root, state)).find(
+    (interest) => interest.id === preference.id,
+  );
+  const currentPreference: InterestTuningValue | null = projected
+    ? {
+        interestId: projected.id,
+        weight: projected.weight,
+        halfLifeDays: projected.halfLifeDays,
+      }
+    : null;
+  return {
+    status: 'found',
+    requestId,
+    preference,
+    currentPreference,
+    currentMatches:
+      currentPreference !== null &&
+      currentPreference.weight === preference.weight &&
+      currentPreference.halfLifeDays === preference.halfLifeDays,
+  };
 }
 
 export async function retainBriefingRecords(

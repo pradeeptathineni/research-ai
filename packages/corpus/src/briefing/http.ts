@@ -1,5 +1,6 @@
 import { Type } from 'typebox';
 import { Value } from 'typebox/value';
+import { InterestPreferencePreviewSchema } from './schema.js';
 import { isStoryHidden } from '../briefing-feedback.js';
 import { briefingMatchedTerms, rankBriefingStory } from '../briefing-rank.js';
 import { summarizeBriefingPulse } from '../briefing-pulse.js';
@@ -14,6 +15,8 @@ import {
 import {
   createBriefingApi,
   listBriefingPreferences,
+  readBriefingInterestPreference,
+  readBriefingInterestPreviewSnapshot,
   listSourceTerms,
   readBriefingRefresh,
 } from './store.js';
@@ -90,6 +93,23 @@ const metricRequest = Type.Object(
 const interestPreferenceRequest = Type.Object(
   {
     requestId: uuid,
+    interestId: Type.String({ pattern: '^[a-z0-9-]{1,80}$' }),
+    weight: Type.Number({ minimum: 0, maximum: 1 }),
+    halfLifeDays: Type.Number({ exclusiveMinimum: 0 }),
+    expected: Type.Optional(
+      Type.Object(
+        {
+          weight: Type.Number({ minimum: 0, maximum: 1 }),
+          halfLifeDays: Type.Number({ exclusiveMinimum: 0 }),
+        },
+        closed,
+      ),
+    ),
+  },
+  closed,
+);
+const interestPreferencePreviewRequest = Type.Object(
+  {
     interestId: Type.String({ pattern: '^[a-z0-9-]{1,80}$' }),
     weight: Type.Number({ minimum: 0, maximum: 1 }),
     halfLifeDays: Type.Number({ exclusiveMinimum: 0 }),
@@ -178,6 +198,18 @@ export async function briefingRoute(
     )
       throw new Error('invalid_briefing_refresh_status_query');
     return { status: 200, body: await readBriefingRefresh(root, requestId) };
+  }
+  if (!mutation && route === 'briefing/preferences/interest-status') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    const requestId = entries[0]?.[1] ?? '';
+    if (
+      queryCount !== 1 ||
+      entries.length !== 1 ||
+      entries[0]![0] !== 'requestId' ||
+      !Value.Check(uuid, requestId)
+    )
+      throw new Error('invalid_briefing_interest_status_query');
+    return { status: 200, body: await readBriefingInterestPreference(root, requestId) };
   }
   if (queryCount !== 0) throw new Error('briefing_query_not_supported');
   if (!mutation) {
@@ -274,6 +306,108 @@ export async function briefingRoute(
     }
   }
   switch (route) {
+    case 'briefing/preferences/interest-preview': {
+      if (!Value.Check(interestPreferencePreviewRequest, body))
+        throw new Error('invalid_briefing_interest_preview');
+      const snapshot = await readBriefingInterestPreviewSnapshot(root, body.interestId);
+      const inputs = snapshot.rankInputs;
+      if (inputs.length > 512) throw new Error('briefing_interest_preview_limit_exceeded');
+      const now = Date.now();
+      const currentValue = snapshot.interest;
+      const draftValue = {
+        interestId: body.interestId,
+        weight: body.weight,
+        halfLifeDays: body.halfLifeDays,
+      };
+      const draftInputs = inputs.map((input) => ({
+        ...input,
+        items: input.items.map((member) => ({
+          ...member,
+          interests: member.interests.map((interest) =>
+            interest.id === body.interestId
+              ? { ...interest, weight: body.weight, halfLifeDays: body.halfLifeDays }
+              : interest,
+          ),
+        })),
+      }));
+      const rank = async (rankInputs: typeof inputs) =>
+        (
+          await Promise.all(
+            rankInputs.map(async (input) => {
+              const matchedTerms = briefingMatchedTerms(input);
+              const representative = input.items.find(
+                ({ item }) => item.id === input.story.representativeItemId,
+              );
+              if (
+                !representative ||
+                isStoryHidden(
+                  input.feedback,
+                  input.story,
+                  representative.item,
+                  now,
+                  matchedTerms.flatMap((match) => match.terms),
+                )
+              )
+                return null;
+              return {
+                input,
+                explanation: await rankBriefingStory(input, {
+                  now,
+                  velocityWeight: snapshot.ranking.velocityWeight,
+                }),
+              };
+            }),
+          )
+        )
+          .filter((entry) => entry !== null)
+          .sort((left, right) => {
+            const leftObserved = left.input.items.find(
+              ({ item }) => item.id === left.input.story.representativeItemId,
+            )?.item.observedAt;
+            const rightObserved = right.input.items.find(
+              ({ item }) => item.id === right.input.story.representativeItemId,
+            )?.item.observedAt;
+            return (
+              right.explanation.total - left.explanation.total ||
+              (rightObserved ?? '').localeCompare(leftObserved ?? '')
+            );
+          });
+      const [current, draft] = await Promise.all([rank(inputs), rank(draftInputs)]);
+      const currentById = new Map(
+        current.map((entry, index) => [entry.input.story.id, { entry, position: index + 1 }]),
+      );
+      const stories = draft.map(({ input, explanation }, index) => {
+        const currentEntry = currentById.get(input.story.id);
+        const representative = input.items.find(
+          ({ item }) => item.id === input.story.representativeItemId,
+        );
+        if (!currentEntry || !representative)
+          throw new Error('briefing_interest_preview_input_changed');
+        return {
+          storyId: input.story.id,
+          title: representative.item.title,
+          currentPosition: currentEntry.position,
+          draftPosition: index + 1,
+          currentScore: currentEntry.entry.explanation.total,
+          draftScore: explanation.total,
+          currentExplanation: currentEntry.entry.explanation,
+          draftExplanation: explanation,
+        };
+      });
+      const preview = {
+        status: 200,
+        body: {
+          schema: 'signals.briefing-interest-preview.v1',
+          readAt: new Date(now).toISOString(),
+          current: currentValue,
+          draft: draftValue,
+          stories,
+        },
+      };
+      if (!Value.Check(InterestPreferencePreviewSchema, preview.body))
+        throw new Error('invalid_briefing_interest_preview_result');
+      return preview;
+    }
     case 'briefing/preferences/ranking-preview': {
       if (!Value.Check(rankingPreviewRequest, body))
         throw new Error('invalid_briefing_ranking_preview');
