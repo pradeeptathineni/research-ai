@@ -21,8 +21,9 @@ this workspace root. Run these only when you intend to inspect and export the
 configured Library corpus and saved public entities:
 
 ```sh
-npm run public:preview > public-preview.json
-# Inspect the artifact bytes, source references, qualifications and top-level sha256.
+preview_file="$(mktemp)"
+npm run public:preview > "$preview_file"
+# Inspect the artifact bytes, source references, qualifications and top-level sha256 in "$preview_file".
 npm run public:export-reviewed -- --review-sha256=PREVIEW_SHA256 --reviewer="REVIEW_LABEL"
 npm run public:site-build
 npm run public:site-verify -- --preview-sha256=PREVIEW_SHA256
@@ -39,4 +40,6 @@ verification check without reading the configured Library store. The existing
 `corpus build` and `publishPublicData` paths remain available for development
 and are not gated by this reviewed flow. No command here publishes to GitHub
 Pages; the Pages workflow remains nested under `packages/library/.github` and
-is not active in this converged root workspace.
+is not active in this converged root workspace. Keep the preview file outside
+Git and remove that temporary file after review; it contains the exact proposed
+public bytes, including explicitly saved entities.
