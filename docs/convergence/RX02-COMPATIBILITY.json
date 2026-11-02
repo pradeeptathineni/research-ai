@@ -6,8 +6,10 @@
       "target": "packages/methods"
     },
     "library": {
-      "revision": "4e2d47096251ea4646efdfdf4209e04c079d59ad",
-      "target": "packages/library"
+      "revision": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
+      "target": "packages/library",
+      "tree": "92980771fdcca7bd9cb6a38308f25c28734f80ed",
+      "parent": "80d165a21fd496641871331106bb0dda00f65594"
     }
   },
   "methods": {
@@ -60,10 +62,30 @@
   "library": {
     "package": "signals-ai@0.3.0",
     "capabilityIds": [
-      "briefing-sources-and-workbench",
+      "K01",
+      "K12",
+      "K13",
+      "K14",
+      "K15",
+      "library-explore",
+      "source-capture",
+      "source-archive",
       "source-change-review",
+      "source-watch",
       "project-topic-relevance",
-      "project-opportunity-brief"
+      "project-opportunity-brief",
+      "project-opportunity-brief-reassessment",
+      "project-opportunity-brief-confidence-packet",
+      "project-opportunity-brief-successor-comparison",
+      "source-capture-render",
+      "private-collection",
+      "private-pdf-reader",
+      "private-document-intake",
+      "saved-entity-inspection",
+      "briefing-sources-and-workbench",
+      "smart-collections",
+      "frozen-followup-request",
+      "research-activity"
     ],
     "providerContractConsumers": [
       "src/owner-tools/capability-client.ts",
@@ -71,7 +93,208 @@
       "src/owner-tools/project-topic-relevance-panel.tsx",
       "src/owner-tools/project-opportunity-brief-panel.tsx"
     ],
-    "sourceChangeCoverage": "source-change-preview-v1 version_coverage.prior/next carries exact capture scope, extraction omissions and text/raw digests; retained source-change-review-v1 rows carry an optional persisted snapshot for backward readability."
+    "sourceChangeCoverage": "source-change-preview-v1 version_coverage.prior/next carries exact capture scope, extraction omissions and text/raw digests; retained source-change-review-v1 rows carry an optional persisted snapshot for backward readability.",
+    "scripts": {
+      "knowledge": "node --import tsx scripts/knowledge.ts",
+      "smart-collections": "node --import tsx scripts/smart-collections.ts",
+      "source-captures": "node --import tsx scripts/source-captures.ts",
+      "source-change-reviews": "node --import tsx scripts/source-change-reviews.ts",
+      "source-watches": "node --import tsx scripts/source-watches.ts",
+      "source-archives": "node --import tsx scripts/source-archives.ts",
+      "project-topic-relevance": "node --import tsx scripts/project-topic-relevance.ts",
+      "private-documents": "node --import tsx scripts/private-documents.ts",
+      "private-collection": "node --import tsx scripts/private-collection.ts",
+      "private-reader": "node --import tsx scripts/private-reader.ts",
+      "test:corpus": "playwright test --config playwright.corpus.config.ts",
+      "corpus:build": "npm run corpus -- build && vite build --config apps/corpus/vite.config.ts",
+      "corpus:preview": "vite preview --config apps/corpus/vite.config.ts",
+      "corpus": "node --import tsx scripts/corpus.ts",
+      "release:check": "node scripts/check-release.mjs",
+      "build": "npm run typecheck && npm run corpus:build",
+      "clean": "node scripts/clean.mjs",
+      "context:pack": "node scripts/run-context-pack.mjs",
+      "context:pack:test": "node --test scripts/run-context-pack.test.mjs",
+      "context:verify": "node scripts/verify-context-engineering.mjs",
+      "dev": "npm run corpus -- build && vite --config apps/corpus/vite.config.ts --host 127.0.0.1",
+      "format": "prettier --write .",
+      "format:check": "prettier --check .",
+      "lint": "eslint . --max-warnings=0",
+      "quality:dead-code": "knip --no-progress",
+      "quality:duplicates": "jscpd --config .jscpd.json",
+      "quality:structure": "npm run quality:dead-code && npm run quality:duplicates",
+      "security:dependencies": "node scripts/dependency-check.mjs",
+      "security:audit": "node scripts/dependency-audit-policy.mjs",
+      "security:audit:test": "node --test scripts/dependency-audit-policy.test.mjs",
+      "security:secrets": "node scripts/secret-check.mjs",
+      "test": "vitest run --config vitest.config.ts",
+      "test:research-answer": "node --import tsx --test tests/unit/research-answer.test.ts",
+      "demo:processes": "node scripts/examples/process-demo.mjs",
+      "demo:grounding": "node --import tsx scripts/examples/grounded-demo.ts",
+      "research-answer": "node --import tsx scripts/research-answer.ts",
+      "test:provenance": "node --import tsx packages/corpus/src/audit.ts",
+      "typecheck": "tsc -p tsconfig.json --noEmit",
+      "verify": "bash scripts/verify.sh",
+      "research": "node --import tsx scripts/research.ts",
+      "test:local-query": "playwright test --config playwright.local-query.config.ts",
+      "test:workbench": "playwright test --config playwright.workbench.config.ts",
+      "test:built": "playwright test --config playwright.built.config.ts",
+      "library:coverage": "node --import tsx scripts/library-coverage.ts",
+      "signal-search": "node --import tsx scripts/signal-search.ts",
+      "material-preview": "node --import tsx scripts/material-preview.ts",
+      "start": "node --import tsx scripts/workbench.ts",
+      "discovery": "node --import tsx scripts/discovery.ts"
+    },
+    "savedEntityInspection": "GET saved-entity?id=<entity-id>&destination=private|public returns the exact retained saved entity, saved-vs-assessed state, Unknown confidence, matching save receipts and introducing run IDs; history/open with a receipt runId reopens the frozen run without new research.",
+    "capabilities": [
+      {
+        "id": "K01",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "K12",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "K13",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "K14",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "K15",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "library-explore",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "source-capture",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "source-archive",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "source-change-review",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "source-watch",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "project-topic-relevance",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "project-opportunity-brief",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "project-opportunity-brief-reassessment",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "project-opportunity-brief-confidence-packet",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "project-opportunity-brief-successor-comparison",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "source-capture-render",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "private-collection",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "private-pdf-reader",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "private-document-intake",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "saved-entity-inspection",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "briefing-sources-and-workbench",
+        "versions": [
+          "1.1",
+          "1.2",
+          "1.3",
+          "1.4"
+        ]
+      },
+      {
+        "id": "smart-collections",
+        "versions": [
+          "1.0"
+        ]
+      },
+      {
+        "id": "frozen-followup-request",
+        "versions": [
+          "1.0",
+          "2.0"
+        ]
+      },
+      {
+        "id": "research-activity",
+        "versions": [
+          "1.0"
+        ]
+      }
+    ]
   },
   "workspaceGuard": {
     "mode": "workspace",
@@ -90,11 +313,12 @@
   },
   "qualificationLimits": [
     "No external Deep consumer runtime was independently mounted",
-    "No publish, install, listener, live provider/model, or real store"
+    "No publish, install, listener, live provider/model, or real store",
+    "Full Library verify suite not run for this focused subtree advance; typecheck, build, dependency integrity, saved-entity tests, and cross-owner workbench flow passed."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
-    "Library workspace source is exact accepted 4e2; package.json retains only the documented workspace Methods link. Library standalone package-lock and fixed archive bytes stay at their original digests.",
+    "Library workspace source is exact native 6195b0e imported with a history-preserving subtree merge; the UI and read-only saved-entity inspection descriptor are included. Its workspace package.json retains the Methods file link. Standalone package-lock and fixed archive bytes stay at their original digests.",
     "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
   ],
   "workbenchConsumerFlow": {
@@ -102,5 +326,12 @@
     "path": "synthetic JSON Feed → Library refresh and ranked Briefing → explicit exact story/item selection → Methods-owned Research Notebook with exact story/item/source refs, source terms, health and excerpt → cold reopen → caller-authored cited report and claim register",
     "networkOrModel": false,
     "qualification": "The Methods owner validates exact references and terms and creates an in-memory Notebook; no new acquisition, ranking, persistence or inference occurs. The generic report is caller-authored and does not claim a Research answer, entailment or truth."
+  },
+  "savedEntityInspectionFlow": {
+    "command": "npm run test --workspace signals-ai -- packages/corpus/src/saved-entity-inspection.test.ts apps/corpus/src/candidate-views.test.tsx",
+    "path": "saved entity record → exact introducing receipt/run IDs → evidence and assessment view; history is read-only and opens the frozen run by ID",
+    "testsPassed": 6,
+    "networkOrModel": false,
+    "realStore": false
   }
 }

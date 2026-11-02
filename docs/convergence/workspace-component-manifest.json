@@ -44,10 +44,10 @@
     {
       "component": "Library",
       "owner": "signals-ai",
-      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/soluna3/wave9/hn-observations/signals",
-      "sourceCommit": "4e2d47096251ea4646efdfdf4209e04c079d59ad",
-      "sourceTree": "3ead804d7c766e05618504ff53bf84ffd43a5881",
-      "sourceParent": "9cba6b90f3c5336c4f43770c07386466747b9e3e",
+      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-vetting",
+      "sourceCommit": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
+      "sourceTree": "92980771fdcca7bd9cb6a38308f25c28734f80ed",
+      "sourceParent": "80d165a21fd496641871331106bb0dda00f65594",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -55,8 +55,8 @@
       "workspacePackageLockSha256": "6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa",
       "workspaceMetadataAdaptation": {
         "path": "packages/library/package.json",
-        "originalSha256": "e7a6b8272f63fe9f53981f14bafb8d0ff2ebe7ad8ee7401d5598c25763ec0e85",
-        "workspaceSha256": "9af0ff7bf0c543743a432ee6ebb33ce064774d98e2efdc7f5c5506a590520d44",
+        "originalSha256": "aba14a490dc59bbf9c280296fdb3b38302b1541bfeaa96ad807df25e7e17b7a5",
+        "workspaceSha256": "466bb024ec03753142577ccf4bb4fd18bd4971a4baa955b705957eaaa82f17a0",
         "changedField": "dependencies.@pradeeptathineni/research-ai",
         "from": "file:vendor/research-ai/0f7ab726f7267e1a7e85c4f7094d909db5a7e64671a2b319d3083aa39f6ce947.tgz",
         "to": "file:../methods",
@@ -68,14 +68,268 @@
         "expectedSha256": "0f7ab726f7267e1a7e85c4f7094d909db5a7e64671a2b319d3083aa39f6ce947"
       },
       "sourceChangesFromBase14fe": [
-        "packages/corpus/src/briefing/hacker-news-adapter.test.ts",
-        "packages/corpus/src/briefing/ingest.ts",
-        "packages/corpus/src/briefing/store.ts",
-        "packages/corpus/src/source-captures.ts",
-        "packages/corpus/src/source-change-reviews.ts",
-        "packages/corpus/src/source-change-reviews.test.ts",
-        "docs/source-change-review.md"
-      ]
+        "packages/library/README.md",
+        "packages/library/apps/corpus/src/candidate-views.test.tsx",
+        "packages/library/apps/corpus/src/candidate-views.tsx",
+        "packages/library/apps/corpus/src/experience.tsx",
+        "packages/library/docs/briefing-github-public-sources.md",
+        "packages/library/docs/briefing-interest-feedback.md",
+        "packages/library/docs/briefing-public-feeds.md",
+        "packages/library/docs/provider-interface.md",
+        "packages/library/docs/signals-contract.md",
+        "packages/library/docs/source-change-review.md",
+        "packages/library/package.json",
+        "packages/library/packages/corpus/src/briefing-event-freshness.test.ts",
+        "packages/library/packages/corpus/src/briefing-event-freshness.ts",
+        "packages/library/packages/corpus/src/briefing-feedback.ts",
+        "packages/library/packages/corpus/src/briefing-pulse.test.ts",
+        "packages/library/packages/corpus/src/briefing-pulse.ts",
+        "packages/library/packages/corpus/src/briefing-rank.ts",
+        "packages/library/packages/corpus/src/briefing/briefing-snapshot-cli.test.ts",
+        "packages/library/packages/corpus/src/briefing/event-freshness-workflow.test.ts",
+        "packages/library/packages/corpus/src/briefing/event-rank-input.test.ts",
+        "packages/library/packages/corpus/src/briefing/github-releases-adapter.test.ts",
+        "packages/library/packages/corpus/src/briefing/hacker-news-adapter.test.ts",
+        "packages/library/packages/corpus/src/briefing/http.ts",
+        "packages/library/packages/corpus/src/briefing/ingest.ts",
+        "packages/library/packages/corpus/src/briefing/interest-feedback-workflow.test.ts",
+        "packages/library/packages/corpus/src/briefing/lobsters-feed.test.ts",
+        "packages/library/packages/corpus/src/briefing/mastodon-adapter.test.ts",
+        "packages/library/packages/corpus/src/briefing/schema.ts",
+        "packages/library/packages/corpus/src/briefing/social-pulse-workflow.test.ts",
+        "packages/library/packages/corpus/src/briefing/store.test.ts",
+        "packages/library/packages/corpus/src/briefing/store.ts",
+        "packages/library/packages/corpus/src/provider-capabilities.test.ts",
+        "packages/library/packages/corpus/src/provider-capabilities.ts",
+        "packages/library/packages/corpus/src/saved-entity-inspection.test.ts",
+        "packages/library/packages/corpus/src/saved-entity-inspection.ts",
+        "packages/library/packages/corpus/src/search-api.ts",
+        "packages/library/packages/corpus/src/search-document.ts",
+        "packages/library/packages/corpus/src/search-fetch.ts",
+        "packages/library/packages/corpus/src/search-github.test.ts",
+        "packages/library/packages/corpus/src/source-archive-workflow.test.ts",
+        "packages/library/packages/corpus/src/source-archives.ts",
+        "packages/library/packages/corpus/src/source-captures.test.ts",
+        "packages/library/packages/corpus/src/source-captures.ts",
+        "packages/library/packages/corpus/src/source-change-reviews.test.ts",
+        "packages/library/packages/corpus/src/source-change-reviews.ts",
+        "packages/library/packages/corpus/src/source-watch-workflow.test.ts",
+        "packages/library/packages/corpus/src/source-watches.test.ts",
+        "packages/library/packages/corpus/src/source-watches.ts",
+        "packages/library/scripts/corpus.ts",
+        "packages/library/scripts/source-archives.ts",
+        "packages/library/scripts/source-watches.ts"
+      ],
+      "workspaceTree": "830ed22772be264e0ae55550ffdbb3730e5e9792",
+      "sourceBlobComparison": {
+        "trackedFileCount": 389,
+        "missing": 0,
+        "extra": 0,
+        "changedPaths": [
+          "package.json"
+        ],
+        "qualification": "All other workspace Library blobs match native 6195b0e exactly; package.json differs only at dependencies.@pradeeptathineni/research-ai as recorded in workspaceMetadataAdaptation."
+      },
+      "capabilities": [
+        {
+          "id": "K01",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "K12",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "K13",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "K14",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "K15",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "library-explore",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "source-capture",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "source-archive",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "source-change-review",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "source-watch",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "project-topic-relevance",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "project-opportunity-brief",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "project-opportunity-brief-reassessment",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "project-opportunity-brief-confidence-packet",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "project-opportunity-brief-successor-comparison",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "source-capture-render",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "private-collection",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "private-pdf-reader",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "private-document-intake",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "saved-entity-inspection",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "briefing-sources-and-workbench",
+          "versions": [
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4"
+          ]
+        },
+        {
+          "id": "smart-collections",
+          "versions": [
+            "1.0"
+          ]
+        },
+        {
+          "id": "frozen-followup-request",
+          "versions": [
+            "1.0",
+            "2.0"
+          ]
+        },
+        {
+          "id": "research-activity",
+          "versions": [
+            "1.0"
+          ]
+        }
+      ],
+      "cliScriptAliases": {
+        "knowledge": "node --import tsx scripts/knowledge.ts",
+        "smart-collections": "node --import tsx scripts/smart-collections.ts",
+        "source-captures": "node --import tsx scripts/source-captures.ts",
+        "source-change-reviews": "node --import tsx scripts/source-change-reviews.ts",
+        "source-watches": "node --import tsx scripts/source-watches.ts",
+        "source-archives": "node --import tsx scripts/source-archives.ts",
+        "project-topic-relevance": "node --import tsx scripts/project-topic-relevance.ts",
+        "private-documents": "node --import tsx scripts/private-documents.ts",
+        "private-collection": "node --import tsx scripts/private-collection.ts",
+        "private-reader": "node --import tsx scripts/private-reader.ts",
+        "test:corpus": "playwright test --config playwright.corpus.config.ts",
+        "corpus:build": "npm run corpus -- build && vite build --config apps/corpus/vite.config.ts",
+        "corpus:preview": "vite preview --config apps/corpus/vite.config.ts",
+        "corpus": "node --import tsx scripts/corpus.ts",
+        "release:check": "node scripts/check-release.mjs",
+        "build": "npm run typecheck && npm run corpus:build",
+        "clean": "node scripts/clean.mjs",
+        "context:pack": "node scripts/run-context-pack.mjs",
+        "context:pack:test": "node --test scripts/run-context-pack.test.mjs",
+        "context:verify": "node scripts/verify-context-engineering.mjs",
+        "dev": "npm run corpus -- build && vite --config apps/corpus/vite.config.ts --host 127.0.0.1",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "lint": "eslint . --max-warnings=0",
+        "quality:dead-code": "knip --no-progress",
+        "quality:duplicates": "jscpd --config .jscpd.json",
+        "quality:structure": "npm run quality:dead-code && npm run quality:duplicates",
+        "security:dependencies": "node scripts/dependency-check.mjs",
+        "security:audit": "node scripts/dependency-audit-policy.mjs",
+        "security:audit:test": "node --test scripts/dependency-audit-policy.test.mjs",
+        "security:secrets": "node scripts/secret-check.mjs",
+        "test": "vitest run --config vitest.config.ts",
+        "test:research-answer": "node --import tsx --test tests/unit/research-answer.test.ts",
+        "demo:processes": "node scripts/examples/process-demo.mjs",
+        "demo:grounding": "node --import tsx scripts/examples/grounded-demo.ts",
+        "research-answer": "node --import tsx scripts/research-answer.ts",
+        "test:provenance": "node --import tsx packages/corpus/src/audit.ts",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "verify": "bash scripts/verify.sh",
+        "research": "node --import tsx scripts/research.ts",
+        "test:local-query": "playwright test --config playwright.local-query.config.ts",
+        "test:workbench": "playwright test --config playwright.workbench.config.ts",
+        "test:built": "playwright test --config playwright.built.config.ts",
+        "library:coverage": "node --import tsx scripts/library-coverage.ts",
+        "signal-search": "node --import tsx scripts/signal-search.ts",
+        "material-preview": "node --import tsx scripts/material-preview.ts",
+        "start": "node --import tsx scripts/workbench.ts",
+        "discovery": "node --import tsx scripts/discovery.ts"
+      }
     },
     {
       "component": "WorkbenchForwarder",
@@ -118,5 +372,21 @@
     ],
     "compatibilitySource": "packages/methods/docs/convergence/consumer-inventory.md",
     "qualification": "Deep source was not edited; this component/source inventory is retained. External consumers are not all independently gate-tested here."
-  }
+  },
+  "historyPreservingSubtreeMerges": [
+    {
+      "component": "Methods",
+      "sourceCommit": "cecbe5da3127826affb7630707aeb55f8aa62cd3",
+      "targetPrefix": "packages/methods",
+      "workspaceMergeCommit": "b36e423903fbd0a6f17b8355758e925078bb515e",
+      "strategy": "git merge -s subtree -Xsubtree=packages/methods"
+    },
+    {
+      "component": "Library",
+      "sourceCommit": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
+      "targetPrefix": "packages/library",
+      "workspaceMergeCommit": "edd7ce76710ea22f45de9ed1e1a5b27157205aea",
+      "strategy": "git merge -s subtree -Xsubtree=packages/library"
+    }
+  ]
 }

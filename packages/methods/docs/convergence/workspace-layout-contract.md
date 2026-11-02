@@ -33,19 +33,21 @@ remains active.
 ## Library and compatibility
 
 Library source is pinned at
-`4e2d47096251ea4646efdfdf4209e04c079d59ad`. Its workspace package metadata
+`6195b0e47cc97874ab17e2434b1a1cd7be79fc42`, imported by subtree merge from
+parent `80d165a21fd496641871331106bb0dda00f65594`. Its workspace package metadata
 changes only the Methods dependency specification from the fixed tarball to
 `file:../methods`. The original Library lock, tarball digest/integrity and all
 five vendored Research archives are frozen and verified. Existing CLI names,
 paths, capability IDs and the four bounded `SignalsProviderContractBinding`
 consumers remain inventoried in `workspace-component-manifest.json` and
-`RX02-COMPATIBILITY.json`.
+`RX02-COMPATIBILITY.json`. The workspace includes the new
+`saved-entity-inspection` descriptor and native detail view, with exact receipt
+and run references and no mutation to retained evidence.
 
 ## Verification
 
-On Node 24.19, the Methods full test gate and the workspace-level Briefing to
-Research consumer flow are runnable offline. Library typecheck and build are
-separate from its full verify script; the full Library gate is only accepted
-when that script passes on its pinned source. No check here establishes live
-provider quality, public deployment, or compatibility of external Deep runtime
-mounts.
+On Node 24.19, the Methods full test gate, the workspace-level Briefing to
+Research consumer flow, the Library typecheck/build and focused saved-entity
+inspection tests passed offline. The full Library gate is only accepted when
+that script passes on its pinned source. No check here establishes live provider
+quality, public deployment, or compatibility of external Deep runtime mounts.

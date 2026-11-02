@@ -3,9 +3,16 @@
 The workspace composes two existing product owners under one Research workbench.
 Methods (`@pradeeptathineni/research-ai`) owns bounded research execution and
 portable, source-bound research artifacts. Library (`signals-ai`) owns retained
-corpus records, source acquisition, Briefing ranking, and user-facing library
-views. Methods does not acquire or persist Library records; Library ranking
-does not establish evidence strength or verified truth.
+corpus records, source acquisition, Briefing ranking, saved-entity inspection,
+and user-facing library views. Methods does not acquire or persist Library
+records; Library ranking does not establish evidence strength or verified truth.
+
+The Library saved-entity view reads one exact saved record and its matching
+introducing receipts. It reports the record's saved state separately from its
+assessment state and keeps confidence `Unknown`. The evidence and frozen run
+IDs remain visible, and a saved receipt can reopen its historical run. The
+operation is read-only: it does not amend the record, add an assessment, or run
+research again.
 
 The cross-owner route is explicit: Library produces a current Briefing
 workbench response, and the caller selects one exact story reference and one or
