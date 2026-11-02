@@ -8,7 +8,7 @@ import {
   readSourceArchiveRequest,
   SourceArchiveError,
 } from '../packages/corpus/src/source-archives.js';
-import type { RecordRef } from '../packages/corpus/src/source-captures.js';
+import { SourceCaptureError, type RecordRef } from '../packages/corpus/src/source-captures.js';
 
 const args = process.argv.slice(2);
 const usage = `Usage:
@@ -52,13 +52,16 @@ try {
   console.log(JSON.stringify(result, null, 2));
 } catch (failure) {
   const error = failure instanceof Error ? failure : new Error('source_archive_failed');
+  const ownerError =
+    error instanceof SourceArchiveError || error instanceof SourceCaptureError ? error : null;
   console.error(
     JSON.stringify({
-      code: error.message,
-      reason:
-        error instanceof SourceArchiveError
-          ? error.reason
-          : 'Inspect the exact archive request and private owner state; no automatic retry or repair was performed.',
+      ...(ownerError
+        ? { status: ownerError.status, code: ownerError.code }
+        : { code: error.message }),
+      reason: ownerError
+        ? ownerError.reason
+        : 'Inspect the exact archive request and private owner state; no automatic retry or repair was performed.',
     }),
   );
   if (error.message === 'invalid_command') console.error(usage);

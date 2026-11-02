@@ -195,10 +195,16 @@ function isRequestCapture(
   );
 }
 function digestFromCapture(capture: Awaited<ReturnType<typeof openSourceCapture>>['capture']) {
+  if (!Value.Check(sourceRefSchema, capture.source_ref))
+    fail(
+      503,
+      'source_archive_unavailable',
+      'Stored source capture has an unsupported exact source ref.',
+    );
   return requestDigest({
     request_id: capture.id,
     capture_request: {
-      source_ref: capture.source_ref,
+      source_ref: capture.source_ref as ArchiveRequest['capture_request']['source_ref'],
       mode: 'fetch',
       ...(capture.supersedes ? { supersedes: capture.supersedes } : {}),
     },
@@ -444,7 +450,7 @@ export async function createSourceArchive(
   });
   if (!reserved.created) return readSourceArchiveRequest(root, request.request_id);
 
-  let rawBytes: Buffer | null = null;
+  const fetchedBody: { bytes: Buffer | null } = { bytes: null };
   let unavailableReason: string | null = null;
   let capture: Awaited<ReturnType<typeof createSourceCapture>>;
   try {
@@ -465,7 +471,7 @@ export async function createSourceArchive(
           unavailableReason = 'Raw body bytes do not match the existing fetch raw digest.';
           return;
         }
-        rawBytes = Buffer.from(fetched.bytes);
+        fetchedBody.bytes = Buffer.from(fetched.bytes);
       },
     });
   } catch (error) {
@@ -503,11 +509,13 @@ export async function createSourceArchive(
           ? error.reason
           : 'Capture creation failed before an exact capture was confirmed.';
     }).catch(() => null);
+    if (row && error instanceof SourceCaptureError) throw error;
     return row ? receipt(row, false) : receipt({ ...reserved.row, state: 'pending' }, false);
   }
 
   const captureRef = capture.ref;
   const rawDigest = capture.capture.raw_digest;
+  const rawBytes = fetchedBody.bytes;
   if (!rawBytes || !rawDigest || unavailableReason) {
     const row = await updateRequest(root, request.request_id, (current) => {
       current.state = 'capture-created-archive-unavailable';
