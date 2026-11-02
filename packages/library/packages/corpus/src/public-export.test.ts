@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import type * as Fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -37,6 +37,7 @@ it('keeps the prior exact export if a sidecar write fails halfway through stagin
   const pointer = join(directory, 'public-data');
   const prior = await realpath(pointer);
   const bytes = await readFile(join(pointer, 'corpus.json'), 'utf8');
+  const before = await readdir(directory);
   const actual = await vi.importActual<typeof Fs>('node:fs/promises');
   vi.mocked(writeFile).mockImplementation(async (path, data, options) => {
     if (typeof path === 'string' && path.endsWith('.sha256'))
@@ -45,6 +46,7 @@ it('keeps the prior exact export if a sidecar write fails halfway through stagin
   });
   await expect(publishPublicData(corpus, directory)).rejects.toThrow('interrupted');
   expect(await realpath(pointer)).toBe(prior);
+  expect(await readdir(directory)).toEqual(before);
   expect(await readFile(join(pointer, 'corpus.json'), 'utf8')).toBe(bytes);
   expect(parsePublicIndex(JSON.parse(bytes)).map((o) => o.id)).toEqual(
     corpus.options.map((o) => o.id),
@@ -138,7 +140,7 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
         id: 'claim:synthetic',
         text: 'Synthetic claim for byte preview.',
         source_ids: ['source:synthetic'],
-        status: 'observed' as const,
+        status: 'supported' as const,
       },
     ],
     candidates: [
@@ -154,24 +156,68 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
     ],
     limitations: ['Synthetic preview data; not a public finding.'],
   };
-  const bundleBytes = `${JSON.stringify(bundle, null, 2)}\n`;
-  const digest = evidenceDigest(bundleBytes);
-  const record = {
-    recordVersion: 1,
-    encoding: 'pretty-json-v1',
-    evidence: bundle,
-    review: {
-      digest,
-      category: 'Synthetic',
-      reviewedAt: '2026-10-02T00:00:00.000Z',
-      reviewer: 'human',
-      rationale: 'Synthetic test record.',
-      claimReviews: [{ claimId: 'claim:synthetic', basis: 'unknown', reviewAfterDays: null }],
-      state: 'withdrawn',
-    },
+  const withdrawnBundle = {
+    ...bundle,
+    bundle_id: 'synthetic-withdrawn',
+    candidates: [{ ...bundle.candidates[0]!, id: 'option:withdrawn' }],
   };
-  await writeFile(join(root, 'practices/synthetic.json'), JSON.stringify(record));
+  const makeRecord = (evidence: typeof bundle, state: 'admitted' | 'withdrawn') => {
+    const bytes = `${JSON.stringify(evidence, null, 2)}\n`;
+    const digest = evidenceDigest(bytes);
+    const reason = 'Synthetic review rationale for the offline preview test.';
+    return {
+      recordVersion: 1,
+      encoding: 'pretty-json-v1',
+      evidence,
+      review: {
+        digest,
+        category: 'Synthetic',
+        reviewedAt: '2026-10-02T00:00:00.000Z',
+        reviewer: 'human',
+        rationale: 'Synthetic test record.',
+        claimReviews: [{ claimId: 'claim:synthetic', basis: 'unknown', reviewAfterDays: null }],
+        state,
+        ...(state === 'admitted'
+          ? {
+              quality: {
+                policyVersion: 'signal-review-v1',
+                evidenceDigest: digest,
+                researchRunId: 'synthetic-research-run',
+                reviewRunId: 'synthetic-review-run',
+                reviewer: 'synthetic quality reviewer',
+                reviewedAt: '2026-10-02T00:00:00.000Z',
+                options: [
+                  {
+                    optionId: 'option:synthetic',
+                    ratings: { relevance: 3, evidence: 3, usefulness: 3, clarity: 3 },
+                    reasons: {
+                      relevance: reason,
+                      evidence: reason,
+                      usefulness: reason,
+                      clarity: reason,
+                    },
+                    blockers: [],
+                  },
+                ],
+              },
+            }
+          : {}),
+      },
+    };
+  };
+  await writeFile(
+    join(root, 'practices/synthetic.json'),
+    JSON.stringify(makeRecord(bundle, 'admitted')),
+  );
+  await writeFile(
+    join(root, 'practices/withdrawn.json'),
+    JSON.stringify(makeRecord(withdrawnBundle, 'withdrawn')),
+  );
   const publicCorpus = await loadPublicCorpus(root, '2026-10-03T00:00:00.000Z');
+  expect(publicCorpus.bundles.map(({ bundle: item }) => item.bundle_id)).toContain(
+    'synthetic-withdrawn',
+  );
+  expect(publicCorpus.options.map(({ id }) => id)).toEqual(['option:synthetic']);
 
   const uri = 'https://example.org/synthetic-tool';
   const base = {
@@ -215,6 +261,7 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
     'bundles/synthetic-preview.json',
     'bundles/synthetic-preview.json.sha256',
   ]);
+  expect(paths.some((path) => path.includes('synthetic-withdrawn'))).toBe(false);
   expect(
     preview.artifacts.every(
       (artifact) => artifact.bytes.length > 0 && /^[a-f0-9]{64}$/.test(artifact.sha256),
@@ -261,6 +308,9 @@ it('previews exact synthetic public bytes, binds review to that digest and expor
     expect(actual).toBe(artifact.bytes);
     expect(evidenceDigest(actual)).toBe(artifact.sha256);
   }
+  await expect(
+    readFile(join(pointer, 'bundles/synthetic-withdrawn.json'), 'utf8'),
+  ).rejects.toMatchObject({ code: 'ENOENT' });
   expect(await readFile(join(destination, '.signals/private.json'), 'utf8')).toContain(
     'PRIVATE PROJECT',
   );

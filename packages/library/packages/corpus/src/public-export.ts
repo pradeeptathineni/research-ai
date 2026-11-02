@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, rename, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { loadPublicCorpus } from './public-corpus.js';
 import { parsePublicIndex } from '../../domain/src/public-index.js';
@@ -21,8 +21,8 @@ const canonical = (value: unknown): string =>
           .join(',')}}`
       : JSON.stringify(value);
 const previewQualifications = [
-  'Preview inputs are the validated public Corpus object and the explicit saved-entity array only.',
-  'Private annotations, project records, credentials, caches and local .signals state are not read by this workflow.',
+  'Preview inputs are the validated public Corpus object and the explicit saved-entity array; the corpus CLI reads saved entities from public signals/entities.',
+  'Private annotations, project records, credentials, caches and the .signals private collection are not read by this workflow.',
   'Source occurrence, claim truth, freshness beyond the supplied policy result, and legal publication rights are not certified here.',
   'Inspect the included bytes and qualifications before reviewing this exact digest; review is a caller assertion, not authenticated identity.',
 ];
@@ -112,7 +112,9 @@ function publicArtifacts(
         'Derived only from the validated public Corpus options and explicitly supplied saved entities; no private annotation or project projection is included.',
     },
   ];
-  for (const { bundle, admission, bytes } of bundles) {
+  for (const { bundle, admission, bytes } of bundles.filter(
+    ({ admission }) => admission.state !== 'withdrawn',
+  )) {
     const base = `bundles/${bundle.bundle_id}.json`;
     const refs = [
       `public-bundle:${bundle.bundle_id}@${admission.digest}`,
@@ -229,15 +231,23 @@ async function writePublicArtifacts(artifacts: PublicArtifact[], directory: stri
   if (prior && !prior.isSymbolicLink())
     throw new Error('Existing public-data directory must be preserved or moved before building.');
   const staging = await mkdtemp(join(resolve(directory), 'public-snapshot-'));
-  await mkdir(join(staging, 'bundles'));
-  for (const artifact of artifacts) {
-    const path = join(staging, artifact.path);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, artifact.bytes);
-  }
   const next = `${staging}.pointer`;
-  await symlink(staging, next, 'dir');
-  await rename(next, pointer);
+  let nextCreated = false;
+  try {
+    await mkdir(join(staging, 'bundles'));
+    for (const artifact of artifacts) {
+      const path = join(staging, artifact.path);
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, artifact.bytes);
+    }
+    await symlink(staging, next, 'dir');
+    nextCreated = true;
+    await rename(next, pointer);
+  } catch (error) {
+    if (nextCreated) await rm(next, { force: true }).catch(() => {});
+    await rm(staging, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 /** Local reviewed export of precisely the same bytes shown in preview; no Git or remote action occurs. */

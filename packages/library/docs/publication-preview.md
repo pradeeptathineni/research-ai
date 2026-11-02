@@ -1,8 +1,11 @@
 # Public-data preview and reviewed local export
 
 The public-data writer derives `corpus.json`, `entities.json`, `library.json`,
-and exact public bundle bytes plus digest sidecars. The preview path shows those
-same bytes before export and binds review to their revision.
+and exact public bundle bytes plus digest sidecars. Withdrawn admission records
+remain available through the loader for historical readers, but are omitted
+from public bundle files and download sidecars as well as the public option
+index. The preview path shows the same emitted bytes before export and binds
+review to their revision.
 
 ```sh
 npm run corpus -- preview > public-preview.json
@@ -17,7 +20,9 @@ qualifications. The second command reloads the public Corpus and saved entities,
 recomputes the preview, and refuses if the supplied digest no longer matches.
 The reviewed export writes to `dist/public-data` through the existing staging
 directory and atomic symlink-pointer rename. It returns the exact artifact paths
-and digests written.
+and digests written. If staging fails before the pointer rename, the writer
+attempts to remove that attempt's temporary directory and leaves the prior
+pointer intact.
 
 The callable workflow is `previewPublicData(corpus, entities)`,
 `reviewPublicDataPreview(preview, { confirmedSha256, reviewer, reviewedAt })`,
@@ -25,8 +30,9 @@ then `exportReviewedPublicData(corpus, directory, entities, review)`. Review is
 a caller assertion labelled with the supplied reviewer text; it does not
 authenticate a person or certify truth, source freshness, or legal publication
 rights. Only the validated public Corpus and the explicit closed-schema saved
-entity records are inputs. The workflow does not read private annotations,
-project records, credentials, caches, or `.signals` private state.
+entity records are inputs. The CLI reads its saved entities from public
+`signals/entities`; the workflow does not read private annotations, project
+records, credentials, caches, or the `.signals` private collection.
 
 `publishPublicData(corpus, directory, entities)` and the legacy `corpus build`
 command retain their existing direct-export behavior for compatibility; they do
