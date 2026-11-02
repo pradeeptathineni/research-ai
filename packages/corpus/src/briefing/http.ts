@@ -195,6 +195,17 @@ export async function briefingRoute(
       body: await api.readStoryInspection(entries[0]![1]),
     };
   }
+  if (!mutation && route === 'briefing/story-pages') {
+    const entries = [...(query ?? new URLSearchParams()).entries()];
+    if (
+      queryCount > 1 ||
+      entries.length !== queryCount ||
+      (queryCount === 1 && (entries[0]![0] !== 'cursor' || entries[0]![1].length > 72))
+    )
+      throw new Error('invalid_briefing_story_page_query');
+    const cursor = queryCount === 1 ? entries[0]![1] : undefined;
+    return { status: 200, body: await api.readStoryPage(cursor) };
+  }
   if (!mutation && route === 'briefing/opml/import-status') {
     const entries = [...(query ?? new URLSearchParams()).entries()];
     if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')

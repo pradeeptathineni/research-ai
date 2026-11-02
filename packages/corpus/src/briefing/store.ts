@@ -564,6 +564,77 @@ function makeApi(root: string): BriefingReadApi {
           'Exact current retained story lookup; ordered member joins are bounded by the stored story schema; missing joins are unavailable, not proof of deletion.',
       };
     },
+    async readStoryPage(cursor) {
+      const pageSize = 20;
+      let expectedSnapshot: string | null = null;
+      let offset = 0;
+      if (cursor !== undefined) {
+        const match = /^([a-f0-9]{64})\.(0|[1-9][0-9]{0,5})$/.exec(cursor);
+        if (!match) throw new Error('invalid_briefing_story_page_cursor');
+        expectedSnapshot = match[1]!;
+        offset = Number(match[2]);
+        if (
+          !Number.isSafeInteger(offset) ||
+          offset < pageSize ||
+          offset >= 100000 ||
+          offset % pageSize !== 0
+        )
+          throw new Error('invalid_briefing_story_page_cursor');
+      }
+      const state = await readState(root);
+      const snapshot = hash(
+        canonical(
+          state.stories.map((story) => ({
+            storyId: story.id,
+            storyRevision: hash(canonical(story)),
+          })),
+        ),
+      );
+      if (expectedSnapshot !== null && expectedSnapshot !== snapshot)
+        return {
+          status: 'changed' as const,
+          snapshot,
+          offset,
+          stories: [],
+          nextCursor: null,
+          qualification:
+            'The ordered retained story set or a story revision changed; restart from the first page. No rows from the old cursor were returned.',
+        };
+      if (expectedSnapshot !== null && offset >= state.stories.length)
+        throw new Error('invalid_briefing_story_page_offset');
+      const page = state.stories.slice(offset, offset + pageSize);
+      const sources = await projectedSources(root, state);
+      const sourceById = new Map(sources.map((source) => [source.id, source]));
+      const itemById = new Map(state.items.map((item) => [item.id, item]));
+      const stories = page.map((story) => {
+        const item = itemById.get(story.representativeItemId);
+        const source = item ? sourceById.get(item.sourceId) : undefined;
+        return {
+          storyReference: recordRef(story, 'briefing-story', story.id).reference,
+          representativeItemReference: item
+            ? recordRef(item, 'briefing-item', item.id).reference
+            : null,
+          representativeTitle: item?.title ?? null,
+          itemAvailability: item ? ('retained' as const) : ('unavailable' as const),
+          sourceReference: source
+            ? recordRef(source, 'briefing-source', source.id).reference
+            : null,
+          sourceAttribution: source?.attribution ?? null,
+          sourceAvailability: source ? ('retained' as const) : ('unavailable' as const),
+        };
+      });
+      const nextOffset = offset + stories.length;
+      const nextCursor = nextOffset < state.stories.length ? `${snapshot}.${nextOffset}` : null;
+      return {
+        status: 'page' as const,
+        snapshot,
+        offset,
+        stories,
+        nextCursor,
+        qualification:
+          'Stable stored story order is bound to the snapshot; representative item and source joins are current per-page reads, not an atomic metadata snapshot. Missing joins are unavailable.',
+      };
+    },
     async listEvents(options = {}) {
       const state = await readState(root);
       return state.events

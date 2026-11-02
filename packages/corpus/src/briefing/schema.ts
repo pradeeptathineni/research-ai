@@ -439,6 +439,22 @@ export type BriefingStoryInspection = {
   }>;
   qualification: string;
 };
+export type BriefingStoryPage = {
+  status: 'page' | 'changed';
+  snapshot: string;
+  offset: number;
+  stories: Array<{
+    storyReference: BriefingRecordReference & { kind: 'briefing-story' };
+    representativeItemReference: (BriefingRecordReference & { kind: 'briefing-item' }) | null;
+    representativeTitle: string | null;
+    itemAvailability: 'retained' | 'unavailable';
+    sourceReference: (BriefingRecordReference & { kind: 'briefing-source' }) | null;
+    sourceAttribution: string | null;
+    sourceAvailability: 'retained' | 'unavailable';
+  }>;
+  nextCursor: string | null;
+  qualification: string;
+};
 export type FeedbackRequest = {
   requestId: string;
   targetKind: Feedback['targetKind'];
@@ -482,6 +498,7 @@ export interface BriefingReadApi {
     options?: BriefingReadOptions,
   ): Promise<Array<BriefingRecord<Story, 'briefing-story'>>>;
   readStoryInspection(storyId: string): Promise<BriefingStoryInspection>;
+  readStoryPage(cursor?: string): Promise<BriefingStoryPage>;
   listEvents(
     options?: BriefingReadOptions,
   ): Promise<Array<BriefingRecord<Event, 'briefing-event'>>>;
