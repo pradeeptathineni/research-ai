@@ -30,6 +30,7 @@ describe('Briefing social pulse owner workflow', () => {
     const later = '2026-11-01T12:00:00.000Z';
     const observations = [
       metric('item-a-one', 'item-a', 10, start), metric('item-a-two', 'item-a', 22, later),
+      { ...metric('item-a-independent', 'item-a', 700, later), scope: 'independent report', method: 'caller-reported' as const, sourceRef: 'https://example.test/independent' },
       metric('item-b-one', 'item-b', 900, start), metric('item-c-one', 'item-c', 3, start),
       metric('item-c-two', 'item-c', 8, later),
       metric('item-d-one', 'item-d', 20, start), metric('item-d-two', 'item-d', 2, later),
@@ -53,14 +54,16 @@ describe('Briefing social pulse owner workflow', () => {
       const response = await briefingRoute(root, 'briefing/workbench', false, undefined, 0);
       expect(response?.status).toBe(200);
       const ranked = (response!.body as { ranked: Array<{ input: { story: Story }; socialPulse: Array<any> }> }).ranked;
-      return Object.fromEntries(ranked.map(({ input, socialPulse }) => [input.story.representativeItemId, socialPulse[0]]));
+      return Object.fromEntries(ranked.map(({ input, socialPulse }) => [input.story.representativeItemId, socialPulse]));
     };
     const before = await readPulse();
-    expect(before['item-a']).toMatchObject({ itemId: 'item-a', latestValue: 22, latestObservedAt: later, observationCount: 2, firstObservedAt: start, delta: 12, elapsedHours: 2, perHour: 6, status: 'available' });
-    expect(before['item-b']).toMatchObject({ observationCount: 1, delta: null, perHour: null, status: 'insufficient-observations' });
-    expect(before['item-c']).toMatchObject({ itemId: 'item-c', delta: 5, elapsedHours: 2, perHour: 2.5, status: 'available' });
-    expect(before['item-d']).toMatchObject({ delta: null, perHour: null, status: 'counter-decreased' });
-    expect(before['item-e']).toMatchObject({ latestValue: 12, delta: null, perHour: null, status: 'ambiguous-observations' });
+    const pulse = (itemId: string, method = 'feed') => before[itemId]!.find((entry: any) => entry.method === method);
+    expect(pulse('item-a')).toMatchObject({ itemId: 'item-a', scope: 'item', method: 'feed', sourceRef: null, latestValue: 22, latestObservedAt: later, observationCount: 2, firstObservedAt: start, delta: 12, elapsedHours: 2, perHour: 6, status: 'available' });
+    expect(pulse('item-a', 'caller-reported')).toMatchObject({ itemId: 'item-a', scope: 'independent report', method: 'caller-reported', sourceRef: 'https://example.test/independent', latestValue: 700, observationCount: 1, delta: null, perHour: null, status: 'insufficient-observations' });
+    expect(pulse('item-b')).toMatchObject({ observationCount: 1, delta: null, perHour: null, status: 'insufficient-observations' });
+    expect(pulse('item-c')).toMatchObject({ itemId: 'item-c', delta: 5, elapsedHours: 2, perHour: 2.5, status: 'available' });
+    expect(pulse('item-d')).toMatchObject({ delta: null, perHour: null, status: 'counter-decreased' });
+    expect(pulse('item-e')).toMatchObject({ latestValue: 12, delta: null, perHour: null, status: 'ambiguous-observations' });
 
     const coldApi = createBriefingApi(root);
     const reopened = await readPulse();
