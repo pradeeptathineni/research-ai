@@ -92,4 +92,63 @@ describe('Briefing social pulse', () => {
       perHour: null,
     });
   });
+
+  it('keeps different methods, source references, and instance scopes in separate streams', () => {
+    const rows = summarizeBriefingPulse([
+      {
+        ...metric('public', 'same-item', 'mastodon', 'favorites', 10, '2026-11-01T10:00:00.000Z'),
+        method: 'public-adapter' as const,
+        scope: 'instance:home',
+        sourceRef: 'https://home.example/@a/1',
+      },
+      {
+        ...metric(
+          'reported',
+          'same-item',
+          'mastodon',
+          'favorites',
+          100,
+          '2026-11-01T11:00:00.000Z',
+        ),
+        method: 'caller-reported' as const,
+        scope: 'instance:home',
+        sourceRef: 'https://home.example/@a/1',
+      },
+      {
+        ...metric(
+          'other-instance',
+          'same-item',
+          'mastodon',
+          'favorites',
+          1000,
+          '2026-11-01T12:00:00.000Z',
+        ),
+        method: 'public-adapter' as const,
+        scope: 'instance:other',
+        sourceRef: 'https://other.example/@a/1',
+      },
+      {
+        ...metric(
+          'same-stream',
+          'same-item',
+          'mastodon',
+          'favorites',
+          20,
+          '2026-11-01T12:00:00.000Z',
+        ),
+        method: 'public-adapter' as const,
+        scope: 'instance:home',
+        sourceRef: 'https://home.example/@a/1',
+      },
+    ]);
+    expect(rows).toHaveLength(3);
+    expect(
+      rows.find((row) => row.scope === 'instance:home' && row.method === 'public-adapter'),
+    ).toMatchObject({
+      observationCount: 2,
+      status: 'available',
+      sourceRef: 'https://home.example/@a/1',
+    });
+    expect(rows.filter((row) => row.status === 'insufficient-observations')).toHaveLength(2);
+  });
 });

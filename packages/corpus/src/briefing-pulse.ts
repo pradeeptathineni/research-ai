@@ -4,6 +4,9 @@ export type SocialPulseSummary = {
   itemId: string;
   platform: string;
   name: string;
+  scope: string;
+  method: MetricObservation['method'];
+  sourceRef: string | null;
   latestValue: number | null;
   latestObservedAt: string | null;
   observationCount: number;
@@ -15,13 +18,20 @@ export type SocialPulseSummary = {
     'available' | 'insufficient-observations' | 'counter-decreased' | 'ambiguous-observations';
 };
 
-/** Summarize observations without combining items, platforms, or metric names. */
+/** Summarize observations without combining distinct item or source provenance streams. */
 export function summarizeBriefingPulse(
   metrics: readonly MetricObservation[],
 ): SocialPulseSummary[] {
   const groups = new Map<string, MetricObservation[]>();
   for (const metric of metrics) {
-    const key = JSON.stringify([metric.itemId, metric.platform, metric.name]);
+    const key = JSON.stringify([
+      metric.itemId,
+      metric.platform,
+      metric.name,
+      metric.scope,
+      metric.method,
+      metric.sourceRef,
+    ]);
     groups.set(key, [...(groups.get(key) ?? []), metric]);
   }
 
@@ -63,6 +73,9 @@ export function summarizeBriefingPulse(
         itemId: first.itemId,
         platform: first.platform,
         name: first.name,
+        scope: first.scope,
+        method: first.method,
+        sourceRef: first.sourceRef,
         latestValue: lastPoint.values.size === 1 ? last.value : null,
         latestObservedAt: last.observedAt,
         observationCount: distinctTimes,
@@ -77,6 +90,9 @@ export function summarizeBriefingPulse(
       (a, b) =>
         a.itemId.localeCompare(b.itemId) ||
         a.platform.localeCompare(b.platform) ||
-        a.name.localeCompare(b.name),
+        a.name.localeCompare(b.name) ||
+        a.scope.localeCompare(b.scope) ||
+        a.method.localeCompare(b.method) ||
+        (a.sourceRef ?? '').localeCompare(b.sourceRef ?? ''),
     );
 }

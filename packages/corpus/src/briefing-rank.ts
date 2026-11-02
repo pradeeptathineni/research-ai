@@ -177,14 +177,17 @@ function velocity(input: BriefingRankInput): RankingExplanation['components']['v
         pulse.status === 'available' && pulse.latestValue !== null && pulse.perHour !== null,
     )
     .map((pulse) => ({
-      key: `${pulse.itemId}:${pulse.platform}:${pulse.name}`,
+      key: `${pulse.itemId}:${pulse.platform}:${pulse.name}:${pulse.scope}:${pulse.method}:${pulse.sourceRef ?? 'no-source-ref'}`,
       score: clamp((100 * pulse.perHour!) / Math.max(1, pulse.latestValue!)),
       refs: input.metrics
         .filter(
           (metric) =>
             metric.itemId === pulse.itemId &&
             metric.platform === pulse.platform &&
-            metric.name === pulse.name,
+            metric.name === pulse.name &&
+            metric.scope === pulse.scope &&
+            metric.method === pulse.method &&
+            metric.sourceRef === pulse.sourceRef,
         )
         .map((metric) => metric.id),
     }));
@@ -193,14 +196,14 @@ function velocity(input: BriefingRankInput): RankingExplanation['components']['v
       value: null,
       status: 'insufficient-observations',
       reason:
-        'Velocity needs two unambiguous time-ordered observations for one item, platform, and metric.',
+        'Velocity needs two unambiguous time-ordered observations for one item and exact source provenance stream.',
       refs: [],
     };
   const best = changes.reduce((a, b) => (b.score > a.score ? b : a));
   return {
     value: Math.round(best.score),
     status: 'available',
-    reason: `Highest per-hour change within ${best.key}; observations from different items, platforms, or metrics are never combined.`,
+    reason: `Highest per-hour change within ${best.key}; observations from different item or source provenance streams are never combined.`,
     refs: best.refs,
   };
 }
