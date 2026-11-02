@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, realpath, rm, readFile, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { lstat, mkdtemp, realpath, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { saveLibraryLead } from './library-leads.js';
 import { exactOwnerRecord } from './provider-capabilities.js';
@@ -26,6 +28,7 @@ import {
 } from './source-archives.js';
 
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 
 it('archives exact fetch response bytes without rewriting retained captures or refetching on recovery', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-source-archive-')));
@@ -154,6 +157,36 @@ it('archives exact fetch response bytes without rewriting retained captures or r
     expect(coldArchive.byte_count).toBe(rawBytes.byteLength);
     expect(coldArchive.sha256).toBe(sha(rawBytes));
     expect(Buffer.from(coldArchive.bytes_base64!, 'base64')).toEqual(rawBytes);
+    expect(fetchCalls).toBe(1);
+
+    const exportPath = join(root, 'exact-response.bin');
+    const exportBytes = () =>
+      execFileSync(
+        process.execPath,
+        [
+          '--import',
+          'tsx',
+          'scripts/source-archives.ts',
+          '--root',
+          root,
+          'export',
+          JSON.stringify(created.capture_ref),
+          exportPath,
+        ],
+        { cwd: repositoryRoot, encoding: 'utf8' },
+      );
+    const exportReceipt = JSON.parse(exportBytes());
+    const exportedBytes = await readFile(exportPath);
+    expect(exportedBytes).toEqual(rawBytes);
+    expect(sha(exportedBytes)).toBe(sha(rawBytes));
+    expect(exportReceipt.byte_count).toBe(rawBytes.byteLength);
+    expect(exportReceipt.sha256).toBe(sha(rawBytes));
+    const exportedFile = await lstat(exportPath);
+    expect(exportedFile.isFile()).toBe(true);
+    expect(exportedFile.isSymbolicLink()).toBe(false);
+    expect(exportedFile.mode & 0o777).toBe(0o600);
+    expect(() => exportBytes()).toThrow();
+    expect(await readFile(exportPath)).toEqual(rawBytes);
     expect(fetchCalls).toBe(1);
 
     const replay = await createSourceArchive(root, request, resolveRef, { fetcher });
