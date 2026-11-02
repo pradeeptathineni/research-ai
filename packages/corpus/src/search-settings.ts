@@ -211,7 +211,7 @@ function canonicalSettings(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 export async function saveSettings(settings: unknown, root = process.cwd()) {
-  return updateSettings(root, (current) => {
+  return updateSettings(root, () => {
     const validated = validateSettings(settings);
     return { settings: validated, result: validated };
   }).then(({ result }) => result);
