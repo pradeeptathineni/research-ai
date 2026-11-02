@@ -356,7 +356,7 @@ async function readSourceChangeReview(root: string, ref: Basis['source_change_re
       'project_topic_relevance_unavailable',
       'The source-change review has an invalid schema or capture binding.',
     );
-  const review = parsed;
+  const review = parsed as Static<typeof sourceChangeReviewSchema>;
   const refs = [review.prior_capture_ref, review.new_capture_ref];
   if (review.id !== ref.id)
     fail(
