@@ -44,6 +44,7 @@ describe('Briefing social pulse owner workflow', () => {
       contentDigest: String(index + 1).repeat(64), observedAt: start,
       metrics: observations.filter((entry) => entry.itemId === id),
     }));
+    items[0]!.metrics.push({ ...observations[0]!, id: 'foreign-retained-metric', itemId: 'not-a-story-member' });
     const stories: Story[] = items.map((item) => ({
       ...storyFixture, id: item.storyId!, itemIds: [item.id], representativeItemId: item.id,
       firstSeen: start, lastSeen: start, relation: 'single', groupingEvidence: [], interestMatches: [],
@@ -57,6 +58,7 @@ describe('Briefing social pulse owner workflow', () => {
       return Object.fromEntries(ranked.map(({ input, socialPulse }) => [input.story.representativeItemId, socialPulse]));
     };
     const before = await readPulse();
+    expect(before['item-a']!.every((entry: any) => entry.itemId === 'item-a')).toBe(true);
     const pulse = (itemId: string, method = 'feed') => before[itemId]!.find((entry: any) => entry.method === method);
     expect(pulse('item-a')).toMatchObject({ itemId: 'item-a', scope: 'item', method: 'feed', sourceRef: null, latestValue: 22, latestObservedAt: later, observationCount: 2, firstObservedAt: start, delta: 12, elapsedHours: 2, perHour: 6, status: 'available' });
     expect(pulse('item-a', 'caller-reported')).toMatchObject({ itemId: 'item-a', scope: 'independent report', method: 'caller-reported', sourceRef: 'https://example.test/independent', latestValue: 700, observationCount: 1, delta: null, perHour: null, status: 'insufficient-observations' });

@@ -515,7 +515,9 @@ function makeApi(root: string): BriefingReadApi {
             metrics: [
               ...new Map(
                 [
-                  ...members.flatMap((member) => member.item.metrics),
+                  ...members.flatMap((member) => member.item.metrics.filter(
+                    (metric) => metric.itemId === member.item.id,
+                  )),
                   ...state.metrics.filter((metric) =>
                     members.some((member) => member.item.id === metric.itemId),
                   ),
