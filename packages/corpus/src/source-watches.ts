@@ -283,10 +283,13 @@ export async function createSourceWatch(root: string, input: unknown) {
   });
 }
 
-export async function readSourceWatch(root: string, id: string) {
+export async function readSourceWatch(
+  root: string,
+  id: string,
+): Promise<{ ref: RecordRef; watch: Watch; cold_read: true }> {
   if (!Value.Check(uuid, id)) invalid('Source-watch identity must be a UUID.');
   const watch = (await loadStore(root)).watches.find((row) => row.id === id);
-  if (!watch) fail(404, 'source_watch_not_found', 'No retained source watch has that UUID.');
+  if (!watch) return fail(404, 'source_watch_not_found', 'No retained source watch has that UUID.');
   return { ref: watchRef(watch), watch, cold_read: true };
 }
 
@@ -299,15 +302,44 @@ export async function listSourceWatches(root: string) {
 }
 
 type CaptureRef = RecordRef;
-type WatchCheckState = 'changed' | 'unchanged' | 'unresolved';
+type CaptureCoverage = ReturnType<typeof captureCoverage>;
+type SourceWatchCheckUnresolved = {
+  schema_version: 'source-watch-check-v1';
+  status: 'unresolved';
+  comparison_scope: 'selected-retained-text-only';
+  watch_ref: RecordRef;
+  baseline_capture_ref: CaptureRef | null;
+  new_capture_ref: CaptureRef;
+  baseline_coverage: CaptureCoverage | null;
+  new_coverage: CaptureCoverage | null;
+  reason: string;
+  qualification: string[];
+};
+type SourceWatchCheckResolved = {
+  schema_version: 'source-watch-check-v1';
+  status: 'changed' | 'unchanged';
+  comparison_scope: 'selected-retained-text-only';
+  watch_ref: RecordRef;
+  baseline_capture_ref: CaptureRef;
+  new_capture_ref: CaptureRef;
+  baseline_coverage: CaptureCoverage;
+  new_coverage: CaptureCoverage;
+  baseline_section: ExtractedSection;
+  new_section: ExtractedSection;
+  diff_line_coordinates: 'filtered-section-lines';
+  ignored_counts: { baseline: number; next: number };
+  diff: ReturnType<typeof boundedSourceTextDiff>;
+  qualification: string[];
+};
+export type SourceWatchCheck = SourceWatchCheckUnresolved | SourceWatchCheckResolved;
 function unresolved(
   watchRefValue: RecordRef,
   newCaptureRef: CaptureRef,
   reason: string,
   baselineCaptureRef?: CaptureRef,
   baselineCoverage?: ReturnType<typeof captureCoverage>,
-  newCoverage?: ReturnType<typeof captureCoverage>,
-) {
+  newCoverage?: CaptureCoverage,
+): SourceWatchCheckUnresolved {
   return {
     schema_version: 'source-watch-check-v1',
     status: 'unresolved' as const,
@@ -329,7 +361,7 @@ export async function checkSourceWatch(
   root: string,
   watchRefValue: unknown,
   newCaptureRefValue: unknown,
-) {
+): Promise<SourceWatchCheck> {
   if (
     !Value.Check(recordRefSchema, watchRefValue) ||
     !Value.Check(recordRefSchema, newCaptureRefValue)
@@ -438,7 +470,7 @@ export async function checkSourceWatch(
   const diff = boundedSourceTextDiff(before.text, after.text);
   return {
     schema_version: 'source-watch-check-v1',
-    status: diff.state as WatchCheckState,
+    status: diff.state,
     comparison_scope: 'selected-retained-text-only' as const,
     watch_ref: selectedWatchRef,
     baseline_capture_ref: baseline.ref,

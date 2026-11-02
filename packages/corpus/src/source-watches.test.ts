@@ -109,6 +109,7 @@ it('checks only the selected exact text, preserving line mapping and ignore coun
   const checked = await checkSourceWatch(root, watch.ref, next.ref);
 
   expect(checked.status).toBe('changed');
+  if (checked.status === 'unresolved') throw new Error(checked.reason);
   expect(checked.comparison_scope).toBe('selected-retained-text-only');
   expect(checked.watch_ref).toEqual(watch.ref);
   expect(checked.baseline_capture_ref).toEqual(baseline.ref);
@@ -140,6 +141,7 @@ it('hashes full original capture lines when markers sit mid-line', async () => {
   const checked = await checkSourceWatch(root, watch.ref, next.ref);
 
   expect(checked.status).toBe('changed');
+  if (checked.status === 'unresolved') throw new Error(checked.reason);
   expect(checked.baseline_section.line_map[0]).toEqual({
     line_number: 1,
     line_sha256: createHash('sha256').update('prefix BEGIN POLICY').digest('hex'),
@@ -159,7 +161,11 @@ it('returns unresolved for marker, source, or lineage mismatches', async () => {
   const missingCheck = await checkSourceWatch(root, watch.ref, missingMarkers.ref);
   expect(missingCheck.status).toBe('unresolved');
   expect(missingCheck.comparison_scope).toBe('selected-retained-text-only');
-  expect(missingCheck.baseline_coverage.scope).toEqual(baseline.capture.scope);
+  expect(missingCheck.baseline_coverage).toEqual({
+    text_sha256: baseline.capture.text_sha256,
+    raw_digest: baseline.capture.raw_digest,
+    scope: baseline.capture.scope,
+  });
 
   const unrelated = await capture('BEGIN POLICY\nRule A\nEND POLICY');
   expect((await checkSourceWatch(root, watch.ref, unrelated.ref)).status).toBe('unresolved');
