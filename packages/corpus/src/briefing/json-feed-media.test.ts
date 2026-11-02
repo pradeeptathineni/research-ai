@@ -121,7 +121,9 @@ describe('JSON Feed HTTP media compatibility', () => {
     expect(story?.reference).toMatchObject({ owner: 'signals-ai', kind: 'briefing-story' });
 
     const workbench = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!;
-    expect((workbench.body as { ranked: Array<{ input: { story: { id: string } } }> }).ranked).toEqual(
+    expect(
+      (workbench.body as { ranked: Array<{ input: { story: { id: string } } }> }).ranked,
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           input: expect.objectContaining({
@@ -140,7 +142,9 @@ describe('JSON Feed HTTP media compatibility', () => {
     mocks.request.mockClear();
     const policyBlockedPass = await refreshBriefing(root);
     expect(policyBlockedPass.sources).toEqual([]);
-    expect(policyBlockedPass.briefing.blockedSources).toEqual(['https://feeds.example.test/climate.json']);
+    expect(policyBlockedPass.briefing.blockedSources).toEqual([
+      'https://feeds.example.test/climate.json',
+    ]);
     expect(mocks.request).not.toHaveBeenCalled();
     expect((await api.listSources())[0]?.record.termsRef).not.toBeNull();
   });

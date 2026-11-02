@@ -204,8 +204,12 @@ const sameRef = (a: RecordRef, b: RecordRef) =>
   a.digest === b.digest;
 
 export type SourceChangeImpactEvidenceState = 'bound' | 'partial' | 'unbound';
-export function sourceChangeImpactEvidenceState(assertions: readonly { change_evidence?: unknown[] }[]): SourceChangeImpactEvidenceState {
-  const bound = assertions.filter((assertion) => Array.isArray(assertion.change_evidence) && assertion.change_evidence.length > 0).length;
+export function sourceChangeImpactEvidenceState(
+  assertions: readonly { change_evidence?: unknown[] }[],
+): SourceChangeImpactEvidenceState {
+  const bound = assertions.filter(
+    (assertion) => Array.isArray(assertion.change_evidence) && assertion.change_evidence.length > 0,
+  ).length;
   return bound === assertions.length ? 'bound' : bound === 0 ? 'unbound' : 'partial';
 }
 
@@ -225,8 +229,16 @@ function validateChangeEvidence(
     const line = capture.capture.text.split('\n')[evidence.line_number - 1];
     const candidates = evidence.side === 'prior' ? diff.removed_line_refs : diff.added_line_refs;
     const candidate = candidates?.find((row) => row.line_number === evidence.line_number);
-    if (line === undefined || !candidate || candidate.text !== line || candidate.line_sha256 !== evidence.line_sha256 || sha256(line) !== evidence.line_sha256)
-      changed('Changed-line evidence does not match a complete exact line in the selected source diff.');
+    if (
+      line === undefined ||
+      !candidate ||
+      candidate.text !== line ||
+      candidate.line_sha256 !== evidence.line_sha256 ||
+      sha256(line) !== evidence.line_sha256
+    )
+      changed(
+        'Changed-line evidence does not match a complete exact line in the selected source diff.',
+      );
     const key = canonical(evidence);
     if (unique.has(key)) invalid('Changed-line evidence references must be unique.');
     unique.add(key);
@@ -240,7 +252,8 @@ async function verifyRetainedChangeEvidence(root: string, review: Review) {
     openSourceCapture(root, review.prior_capture_ref.id),
     openSourceCapture(root, review.new_capture_ref.id),
   ]);
-  if (!sameRef(prior.ref, review.prior_capture_ref) || !sameRef(next.ref, review.new_capture_ref)) changed();
+  if (!sameRef(prior.ref, review.prior_capture_ref) || !sameRef(next.ref, review.new_capture_ref))
+    changed();
   const diff = boundedSourceTextDiff(prior.capture.text, next.capture.text);
   if (canonical(diff) !== canonical(review.observed_change))
     changed('The retained source diff no longer matches its exact capture versions.');
@@ -287,16 +300,32 @@ const reviewSchema = Type.Object(
         truncated_added_line: Type.Boolean(),
         removed_sha256: digest,
         added_sha256: digest,
-        removed_line_refs: Type.Optional(Type.Array(Type.Object({
-          line_number: Type.Integer({ minimum: 1 }),
-          line_sha256: digest,
-          text: Type.String({ maxLength: 5000 }),
-        }, closed), { maxItems: 40 })),
-        added_line_refs: Type.Optional(Type.Array(Type.Object({
-          line_number: Type.Integer({ minimum: 1 }),
-          line_sha256: digest,
-          text: Type.String({ maxLength: 5000 }),
-        }, closed), { maxItems: 40 })),
+        removed_line_refs: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                line_number: Type.Integer({ minimum: 1 }),
+                line_sha256: digest,
+                text: Type.String({ maxLength: 5000 }),
+              },
+              closed,
+            ),
+            { maxItems: 40 },
+          ),
+        ),
+        added_line_refs: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                line_number: Type.Integer({ minimum: 1 }),
+                line_sha256: digest,
+                text: Type.String({ maxLength: 5000 }),
+              },
+              closed,
+            ),
+            { maxItems: 40 },
+          ),
+        ),
       },
       closed,
     ),
@@ -535,7 +564,12 @@ export async function createSourceChangeReview(root: string, input: unknown) {
   const assertions = await Promise.all(
     request.assertions.map(async (row) => {
       const exact = await exactEntityAssertion(root, row);
-      const changeEvidence = validateChangeEvidence(row.change_evidence, prior, next, observedChange);
+      const changeEvidence = validateChangeEvidence(
+        row.change_evidence,
+        prior,
+        next,
+        observedChange,
+      );
       return {
         ...row,
         ...(changeEvidence ? { change_evidence: changeEvidence } : {}),

@@ -551,9 +551,7 @@ function makeApi(root: string): BriefingReadApi {
           item: item ? recordRef(item, 'briefing-item', item.id) : null,
           itemAvailability: item ? ('retained' as const) : ('unavailable' as const),
           source: source ? recordRef(source, 'briefing-source', source.id) : null,
-          sourceAvailability: source
-            ? ('retained' as const)
-            : ('unavailable' as const),
+          sourceAvailability: source ? ('retained' as const) : ('unavailable' as const),
         };
       });
       return {

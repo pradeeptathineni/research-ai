@@ -69,7 +69,10 @@ describe('Briefing refreshDue owner workflow', () => {
     expect(imported?.body).toMatchObject({ acquisition: 'not_started', replayed: false });
 
     const firstRequestId = '0b3a8401-3c65-4fab-9a6b-1b55a886c052';
-    const firstCalls: Array<{ uri: string; options?: { conditional?: Record<string, string>; allowNotModified?: boolean } }> = [];
+    const firstCalls: Array<{
+      uri: string;
+      options?: { conditional?: Record<string, string>; allowNotModified?: boolean };
+    }> = [];
     const firstFetch = async (
       uri: string,
       _signal?: AbortSignal,
@@ -94,27 +97,43 @@ describe('Briefing refreshDue owner workflow', () => {
           ].join('\r\n'),
           digest: 'c'.repeat(64),
           contentType: 'text/calendar',
-          response: { status: 200, etag: 'calendar-v1', lastModified: 'Wed, 28 Oct 2026 00:00:00 GMT', headers: {} },
+          response: {
+            status: 200,
+            etag: 'calendar-v1',
+            lastModified: 'Wed, 28 Oct 2026 00:00:00 GMT',
+            headers: {},
+          },
         } as never;
       return {
         uri,
         text: 'Climate data release\nA synthetic feed item.',
         digest: 'a'.repeat(64),
         contentType: 'application/rss+xml',
-        response: { status: 200, etag: 'feed-v1', lastModified: 'Wed, 28 Oct 2026 00:00:00 GMT', headers: {} },
+        response: {
+          status: 200,
+          etag: 'feed-v1',
+          lastModified: 'Wed, 28 Oct 2026 00:00:00 GMT',
+          headers: {},
+        },
         material: {
           text: 'Climate data release\nA synthetic feed item.',
           title: 'Example feed',
           author: null,
           publishedAt: '2026-10-28T00:00:00.000Z',
-          links: [{ uri: 'https://example.test/story/climate-release', title: 'Climate data release' }],
+          links: [
+            { uri: 'https://example.test/story/climate-release', title: 'Climate data release' },
+          ],
           sections: [{ locator: 'item:1', text: 'A synthetic climate data update.' }],
           extractor: 'synthetic-fixture',
         },
       } as never;
     };
 
-    const first = await refreshDue(root, { once: true, requestId: firstRequestId }, { fetch: firstFetch });
+    const first = await refreshDue(
+      root,
+      { once: true, requestId: firstRequestId },
+      { fetch: firstFetch },
+    );
     expect(first).toMatchObject({ status: 'complete', replayed: false });
     expect(firstCalls).toHaveLength(2);
     expect(firstCalls.every(({ options }) => options?.allowNotModified !== true)).toBe(true);
@@ -129,7 +148,11 @@ describe('Briefing refreshDue owner workflow', () => {
     expect(replay?.body).toMatchObject({ status: 'complete', replayed: true });
     expect(firstCalls).toHaveLength(2);
     await expect(
-      refreshDue(root, { once: true, requestId: firstRequestId, interest: 'other-interest' }, { fetch: firstFetch }),
+      refreshDue(
+        root,
+        { once: true, requestId: firstRequestId, interest: 'other-interest' },
+        { fetch: firstFetch },
+      ),
     ).rejects.toThrow('request_id_conflict');
 
     const status = await briefingRoute(
@@ -175,7 +198,11 @@ describe('Briefing refreshDue owner workflow', () => {
     const { beginBriefingRefresh } = await import('./store.js');
     const itemCountBeforePendingReplay = (await createBriefingApi(root).listItems()).length;
     await beginBriefingRefresh(root, pendingId);
-    const pendingReplay = await refreshDue(root, { once: true, requestId: pendingId }, { fetch: pendingFetcher });
+    const pendingReplay = await refreshDue(
+      root,
+      { once: true, requestId: pendingId },
+      { fetch: pendingFetcher },
+    );
     expect(pendingReplay).toMatchObject({ status: 'pending', replayed: true });
     expect(pendingFetchCalls).toEqual([]);
     expect(await createBriefingApi(root).listItems()).toHaveLength(itemCountBeforePendingReplay);
@@ -193,7 +220,11 @@ describe('Briefing refreshDue owner workflow', () => {
     });
 
     const secondRequestId = '0b3a8401-3c65-4fab-9a6b-1b55a886c054';
-    const secondCalls: Array<{ uri: string; conditional?: Record<string, string>; allowNotModified?: boolean }> = [];
+    const secondCalls: Array<{
+      uri: string;
+      conditional?: Record<string, string>;
+      allowNotModified?: boolean;
+    }> = [];
     const notModifiedFetch = async (
       uri: string,
       _signal?: AbortSignal,
@@ -201,52 +232,102 @@ describe('Briefing refreshDue owner workflow', () => {
       _allowPdf?: boolean,
       options?: { conditional?: Record<string, string>; allowNotModified?: boolean },
     ) => {
-      secondCalls.push({ uri, conditional: options?.conditional, allowNotModified: options?.allowNotModified });
+      secondCalls.push({
+        uri,
+        conditional: options?.conditional,
+        allowNotModified: options?.allowNotModified,
+      });
       return {
         uri,
         text: '',
         digest: 'd'.repeat(64),
         contentType: uri.endsWith('.ics') ? 'text/calendar' : 'application/rss+xml',
-        response: { status: 304, etag: options?.conditional?.etag, lastModified: options?.conditional?.lastModified, headers: {} },
+        response: {
+          status: 304,
+          etag: options?.conditional?.etag,
+          lastModified: options?.conditional?.lastModified,
+          headers: {},
+        },
       } as never;
     };
-    const second = await refreshDue(root, { once: true, requestId: secondRequestId }, { fetch: notModifiedFetch });
+    const second = await refreshDue(
+      root,
+      { once: true, requestId: secondRequestId },
+      { fetch: notModifiedFetch },
+    );
     expect(second).toMatchObject({ status: 'complete', replayed: false });
     expect(secondCalls).toHaveLength(2);
-    expect(secondCalls.every(({ allowNotModified, conditional }) => allowNotModified && conditional?.etag)).toBe(true);
+    expect(
+      secondCalls.every(
+        ({ allowNotModified, conditional }) => allowNotModified && conditional?.etag,
+      ),
+    ).toBe(true);
 
     const api = createBriefingApi(root);
     const coldSources = await api.listSources();
     expect(coldSources).toHaveLength(2);
     expect(coldSources.every(({ record }) => record.health.status === 'healthy')).toBe(true);
-    expect(coldSources.every(({ record }) => record.health.lastAttemptStatus === 'not-modified')).toBe(true);
-    const workbench = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!.body as {
-      ranked: Array<{ explanation: { formula: string; total: number }; input: { items: Array<{ item: { id: string; sourceId: string } }> } }>;
+    expect(
+      coldSources.every(({ record }) => record.health.lastAttemptStatus === 'not-modified'),
+    ).toBe(true);
+    const workbench = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
+      .body as {
+      ranked: Array<{
+        explanation: { formula: string; total: number };
+        input: { items: Array<{ item: { id: string; sourceId: string } }> };
+      }>;
     };
     expect(workbench.ranked).toHaveLength(2);
-    expect(workbench.ranked.every(({ explanation }) => explanation.formula === 'briefing-linear-v1' && explanation.total >= 0 && explanation.total <= 100)).toBe(true);
+    expect(
+      workbench.ranked.every(
+        ({ explanation }) =>
+          explanation.formula === 'briefing-linear-v1' &&
+          explanation.total >= 0 &&
+          explanation.total <= 100,
+      ),
+    ).toBe(true);
 
-    const feedSourceId = coldSources.find(({ record }) => record.url.endsWith('/feed.xml'))!.record.id;
+    const feedSourceId = coldSources.find(({ record }) => record.url.endsWith('/feed.xml'))!.record
+      .id;
     // Resolve the feed story using its retained representative item identity.
-    const feedItemId = (await api.listItems()).find(({ record }) => record.sourceId === feedSourceId)!.record.id;
-    const exactStory = (await api.listStories()).find(({ record }) => record.representativeItemId === feedItemId)!.record;
-    expect(workbench.ranked.some(({ input }) => input.items.some(({ item }) => item.id === feedItemId))).toBe(true);
+    const feedItemId = (await api.listItems()).find(
+      ({ record }) => record.sourceId === feedSourceId,
+    )!.record.id;
+    const exactStory = (await api.listStories()).find(
+      ({ record }) => record.representativeItemId === feedItemId,
+    )!.record;
+    expect(
+      workbench.ranked.some(({ input }) => input.items.some(({ item }) => item.id === feedItemId)),
+    ).toBe(true);
 
     const mute = await briefingRoute(
       root,
       'briefing/feedback',
       true,
-      { requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c055', targetKind: 'source', targetId: feedSourceId, action: 'mute-source' },
+      {
+        requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c055',
+        targetKind: 'source',
+        targetId: feedSourceId,
+        action: 'mute-source',
+      },
       0,
     );
     expect(mute?.status).toBe(201);
-    const afterMute = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!.body as typeof workbench;
-    expect(afterMute.ranked.some(({ input }) => input.items.some(({ item }) => item.sourceId === feedSourceId))).toBe(false);
+    const afterMute = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
+      .body as typeof workbench;
+    expect(
+      afterMute.ranked.some(({ input }) =>
+        input.items.some(({ item }) => item.sourceId === feedSourceId),
+      ),
+    ).toBe(false);
     const undoMute = await briefingRoute(
       root,
       'briefing/feedback/undo',
       true,
-      { requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c056', feedbackId: (mute!.body as { feedback: { id: string } }).feedback.id },
+      {
+        requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c056',
+        feedbackId: (mute!.body as { feedback: { id: string } }).feedback.id,
+      },
       0,
     );
     expect(undoMute?.status).toBe(201);
@@ -256,21 +337,40 @@ describe('Briefing refreshDue owner workflow', () => {
       root,
       'briefing/feedback',
       true,
-      { requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c057', targetKind: 'story', targetId: exactStory.id, action: 'snooze', until: snoozeUntil },
+      {
+        requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c057',
+        targetKind: 'story',
+        targetId: exactStory.id,
+        action: 'snooze',
+        until: snoozeUntil,
+      },
       0,
     );
-    const whileSnoozed = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!.body as typeof workbench;
-    expect(whileSnoozed.ranked.some(({ input }) => input.items.some(({ item }) => item.sourceId === feedSourceId))).toBe(false);
+    const whileSnoozed = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
+      .body as typeof workbench;
+    expect(
+      whileSnoozed.ranked.some(({ input }) =>
+        input.items.some(({ item }) => item.sourceId === feedSourceId),
+      ),
+    ).toBe(false);
     const undoSnooze = await briefingRoute(
       root,
       'briefing/feedback/undo',
       true,
-      { requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c058', feedbackId: (snooze!.body as { feedback: { id: string } }).feedback.id },
+      {
+        requestId: '0b3a8401-3c65-4fab-9a6b-1b55a886c058',
+        feedbackId: (snooze!.body as { feedback: { id: string } }).feedback.id,
+      },
       0,
     );
     expect(undoSnooze?.status).toBe(201);
-    const afterUndo = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!.body as typeof workbench;
-    expect(afterUndo.ranked.some(({ input }) => input.items.some(({ item }) => item.sourceId === feedSourceId))).toBe(true);
+    const afterUndo = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
+      .body as typeof workbench;
+    expect(
+      afterUndo.ranked.some(({ input }) =>
+        input.items.some(({ item }) => item.sourceId === feedSourceId),
+      ),
+    ).toBe(true);
 
     const event = (await api.listEvents())[0]!.record;
     const calendar = await briefingRoute(

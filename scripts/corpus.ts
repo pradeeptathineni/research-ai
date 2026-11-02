@@ -5,7 +5,12 @@ import { constants } from 'node:fs';
 import { open, readFile, writeFile } from 'node:fs/promises';
 import { encodePublicEvidence } from '../packages/corpus/src/public-record.js';
 import { loadEntities } from '../packages/corpus/src/search-store.js';
-import { exportOpml, parseOpml, refreshBriefing, refreshDue } from '../packages/corpus/src/briefing/ingest.js';
+import {
+  exportOpml,
+  parseOpml,
+  refreshBriefing,
+  refreshDue,
+} from '../packages/corpus/src/briefing/ingest.js';
 import { createBriefingApi, readBriefingRefresh } from '../packages/corpus/src/briefing/store.js';
 import { briefingRoute } from '../packages/corpus/src/briefing/http.js';
 import { loadSettings, saveSettings } from '../packages/corpus/src/search-settings.js';
@@ -85,7 +90,9 @@ if (operation === 'briefing') {
     briefingArgs[0]!.startsWith('--request-id=')
   ) {
     const requestId = briefingArgs[0]!.slice('--request-id='.length);
-    process.stdout.write(`${JSON.stringify(await readBriefingRefresh(process.cwd(), requestId), null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify(await readBriefingRefresh(process.cwd(), requestId), null, 2)}\n`,
+    );
     process.exit(0);
   }
   if (action === 'opml-export' && briefingArgs.length === 1) {

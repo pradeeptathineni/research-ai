@@ -32,7 +32,11 @@ it('captures a selected Briefing rank item through the existing owner and cold-r
     undefined,
     undefined,
     undefined,
-    async (uri) => ({ text: 'Synthetic captured source text.', digest: sha('Synthetic captured source text.'), uri }),
+    async (uri) => ({
+      text: 'Synthetic captured source text.',
+      digest: sha('Synthetic captured source text.'),
+      uri,
+    }),
   );
   async function request(route: string, body?: unknown, headers: Record<string, string> = {}) {
     const incoming = Object.assign(
@@ -46,8 +50,12 @@ it('captures a selected Briefing rank item through the existing owner and cold-r
     let status = 0;
     let text = '';
     const outgoing = {
-      writeHead(code: number) { status = code; },
-      end(value: string) { text = value; },
+      writeHead(code: number) {
+        status = code;
+      },
+      end(value: string) {
+        text = value;
+      },
     } as unknown as ServerResponse;
     expect(await api(incoming, outgoing)).toBe(true);
     return { status, text };
@@ -55,26 +63,59 @@ it('captures a selected Briefing rank item through the existing owner and cold-r
   try {
     const settings = {
       ...defaultSettings,
-      followedSources: [{ uri: 'https://example.test/feed.xml', label: 'Fixture feed', enabled: true, interests: ['fixture'] }],
-      queries: [{ id: 'fixture', query: 'fixture', enabled: true, everyDays: 1, offsetMinutes: 0, concepts: [] }],
+      followedSources: [
+        {
+          uri: 'https://example.test/feed.xml',
+          label: 'Fixture feed',
+          enabled: true,
+          interests: ['fixture'],
+        },
+      ],
+      queries: [
+        {
+          id: 'fixture',
+          query: 'fixture',
+          enabled: true,
+          everyDays: 1,
+          offsetMinutes: 0,
+          concepts: [],
+        },
+      ],
     };
     await saveSettings(settings, root);
     const sourceId = (await createBriefingApi(root).listSources())[0]!.reference.id;
     const item: Item = {
-      id: 'fixture-item-1', sourceId, canonicalUrl: 'https://example.test/article/1',
-      title: 'Synthetic article', author: null, publishedAt: null,
-      observedAt: '2026-10-28T00:00:00.000Z', contentDigest: sha('fixture article'),
-      excerpt: 'Synthetic excerpt', metrics: [], interestIds: ['fixture'], storyId: 'fixture-story-1',
+      id: 'fixture-item-1',
+      sourceId,
+      canonicalUrl: 'https://example.test/article/1',
+      title: 'Synthetic article',
+      author: null,
+      publishedAt: null,
+      observedAt: '2026-10-28T00:00:00.000Z',
+      contentDigest: sha('fixture article'),
+      excerpt: 'Synthetic excerpt',
+      metrics: [],
+      interestIds: ['fixture'],
+      storyId: 'fixture-story-1',
     };
     const story: Story = {
-      id: 'fixture-story-1', itemIds: [item.id], representativeItemId: item.id,
-      firstSeen: item.observedAt, lastSeen: item.observedAt, relation: 'single',
-      groupingEvidence: [], interestMatches: [{ interestId: 'fixture', matchedTerms: ['fixture'] }],
+      id: 'fixture-story-1',
+      itemIds: [item.id],
+      representativeItemId: item.id,
+      firstSeen: item.observedAt,
+      lastSeen: item.observedAt,
+      relation: 'single',
+      groupingEvidence: [],
+      interestMatches: [{ interestId: 'fixture', matchedTerms: ['fixture'] }],
     };
     await retainBriefingRecords(root, { items: [item], stories: [story] });
-    const rankInput = (await createBriefingApi(root).listRankInputs()).find((row) => row.story.id === story.id)!;
+    const rankInput = (await createBriefingApi(root).listRankInputs()).find(
+      (row) => row.story.id === story.id,
+    )!;
     const itemRef = {
-      owner: 'signals-ai', kind: 'briefing-item', id: rankInput.items[0]!.item.id,
+      owner: 'signals-ai',
+      kind: 'briefing-item',
+      id: rankInput.items[0]!.item.id,
       revision: rankInput.items[0]!.itemReference.revision,
       digest: rankInput.items[0]!.itemReference.revision.slice('sha256:'.length),
     };
@@ -89,19 +130,36 @@ it('captures a selected Briefing rank item through the existing owner and cold-r
       'x-signals-owner-epoch': scope.epoch,
     };
     await createBriefingApi(root).setSourceTermsPolicy({
-      requestId: randomUUID(), sourceId, termsUrl: 'https://example.test/terms', status: 'blocked',
+      requestId: randomUUID(),
+      sourceId,
+      termsUrl: 'https://example.test/terms',
+      status: 'blocked',
     });
-    const blocked = await request('source-captures', { source_ref: itemRef, mode: 'fetch' }, headers);
+    const blocked = await request(
+      'source-captures',
+      { source_ref: itemRef, mode: 'fetch' },
+      headers,
+    );
     expect(blocked.status).toBe(403);
     expect(blocked.text).toContain('source_terms_blocked');
 
     await createBriefingApi(root).setSourceTermsPolicy({
-      requestId: randomUUID(), sourceId, termsUrl: null, status: 'unknown',
+      requestId: randomUUID(),
+      sourceId,
+      termsUrl: null,
+      status: 'unknown',
     });
-    const createdResponse = await request('source-captures', { source_ref: itemRef, mode: 'fetch' }, headers);
+    const createdResponse = await request(
+      'source-captures',
+      { source_ref: itemRef, mode: 'fetch' },
+      headers,
+    );
     expect(createdResponse.status).toBe(201);
     const created = JSON.parse(createdResponse.text) as {
-      capture: { id: string; briefing_context: { terms_policy: { status: string }; source_health: { status: string } } };
+      capture: {
+        id: string;
+        briefing_context: { terms_policy: { status: string }; source_health: { status: string } };
+      };
     };
     expect(created.capture.briefing_context.terms_policy.status).toBe('unknown');
     expect(created.capture.briefing_context.source_health.status).toBe('unknown');
@@ -110,7 +168,10 @@ it('captures a selected Briefing rank item through the existing owner and cold-r
     expect(JSON.parse(current.text).origin_status).toBe('current');
 
     await createBriefingApi(root).setSourceTermsPolicy({
-      requestId: randomUUID(), sourceId, termsUrl: 'https://example.test/terms', status: 'recorded',
+      requestId: randomUUID(),
+      sourceId,
+      termsUrl: 'https://example.test/terms',
+      status: 'recorded',
     });
     const changed = await request(`source-captures/${created.capture.id}`, undefined, headers);
     expect(changed.status).toBe(200);

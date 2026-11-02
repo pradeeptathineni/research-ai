@@ -88,7 +88,10 @@ const briefingCaptureContextSchema = Type.Object(
         status: Type.Enum(['unknown', 'healthy', 'stale', 'failed']),
         lastGoodAt: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
         lastAttemptAt: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
-        lastAttemptStatus: Type.Union([Type.Enum(['fetched', 'not-modified', 'failed']), Type.Null()]),
+        lastAttemptStatus: Type.Union([
+          Type.Enum(['fetched', 'not-modified', 'failed']),
+          Type.Null(),
+        ]),
         lastSuccessfulLinkCount: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
         failureClass: Type.Union([Type.String({ minLength: 1, maxLength: 40 }), Type.Null()]),
         expectedIntervalSec: Type.Union([Type.Number({ exclusiveMinimum: 0 }), Type.Null()]),
@@ -545,9 +548,10 @@ async function captureOriginStatus(
     }
     return 'current';
   } catch (error) {
-    const status = error && typeof error === 'object' && 'status' in error
-      ? Number((error as { status: unknown }).status)
-      : 0;
+    const status =
+      error && typeof error === 'object' && 'status' in error
+        ? Number((error as { status: unknown }).status)
+        : 0;
     if (status === 404) return 'missing';
     if (status === 409) return 'changed';
     return 'unavailable';
@@ -564,7 +568,10 @@ export async function validateSourceCaptureSelection(
   const current = await resolveSource(sourceRef);
   if (!sameRef(current.ref, sourceRef))
     changed('The selected source changed. Resolve its current exact reference before capturing.');
-  const uri = sourceCaptureUri(sourceRef.kind as 'entity' | 'lead' | 'briefing-item', current.bytes);
+  const uri = sourceCaptureUri(
+    sourceRef.kind as 'entity' | 'lead' | 'briefing-item',
+    current.bytes,
+  );
   let supersedes: RecordRef | undefined;
   if (supersedesValue !== undefined) {
     supersedes = exactRef(supersedesValue, 'source_capture');
@@ -624,12 +631,18 @@ export async function createSourceCapture(
   if (sourceRef.kind === 'briefing-item') {
     const readBriefingContext = options.readBriefingContext;
     if (!readBriefingContext)
-      return unavailable('The selected Briefing item has no configured same-owner source and terms reader.');
+      return unavailable(
+        'The selected Briefing item has no configured same-owner source and terms reader.',
+      );
     briefingContext = await readBriefingContext(sourceRef);
     if (!sameRef(briefingContext.item_reference, sourceRef))
       changed('The Briefing context does not match the exact selected item reference.');
     if (briefingContext.terms_policy.status === 'blocked')
-      throw new SourceCaptureError(403, 'source_terms_blocked', 'The selected Briefing source has a recorded blocked terms policy; no capture was made.');
+      throw new SourceCaptureError(
+        403,
+        'source_terms_blocked',
+        'The selected Briefing source has a recorded blocked terms policy; no capture was made.',
+      );
   }
   let text: string,
     rawDigest: string | null,
@@ -760,12 +773,20 @@ export async function createSourceCapture(
     if (briefingContext) {
       const readBriefingContext = options.readBriefingContext;
       if (!readBriefingContext)
-        return unavailable('The selected Briefing item has no configured same-owner source and terms reader.');
+        return unavailable(
+          'The selected Briefing item has no configured same-owner source and terms reader.',
+        );
       const currentContext = await readBriefingContext(sourceRef);
       if (currentContext.terms_policy.status === 'blocked')
-        throw new SourceCaptureError(403, 'source_terms_blocked', 'The selected Briefing source terms became blocked during acquisition; no capture was written.');
+        throw new SourceCaptureError(
+          403,
+          'source_terms_blocked',
+          'The selected Briefing source terms became blocked during acquisition; no capture was written.',
+        );
       if (stableBriefingContext(currentContext) !== stableBriefingContext(briefingContext))
-        changed('The selected Briefing item, linked source, health or terms policy changed during acquisition; no capture was written.');
+        changed(
+          'The selected Briefing item, linked source, health or terms policy changed during acquisition; no capture was written.',
+        );
     }
     const store = await loadStore(root);
     if (store.captures.length >= 100)
