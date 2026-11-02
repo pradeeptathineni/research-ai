@@ -201,12 +201,29 @@ function digestFromCapture(capture: Awaited<ReturnType<typeof openSourceCapture>
       'source_archive_unavailable',
       'Stored source capture has an unsupported exact source ref.',
     );
+  const predecessor = capture.supersedes;
+  if (predecessor && predecessor.kind !== 'source_capture')
+    fail(
+      503,
+      'source_archive_unavailable',
+      'Stored capture predecessor is not an exact source capture.',
+    );
   return requestDigest({
     request_id: capture.id,
     capture_request: {
       source_ref: capture.source_ref as ArchiveRequest['capture_request']['source_ref'],
       mode: 'fetch',
-      ...(capture.supersedes ? { supersedes: capture.supersedes } : {}),
+      ...(predecessor
+        ? {
+            supersedes: {
+              owner: 'signals-ai',
+              kind: 'source_capture',
+              id: predecessor.id,
+              revision: predecessor.revision,
+              digest: predecessor.digest,
+            },
+          }
+        : {}),
     },
   });
 }
