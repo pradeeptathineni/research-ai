@@ -44,10 +44,10 @@
     {
       "component": "Library",
       "owner": "signals-ai",
-      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-vetting",
-      "sourceCommit": "40d69b92067076ad6073447fa40e842b9e405836",
-      "sourceTree": "9521df74f6d0e2c3fe3194f214221371a831bb07",
-      "sourceParent": "3cfd39c31a075e1e18985c57981d4821e80dd601",
+      "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-saved-entity-hardening",
+      "sourceCommit": "73e9925d7175a67b571da9e242aa91e28930fdf5",
+      "sourceTree": "ca1a1c7cd34574b66195386f058347ed56bd2a25",
+      "sourceParent": "f06192c72fdfab0384d465c240d21f295764afdf",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -123,7 +123,7 @@
         "packages/library/scripts/source-archives.ts",
         "packages/library/scripts/source-watches.ts"
       ],
-      "workspaceTree": "d5df212523190be52c8fce63f3d162963f01e1b8",
+      "workspaceTree": "079905e7496c5f8c971ec491dee553e3d3fe0871",
       "sourceBlobComparison": {
         "trackedFileCount": 389,
         "missing": 0,
@@ -131,7 +131,7 @@
         "changedPaths": [
           "package.json"
         ],
-        "qualification": "All native Library blobs match except the documented workspace dependency link in package.json."
+        "qualification": "All 389 native Library blobs match except the documented workspace dependency link in package.json."
       },
       "capabilities": [
         {
@@ -332,7 +332,81 @@
         "material-preview": "node --import tsx scripts/material-preview.ts",
         "start": "node --import tsx scripts/workbench.ts",
         "discovery": "node --import tsx scripts/discovery.ts"
-      }
+      },
+      "nativeSuccessorBlobOids": [
+        {
+          "fromCommit": "40d69b92067076ad6073447fa40e842b9e405836",
+          "toCommit": "f06192c72fdfab0384d465c240d21f295764afdf",
+          "hashAlgorithm": "Git blob object ID (SHA-1)",
+          "changedFileCount": 12,
+          "files": [
+            {
+              "path": "packages/library/packages/corpus/src/briefing/event-rank-input.test.ts",
+              "gitBlobOid": "f7f56380c39cb4635dbbd8a8ae6e2a7d638515d8"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/ingest.ts",
+              "gitBlobOid": "02379169f06c424657a5d9453b9b39dfd46ee2ba"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/interest-feedback-workflow.test.ts",
+              "gitBlobOid": "821516dab4cf21c17f5c8a5dace4b7df9a3e307b"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/schema.test.ts",
+              "gitBlobOid": "d98cee47df9ba485ccbfdad79196a80b71e0ba04"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/schema.ts",
+              "gitBlobOid": "fe178c366db2ba63ddb07ac98f3aa7237e5364b4"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/social-pulse-workflow.test.ts",
+              "gitBlobOid": "36e64e23ddb27943e7e9928b08365819e2cc053e"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/store.test.ts",
+              "gitBlobOid": "b9ef444dde61b0bac205c4e89946da0357883d0a"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/briefing/store.ts",
+              "gitBlobOid": "6cb1f88530cb8edb932c791e54e857da1b92f330"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/provider-capabilities.ts",
+              "gitBlobOid": "f09df2cbfe28c05afa13396fb421e99b02b7073f"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/search-api.ts",
+              "gitBlobOid": "bcb3e0962fb6a2e23e3de413ec857fb0b612d122"
+            },
+            {
+              "path": "packages/library/scripts/research-pin.mjs",
+              "gitBlobOid": "4be52770ea809f13c5e29977192d839127335a0d"
+            },
+            {
+              "path": "packages/library/scripts/research-pin.test.mjs",
+              "gitBlobOid": "5e0d83d85d0196c1848ec3c3093f49837884ebe4"
+            }
+          ]
+        },
+        {
+          "fromCommit": "f06192c72fdfab0384d465c240d21f295764afdf",
+          "toCommit": "73e9925d7175a67b571da9e242aa91e28930fdf5",
+          "hashAlgorithm": "Git blob object ID (SHA-1)",
+          "changedFileCount": 2,
+          "files": [
+            {
+              "path": "packages/library/packages/corpus/src/saved-entity-inspection.test.ts",
+              "gitBlobOid": "92c42d4bfbd537683db63646e9ad65c7f54f762a"
+            },
+            {
+              "path": "packages/library/packages/corpus/src/saved-entity-inspection.ts",
+              "gitBlobOid": "f8fe958f683531f309def98292aa249595d6f6e7"
+            }
+          ]
+        }
+      ]
     },
     {
       "component": "WorkbenchForwarder",
@@ -386,9 +460,9 @@
     },
     {
       "component": "Library",
-      "sourceCommit": "40d69b92067076ad6073447fa40e842b9e405836",
+      "sourceCommit": "73e9925d7175a67b571da9e242aa91e28930fdf5",
       "targetPrefix": "packages/library",
-      "workspaceMergeCommit": "68378765b0fc1ddbefe0185488f7ef017f687bc4",
+      "workspaceMergeCommit": "a0e33cdc8a91fdee6e9931d924799492549dd80f",
       "strategy": "git merge -s subtree -Xsubtree=packages/library"
     }
   ]

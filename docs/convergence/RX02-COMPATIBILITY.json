@@ -6,10 +6,10 @@
       "target": "packages/methods"
     },
     "library": {
-      "revision": "40d69b92067076ad6073447fa40e842b9e405836",
+      "revision": "73e9925d7175a67b571da9e242aa91e28930fdf5",
       "target": "packages/library",
-      "tree": "9521df74f6d0e2c3fe3194f214221371a831bb07",
-      "parent": "3cfd39c31a075e1e18985c57981d4821e80dd601"
+      "tree": "ca1a1c7cd34574b66195386f058347ed56bd2a25",
+      "parent": "f06192c72fdfab0384d465c240d21f295764afdf"
     }
   },
   "methods": {
@@ -312,13 +312,13 @@
     "originalLibraryLockSha256": "6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa"
   },
   "qualificationLimits": [
-    "No external Deep consumer runtime was independently mounted",
-    "No publish, install, listener, live provider/model, or real store",
-    "Full Library verify ran once against native 3cfd39 and stopped at lint (111 errors across 27 source-matching files); it has not been rerun on the 40d69b saved-entity recovery successor."
+    "Historical full Library verify ran once against native 3cfd39 and stopped at lint (111 errors across 27 source-matching files); no full verify was run on 40d69b, f06192c, or final 73e9925.",
+    "Native lint-only result at f06192c was 71 errors across 15 files; it is not a full verify result. The final 73e9925 saved-entity files passed targeted lint, TypeScript, and inspection tests (6/6) in the native clone.",
+    "The explicit workspace dependency guard in this isolated checkout could not complete because the clone has no node_modules/@pradeeptathineni/research-ai workspace link; no package installation or link creation was performed."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
-    "Library workspace source is exact native 40d69b, history-preservingly subtree-merged as child 6837876, whose native parent is 3cfd39. The saved-entity recovery validates retained records against historical receipts and run IDs. The package.json workspace link remains the sole non-source adaptation; standalone lock and fixed archive bytes are unchanged.",
+    "Library workspace source is exact native 73e9925, a history-preserving child of combined lint successor f06192c. The package.json workspace link is the sole source-blob adaptation; standalone package lock and fixed archive bytes remain unchanged.",
     "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
   ],
   "workbenchConsumerFlow": {
@@ -332,7 +332,8 @@
     "path": "saved entity record \u2192 exact introducing receipt/run IDs \u2192 evidence and assessment view; history is read-only and opens the frozen run by ID",
     "testsPassed": 6,
     "networkOrModel": false,
-    "realStore": false
+    "realStore": false,
+    "sourceRevision": "73e9925d7175a67b571da9e242aa91e28930fdf5"
   },
   "libraryFullVerify": {
     "command": "npm run verify --workspace signals-ai",
@@ -360,22 +361,35 @@
       "packages/library/packages/corpus/src/saved-entity-inspection.ts"
     ],
     "result": "pass",
-    "reviewer": "root",
-    "scope": "read-only targeted lint; existing nearby findings in provider-capabilities.ts and search-api.ts are outside these changed lines"
+    "reviewer": "native Library owner",
+    "scope": "targeted lint for saved-entity recovery; no full package lint claim",
+    "sourceRevision": "73e9925d7175a67b571da9e242aa91e28930fdf5"
   },
   "savedEntityRecoveryVerification": {
-    "node": "24.19.0",
-    "npm": "12.1.0",
-    "focusedTests": {
-      "command": "npm run test --workspace signals-ai -- packages/corpus/src/saved-entity-inspection.test.ts apps/corpus/src/candidate-views.test.tsx",
-      "exitCode": 1,
-      "result": "Vitest started but both suites failed before tests ran because the isolated workspace lacks resolvable vitest/config, react-dom/server, and typebox dependencies."
+    "sourceRevision": "73e9925d7175a67b571da9e242aa91e28930fdf5",
+    "nativeCloneChecks": {
+      "targetedLint": "pass",
+      "typecheck": "pass",
+      "inspectionTestsPassed": 6
     },
-    "typecheck": {
-      "command": "npm run typecheck --workspace signals-ai",
-      "exitCode": 2,
-      "result": "TypeScript could not resolve type definitions for node and vitest/globals in the isolated workspace."
+    "workspacePinCompatibilityTest": {
+      "command": "node --test packages/library/scripts/research-pin.test.mjs",
+      "node": "24.19.0",
+      "passed": 2,
+      "failed": 0
     },
-    "fullVerify": "Not rerun; prior recorded lint111 result remains pinned to source 3cfd39."
+    "explicitWorkspaceDependencyGuard": {
+      "command": "node packages/library/scripts/dependency-check.mjs with explicit workspace environment",
+      "result": "blocked",
+      "reason": "ENOENT: isolated clone has no node_modules/@pradeeptathineni/research-ai workspace link; no installation or link creation performed"
+    },
+    "fullVerify": "Not run on final source; historical 3cfd39 full verify receipt remains separate."
+  },
+  "libraryCurrentLint": {
+    "sourceRevision": "f06192c72fdfab0384d465c240d21f295764afdf",
+    "errors": 71,
+    "files": 15,
+    "scope": "lint-only result; no full verify claim",
+    "finalSavedEntityTargetedLint": "pass on 73e9925"
   }
 }

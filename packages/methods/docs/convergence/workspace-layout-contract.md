@@ -33,10 +33,10 @@ remains active.
 ## Library and compatibility
 
 Library source is pinned at
-`40d69b92067076ad6073447fa40e842b9e405836`, imported by history-preserving
-subtree merges from parent `3cfd39c31a075e1e18985c57981d4821e80dd601`. The
-source includes the 13-file Prettier correction and the saved-entity historical
-receipt recovery. Its workspace package metadata changes only the Methods dependency
+`73e9925d7175a67b571da9e242aa91e28930fdf5`, imported by history-preserving subtree merges from parent
+`f06192c72fdfab0384d465c240d21f295764afdf`. The source includes the bounded lint corrections and saved-entity
+recovery hardening. Its per-file successor blob OIDs are recorded in
+`workspace-component-manifest.json`. Its workspace package metadata changes only the Methods dependency
 specification from the fixed tarball to `file:../methods`. The original Library
 lock, tarball digest/integrity and all five vendored Research archives are
 frozen and verified. Existing CLI names, paths, capability IDs and the four
@@ -47,10 +47,13 @@ receipt/run references and no mutation to retained evidence.
 
 ## Verification
 
-On Node 24.19, the Methods full test gate, the workspace-level Briefing to
-Research consumer flow, Library typecheck/build and focused saved-entity
-inspection tests passed offline. The recorded full Library `verify` against 3cfd39 reached lint after
+At earlier RX02 checkpoints, the Methods full test gate, the workspace-level
+Briefing-to-Research consumer flow, Library typecheck/build and focused
+saved-entity inspection tests passed offline. The recorded full Library `verify` against 3cfd39 reached lint after
 release, corpus and format checks passed, then stopped with 111 ESLint errors
-across 27 source-matching files. That gate has not been rerun on 40d69b; no later verify phases ran. No check here
+across 27 source-matching files. A later lint-only result at f06192c reported
+71 errors across 15 files; it is not a full gate. The final 73e9925 saved-entity
+files passed targeted lint, TypeScript and inspection tests (6/6). No full verify
+was run on the final source. No check here
 establishes live provider quality, public deployment, or compatibility of
 external Deep runtime mounts.
