@@ -5,7 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings, saveSettings } from './search-settings.js';
 import { eventCalendar } from './briefing-calendar.js';
 import type { Event } from './briefing/schema.js';
-import { allDayEventFixture, itemFixture, storyFixture, timedEventFixture } from './briefing/fixtures.js';
+import {
+  allDayEventFixture,
+  itemFixture,
+  storyFixture,
+  timedEventFixture,
+} from './briefing/fixtures.js';
 import { briefingRoute } from './briefing/http.js';
 import { createBriefingApi, retainBriefingRecords } from './briefing/store.js';
 

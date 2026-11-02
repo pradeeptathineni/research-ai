@@ -265,12 +265,12 @@ describe('Hacker News public API Following adapter', () => {
     );
     const firstWorkbench = (await briefingRoute(root, 'briefing/workbench', false, undefined, 0))!
       .body as {
-        ranked: Array<{
-          explanation: {
-            components: { velocity: { status: string; reason: string; refs: string[] } };
-          };
-        }>;
-      };
+      ranked: Array<{
+        explanation: {
+          components: { velocity: { status: string; reason: string; refs: string[] } };
+        };
+      }>;
+    };
     expect(firstWorkbench.ranked[0]?.explanation.components.velocity).toMatchObject({
       status: 'insufficient-observations',
       refs: [],

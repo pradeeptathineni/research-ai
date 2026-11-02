@@ -92,16 +92,20 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
       removed: ['Old condition.'],
       added: ['New condition.'],
     });
-    expect(preview.observed_change.removed_line_refs).toEqual([{
-      line_number: 2,
-      line_sha256: createHash('sha256').update('Old condition.').digest('hex'),
-      text: 'Old condition.',
-    }]);
-    expect(preview.observed_change.added_line_refs).toEqual([{
-      line_number: 2,
-      line_sha256: createHash('sha256').update('New condition.').digest('hex'),
-      text: 'New condition.',
-    }]);
+    expect(preview.observed_change.removed_line_refs).toEqual([
+      {
+        line_number: 2,
+        line_sha256: createHash('sha256').update('Old condition.').digest('hex'),
+        text: 'Old condition.',
+      },
+    ]);
+    expect(preview.observed_change.added_line_refs).toEqual([
+      {
+        line_number: 2,
+        line_sha256: createHash('sha256').update('New condition.').digest('hex'),
+        text: 'New condition.',
+      },
+    ]);
     expect(preview.version_coverage.prior).toMatchObject({
       text_sha256: first.capture.text_sha256,
       raw_digest: null,
@@ -158,7 +162,9 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     expect(created.review.prior_capture_ref).toEqual(first.ref);
     expect(created.review.new_capture_ref).toEqual(second.ref);
     expect(created.review.version_coverage).toEqual(preview.version_coverage);
-    expect(created.review.assertions[0]?.change_evidence).toEqual(request.assertions[0]?.change_evidence);
+    expect(created.review.assertions[0]?.change_evidence).toEqual(
+      request.assertions[0]?.change_evidence,
+    );
     expect((await listSourceChangeReviews(root)).reviews[0]?.impact_evidence_state).toBe('bound');
     const exactReview = await exactOwnerRecord(root, created.ref);
     expect(JSON.parse(exactReview.bytes.toString('utf8'))).toEqual(created.review);
@@ -188,26 +194,34 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
       createSourceChangeReview(root, {
         ...request,
         request_id: randomUUID(),
-        assertions: [{
-          ...request.assertions[0],
-          change_evidence: [{
-            ...request.assertions[0].change_evidence[0],
-            line_number: 1,
-          }],
-        }],
+        assertions: [
+          {
+            ...request.assertions[0],
+            change_evidence: [
+              {
+                ...request.assertions[0].change_evidence[0],
+                line_number: 1,
+              },
+            ],
+          },
+        ],
       }),
     ).rejects.toMatchObject({ status: 409 });
     await expect(
       createSourceChangeReview(root, {
         ...request,
         request_id: randomUUID(),
-        assertions: [{
-          ...request.assertions[0],
-          change_evidence: [{
-            ...request.assertions[0].change_evidence[0],
-            line_sha256: '0'.repeat(64),
-          }],
-        }],
+        assertions: [
+          {
+            ...request.assertions[0],
+            change_evidence: [
+              {
+                ...request.assertions[0].change_evidence[0],
+                line_sha256: '0'.repeat(64),
+              },
+            ],
+          },
+        ],
       }),
     ).rejects.toMatchObject({ status: 409 });
     expect((await listSourceChangeReviews(root)).reviews).toHaveLength(1);
@@ -273,7 +287,9 @@ it('retains changed and unchanged human reviews with exact bases, refuses stale 
     const captureStore = JSON.parse(captureStoreBytes.toString('utf8')) as any;
     captureStore.captures = captureStore.captures.filter((row: any) => row.id !== first.capture.id);
     await writeFile(captureStorePath, JSON.stringify(captureStore));
-    await expect(readSourceChangeReview(root, created.review.id)).rejects.toMatchObject({ status: 503 });
+    await expect(readSourceChangeReview(root, created.review.id)).rejects.toMatchObject({
+      status: 503,
+    });
     await writeFile(captureStorePath, captureStoreBytes);
     expect((await openSourceCapture(root, first.capture.id)).capture.text).toBe(
       'A retained statement.\nOld condition.',

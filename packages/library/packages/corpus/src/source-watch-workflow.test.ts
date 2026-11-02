@@ -27,20 +27,27 @@ it('checks exact watched sections across source descendants without rewriting ca
     'synthetic source-watch fixture',
   );
   try {
-    const sourceRef = (await exactOwnerRecord(root, {
-      owner: 'signals-ai', kind: 'lead', id: lead.id, revision: null, digest: null,
-    })).ref as RecordRef;
-    const capture = (text: string, observedAt: string, supersedes?: RecordRef) => createSourceCapture(
-      root,
-      {
-        source_ref: sourceRef,
-        mode: 'paste',
-        text,
-        observed_at: observedAt,
-        ...(supersedes ? { supersedes } : {}),
-      },
-      (ref) => resolveRef(root, ref),
-    );
+    const sourceRef = (
+      await exactOwnerRecord(root, {
+        owner: 'signals-ai',
+        kind: 'lead',
+        id: lead.id,
+        revision: null,
+        digest: null,
+      })
+    ).ref as RecordRef;
+    const capture = (text: string, observedAt: string, supersedes?: RecordRef) =>
+      createSourceCapture(
+        root,
+        {
+          source_ref: sourceRef,
+          mode: 'paste',
+          text,
+          observed_at: observedAt,
+          ...(supersedes ? { supersedes } : {}),
+        },
+        (ref) => resolveRef(root, ref),
+      );
     const start = '<!-- WATCHED SECTION START -->';
     const end = '<!-- WATCHED SECTION END -->';
     const first = await capture(
@@ -79,11 +86,19 @@ it('checks exact watched sections across source descendants without rewriting ca
     const request = {
       request_id: randomUUID(),
       label: 'Synthetic release status section',
-      rationale: 'Track the exact retained release-status section; outside text has no watch meaning.',
+      rationale:
+        'Track the exact retained release-status section; outside text has no watch meaning.',
       baseline_capture_ref: first.ref,
       start_marker: start,
       end_marker: end,
-      ignore_lines: ['Updated at: 08:00 UTC', 'Updated at: 09:00 UTC', 'Updated at: 10:00 UTC', 'Updated at: 11:00 UTC', 'Updated at: 12:00 UTC', 'Updated at: 13:00 UTC'],
+      ignore_lines: [
+        'Updated at: 08:00 UTC',
+        'Updated at: 09:00 UTC',
+        'Updated at: 10:00 UTC',
+        'Updated at: 11:00 UTC',
+        'Updated at: 12:00 UTC',
+        'Updated at: 13:00 UTC',
+      ],
     };
     const created = await createSourceWatch(root, request);
     expect(created.replayed).toBe(false);
@@ -92,8 +107,12 @@ it('checks exact watched sections across source descendants without rewriting ca
     const replay = await createSourceWatch(root, request);
     expect(replay.replayed).toBe(true);
     expect(replay.ref).toEqual(created.ref);
-    await expect(createSourceWatch(root, { ...request, rationale: 'Changed rationale under the old request identity.' }))
-      .rejects.toMatchObject({ status: 409, code: 'source_watch_changed' });
+    await expect(
+      createSourceWatch(root, {
+        ...request,
+        rationale: 'Changed rationale under the old request identity.',
+      }),
+    ).rejects.toMatchObject({ status: 409, code: 'source_watch_changed' });
 
     const cold = await readSourceWatch(root, created.watch.id);
     expect(cold.cold_read).toBe(true);
@@ -109,7 +128,8 @@ it('checks exact watched sections across source descendants without rewriting ca
       new_capture_ref: second.ref,
       ignored_counts: { baseline: 1, next: 1 },
     });
-    if (!("baseline_section" in unchanged)) throw new Error("Unchanged watch result has no comparable section data.");
+    if (!('baseline_section' in unchanged))
+      throw new Error('Unchanged watch result has no comparable section data.');
     expect(unchanged.baseline_section.text_sha256).toBe(unchanged.new_section.text_sha256);
     expect(first.capture.text).not.toBe(second.capture.text);
     expect(first.capture.text_sha256).not.toBe(second.capture.text_sha256);
@@ -123,26 +143,34 @@ it('checks exact watched sections across source descendants without rewriting ca
       new_capture_ref: third.ref,
       ignored_counts: { baseline: 1, next: 1 },
     });
-    if (!("diff" in changed)) throw new Error("Changed watch result has no section diff.");
+    if (!('diff' in changed)) throw new Error('Changed watch result has no section diff.');
     expect(changed.diff.added).toContain('Status: beta');
     expect(changed.diff.removed).toContain('Status: alpha');
-    expect(changed.new_section.line_map.every((line) => line.line_number > 1 && line.line_number < 9)).toBe(true);
-    expect(changed.new_section.line_map.every((line) => /^[a-f0-9]{64}$/.test(line.line_sha256))).toBe(true);
+    expect(
+      changed.new_section.line_map.every((line) => line.line_number > 1 && line.line_number < 9),
+    ).toBe(true);
+    expect(
+      changed.new_section.line_map.every((line) => /^[a-f0-9]{64}$/.test(line.line_sha256)),
+    ).toBe(true);
 
     const missing = await checkSourceWatch(root, created.ref, missingMarker.ref);
     expect(missing.status).toBe('unresolved');
-    if (!("reason" in missing)) throw new Error("Missing-marker result was not unresolved.");
+    if (!('reason' in missing)) throw new Error('Missing-marker result was not unresolved.');
     expect(missing.reason).toMatch(/marker/);
     const duplicate = await checkSourceWatch(root, created.ref, duplicatedMarker.ref);
     expect(duplicate.status).toBe('unresolved');
-    if (!("reason" in duplicate)) throw new Error("Duplicate-marker result was not unresolved.");
+    if (!('reason' in duplicate)) throw new Error('Duplicate-marker result was not unresolved.');
     expect(duplicate.reason).toMatch(/marker/);
     const brokenLineage = await checkSourceWatch(root, created.ref, disconnected.ref);
     expect(brokenLineage.status).toBe('unresolved');
-    if (!("reason" in brokenLineage)) throw new Error("Broken-lineage result was not unresolved.");
+    if (!('reason' in brokenLineage)) throw new Error('Broken-lineage result was not unresolved.');
     expect(brokenLineage.reason).toMatch(/descendant/);
     for (const result of [missing, duplicate, brokenLineage]) {
-      expect(result.qualification.some((item) => item.includes('no quiet unchanged result was inferred'))).toBe(true);
+      expect(
+        result.qualification.some((item) =>
+          item.includes('no quiet unchanged result was inferred'),
+        ),
+      ).toBe(true);
       expect(result.status).not.toBe('unchanged');
     }
     expect(await readFile(capturesPath)).toEqual(capturesBeforeWatch);
