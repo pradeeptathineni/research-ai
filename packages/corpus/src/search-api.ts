@@ -1543,11 +1543,7 @@ export function searchApi(
           throw new Error('invalid_entity_destination');
         json(
           200,
-          await inspectSavedEntity(
-            id,
-            root,
-            destination as 'public' | 'private' | undefined,
-          ),
+          await inspectSavedEntity(id, root, destination as 'public' | 'private' | undefined),
         );
       } else if (route === 'corpus' && !mutation)
         json(200, await loadEntities(resolve(root, 'signals/entities')));

@@ -10,8 +10,7 @@ export async function inspectSavedEntity(
   const selected = await selectSavedEntity(id, root, destination);
   const receipts = (await selectionHistory(root))
     .filter(
-      (receipt) =>
-        receipt.destination === selected.destination && receipt.selected.includes(id),
+      (receipt) => receipt.destination === selected.destination && receipt.selected.includes(id),
     )
     .sort((a, b) => a.at.localeCompare(b.at));
   const assessment = selected.record.entity.assessment;

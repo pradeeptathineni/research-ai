@@ -29,7 +29,11 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
     query: 'synthetic lead query',
     kind: 'one-off',
   };
-  const mismatchReceipt = { ...receipt, id: 'receipt-2', selected: ['entity-000000000000000000000000'] };
+  const mismatchReceipt = {
+    ...receipt,
+    id: 'receipt-2',
+    selected: ['entity-000000000000000000000000'],
+  };
   await writeFile(
     join(root, '.signals/selections.json'),
     JSON.stringify([receipt, mismatchReceipt]),
@@ -54,4 +58,3 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
     await rm(root, { recursive: true, force: true });
   }
 });
-

@@ -107,6 +107,10 @@ it('negotiates a portable owner boundary and reads exact partial answer bytes wi
     expect(metadata.capabilities.contracts).toContainEqual({ id: 'K13', versions: ['1.0'] });
     expect(metadata.capabilities.contracts).toContainEqual({ id: 'K14', versions: ['1.0'] });
     expect(metadata.capabilities.contracts).toContainEqual({
+      id: 'saved-entity-inspection',
+      versions: ['1.0'],
+    });
+    expect(metadata.capabilities.contracts).toContainEqual({
       id: 'smart-collections',
       versions: ['1.0'],
     });
@@ -115,6 +119,12 @@ it('negotiates a portable owner boundary and reads exact partial answer bytes wi
       target_kinds: ['exact_result_identity'],
       mutating: true,
       authority_required: true,
+    });
+    expect(metadata.capabilities.operations).toContainEqual({
+      name: 'inspect_saved_entity',
+      target_kinds: ['entity'],
+      mutating: false,
+      authority_required: false,
     });
     const narrative = 'Original partial answer Ω\r\nQualification remains unknown.';
     const run: SearchResult = {

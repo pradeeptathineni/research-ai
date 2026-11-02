@@ -208,6 +208,7 @@ export async function providerCapabilities(
       { id: 'private-collection', versions: ['1.0'] },
       { id: 'private-pdf-reader', versions: ['1.0'] },
       { id: 'private-document-intake', versions: ['1.0'] },
+      { id: 'saved-entity-inspection', versions: ['1.0'] },
       { id: 'briefing-sources-and-workbench', versions: ['1.1', '1.2', '1.3', '1.4'] },
       { id: 'smart-collections', versions: ['1.0'] },
       { id: 'frozen-followup-request', versions: ['1.0', '2.0'] },
@@ -270,6 +271,12 @@ export async function providerCapabilities(
       {
         name: 'read_private_documents',
         target_kinds: ['private_document'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'inspect_saved_entity',
+        target_kinds: ['entity'],
         mutating: false,
         authority_required: false,
       },
@@ -639,6 +646,8 @@ export async function providerCapabilities(
         'private-reader/bytes returns original PDF bytes only for a current exact document ref and raw hash; private-reader creates/reopens by UUID; private-reader/revise uses expected revision/digest CAS; private-reader/selection freezes only explicitly selected annotations. Routes retain session, loopback origin and owner epoch guards.',
       private_document_intake_route:
         'private-documents supports PDF text-layer, Markdown, inert HTML and plain-text imports. The private-document-intake v1 contract adds an idempotent import request and action-tagged correction preview/create on the same bounded route; corrections retain original bytes and exact parent refs in the existing immutable document store.',
+      saved_entity_inspection_route:
+        'GET saved-entity?id=<entity-id>&destination=private|public returns the exact saved entity record, its saved-versus-assessed status, Unknown confidence, matching save receipts and introducing run IDs. POST history/open with a receipt runId reopens its frozen run without new research.',
       supported_records:
         'Qualified retained runs, imported answers, native entities, selected leads and project records. Library summaries are bounded; process observations use provider/processes. No arbitrary paths or commands.',
     },

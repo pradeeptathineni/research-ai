@@ -1,16 +1,74 @@
 import { it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { join, resolve } from 'node:path';
-import { ComparisonView, AssessmentDerivation, FrozenDiscussion } from './candidate-views.js';
+import {
+  ComparisonView,
+  AssessmentDerivation,
+  FrozenDiscussion,
+  SavedEntityReview,
+} from './candidate-views.js';
 import { loadEntities } from '../../../packages/corpus/src/search-store.js';
+import { inspectSavedEntity } from '../../../packages/corpus/src/saved-entity-inspection.js';
 import { assessEntity } from '../../../packages/domain/src/search-score.js';
 import { saveLibraryLead } from '../../../packages/corpus/src/library-leads.js';
 import { loadLibrary } from '../../../packages/corpus/src/library.js';
 import { loadPublicCorpus } from '../../../packages/corpus/src/public-corpus.js';
-import { projectLegacyLibrary } from '../../../packages/domain/src/library-search.js';
+import {
+  projectLegacyLibrary,
+  projectNativeLibrary,
+} from '../../../packages/domain/src/library-search.js';
+
+it('shows a saved entity separately from its assessment and exposes its frozen run and evidence receipt', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'signals-saved-entity-review-')));
+  const source = (await loadEntities(resolve('signals/entities')))[0]!;
+  const record = { ...structuredClone(source), state: 'user-saved' as const };
+  await mkdir(join(root, '.signals/corpus/entities'), { recursive: true });
+  await mkdir(join(root, '.signals'), { recursive: true });
+  await writeFile(
+    join(root, '.signals/corpus/entities', `${record.entity.id}.json`),
+    JSON.stringify(record),
+  );
+  await writeFile(
+    join(root, '.signals/selections.json'),
+    JSON.stringify([
+      {
+        id: 'selection-receipt',
+        at: '2026-11-02T00:00:00Z',
+        mode: 'manual',
+        destination: 'private',
+        selected: [record.entity.id],
+        changed: [record.entity.id],
+        skipped: [],
+        runId: randomUUID(),
+        query: 'synthetic entity vetting',
+        kind: 'one-off',
+      },
+    ]),
+  );
+  try {
+    const inspection = await inspectSavedEntity(record.entity.id, root, 'private');
+    const markup = renderToStaticMarkup(
+      <SavedEntityReview
+        finding={projectNativeLibrary(record, 'private')}
+        inspection={{ loading: false, data: inspection }}
+        onReopenResearch={() => {}}
+      />,
+    );
+    expect(markup).toContain('Saved manually');
+    expect(markup).toContain('assessed finding');
+    expect(markup).toContain('Confidence in this assessment: Unknown');
+    expect(markup).toContain('not a probability');
+    expect(markup).toContain('Exact retained evidence');
+    expect(markup).toContain(record.entity.evidence[0]!.id);
+    expect(markup).toContain('synthetic entity vetting');
+    expect(markup).toContain('Reopen frozen research run');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 it('renders deterministic discussion omissions and Unknown confidence when model prose omits them', () => {
   const markup = renderToStaticMarkup(
