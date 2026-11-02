@@ -16,6 +16,7 @@
     "smart-collections": "node --import tsx scripts/smart-collections.ts",
     "source-captures": "node --import tsx scripts/source-captures.ts",
     "source-change-reviews": "node --import tsx scripts/source-change-reviews.ts",
+    "source-watches": "node --import tsx scripts/source-watches.ts",
     "project-topic-relevance": "node --import tsx scripts/project-topic-relevance.ts",
     "private-documents": "node --import tsx scripts/private-documents.ts",
     "private-collection": "node --import tsx scripts/private-collection.ts",
