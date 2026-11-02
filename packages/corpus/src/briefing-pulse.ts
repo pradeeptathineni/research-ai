@@ -38,8 +38,12 @@ export function summarizeBriefingPulse(
   return [...groups.values()]
     .map((rows): SocialPulseSummary => {
       const instants = new Map<number, MetricObservation[]>();
+      const hasUnrepresentableInstant = rows.some(
+        (row) => !Number.isFinite(Date.parse(row.observedAt)),
+      );
       for (const row of rows) {
         const instant = Date.parse(row.observedAt);
+        if (!Number.isFinite(instant)) continue;
         instants.set(instant, [...(instants.get(instant) ?? []), row]);
       }
       const points = [...instants.entries()]
@@ -49,6 +53,25 @@ export function summarizeBriefingPulse(
           observations: observations.sort((a, b) => a.id.localeCompare(b.id)),
           values: new Set(observations.map((observation) => observation.value)),
         }));
+      if (hasUnrepresentableInstant) {
+        const first = rows[0]!;
+        return {
+          itemId: first.itemId,
+          platform: first.platform,
+          name: first.name,
+          scope: first.scope,
+          method: first.method,
+          sourceRef: first.sourceRef,
+          latestValue: null,
+          latestObservedAt: null,
+          observationCount: points.length,
+          firstObservedAt: null,
+          delta: null,
+          elapsedHours: null,
+          perHour: null,
+          status: 'ambiguous-observations',
+        };
+      }
       const firstPoint = points[0]!;
       const lastPoint = points.at(-1)!;
       const first = firstPoint.observations[0]!;

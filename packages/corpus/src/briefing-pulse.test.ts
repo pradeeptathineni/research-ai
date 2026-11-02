@@ -93,6 +93,43 @@ describe('Briefing social pulse', () => {
     });
   });
 
+  it('fails closed on date-times JavaScript cannot order without changing the raw rows', () => {
+    const mixed = [
+      metric('leap', 'mixed-time', 'hn', 'points', 7, '2016-12-31T23:59:60Z'),
+      metric('valid-early', 'mixed-time', 'hn', 'points', 5, '2016-12-31T23:59:59Z'),
+      metric('valid-late', 'mixed-time', 'hn', 'points', 10, '2026-11-01T10:00:00Z'),
+    ];
+    const original = structuredClone(mixed);
+    const [summary] = summarizeBriefingPulse(mixed);
+    expect(mixed).toEqual(original);
+    expect(summary).toMatchObject({
+      status: 'ambiguous-observations',
+      latestValue: null,
+      latestObservedAt: null,
+      firstObservedAt: null,
+      observationCount: 2,
+      delta: null,
+      elapsedHours: null,
+      perHour: null,
+    });
+
+    const allUnrepresentable = summarizeBriefingPulse([
+      metric('leap-a', 'invalid-time', 'hn', 'points', 7, '2016-12-31T23:59:60Z'),
+      metric('leap-b', 'invalid-time', 'hn', 'points', 10, '2026-12-31T23:59:60Z'),
+    ]);
+    expect(allUnrepresentable).toHaveLength(1);
+    expect(allUnrepresentable[0]).toMatchObject({
+      status: 'ambiguous-observations',
+      latestValue: null,
+      latestObservedAt: null,
+      firstObservedAt: null,
+      observationCount: 0,
+      delta: null,
+      elapsedHours: null,
+      perHour: null,
+    });
+  });
+
   it('keeps different methods, source references, and instance scopes in separate streams', () => {
     const rows = summarizeBriefingPulse([
       {
