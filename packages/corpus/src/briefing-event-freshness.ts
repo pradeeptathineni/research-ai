@@ -62,7 +62,7 @@ function eventScore(event: Event, now: number, halfLifeDays: number): number | n
     return null;
   if (end !== null && start <= now && now < end) return 100;
   if (end !== null && end <= now) return 0;
-  if (start <= now) return 0;
+  if (start < now) return 0;
   return 100 * 2 ** (-((start - now) / DAY) / halfLifeDays);
 }
 

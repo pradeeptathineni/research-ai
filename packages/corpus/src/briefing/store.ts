@@ -504,6 +504,8 @@ function makeApi(root: string): BriefingReadApi {
         const events = state.events.filter(
           (event) => event.itemId !== undefined && memberItemIds.has(event.itemId),
         );
+        if (events.length > 100)
+          throw new Error('briefing_story_event_limit_exceeded');
         return [
           {
             story,

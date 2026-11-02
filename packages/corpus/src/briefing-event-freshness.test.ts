@@ -62,6 +62,10 @@ describe('Briefing event freshness', () => {
       briefingEventFreshness([timed({ startUtc: '2026-11-02T11:00:00.000Z' })], [target], now)
         .value,
     ).toBe(0);
+    expect(
+      briefingEventFreshness([timed({ startUtc: '2026-11-02T12:00:00.000Z' })], [target], now)
+        .value,
+    ).toBe(100);
   });
 
   it('compares all-day dates in the event zone and honors exclusive endDate', () => {
