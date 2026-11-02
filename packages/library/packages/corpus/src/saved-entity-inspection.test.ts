@@ -62,9 +62,15 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
     selected: ['entity-000000000000000000000000'],
   };
   const malformedQueryIdReceipt = { ...selectionHistory[0], queryId: 42 };
+  const laterSkippedSelection = {
+    ...selectionHistory[0],
+    id: 'receipt-repeat',
+    changed: [],
+    skipped: [record.entity.id],
+  };
   await writeFile(
     join(root, '.signals/selections.json'),
-    JSON.stringify([malformedQueryIdReceipt, mismatchReceipt]),
+    JSON.stringify([malformedQueryIdReceipt, laterSkippedSelection, mismatchReceipt]),
   );
   try {
     const inspected = await inspectSavedEntity(record.entity.id, root, 'private');
@@ -79,6 +85,13 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
           runId: run.runId,
           query: run.query,
           mode: 'manual',
+          destination: 'private',
+          selectionEffect: 'changed',
+          reopenStatus: 'available',
+        },
+        {
+          destination: 'private',
+          selectionEffect: 'skipped',
           reopenStatus: 'available',
         },
       ],
@@ -86,7 +99,7 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
     });
     expect(inspected.record).toEqual(record);
     expect(inspected.record.entity.evidence).toEqual(record.entity.evidence);
-    expect(inspected.receipts.map(({ id }) => id)).toEqual([receipt.id]);
+    expect(inspected.receipts.map(({ id }) => id)).toEqual([receipt.id, 'receipt-repeat']);
     expect(inspected.receipts[0]).not.toHaveProperty('queryId');
     expect((await loadRun(run.runId, root)).items[0]?.entity.id).toBe(record.entity.id);
     expect(await readFile(recordPath, 'utf8')).toBe(exactRecordBytes);
@@ -128,7 +141,7 @@ it('keeps a saved record inspectable when its recorded frozen run is missing', a
     expect(inspected.receipts).toMatchObject([
       {
         reopenStatus: 'unavailable',
-        reopenReason: 'The frozen introducing run is no longer retained.',
+        reopenReason: 'The frozen selection run is no longer retained.',
       },
     ]);
   } finally {
@@ -198,7 +211,7 @@ it('marks a malformed noncanonical run ID as a conflict without dropping its rec
       {
         runId: '------------------------------------',
         reopenStatus: 'conflict',
-        reopenReason: 'The recorded introducing run ID is invalid.',
+        reopenReason: 'The recorded selection run ID is invalid.',
       },
     ]);
   } finally {

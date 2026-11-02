@@ -5,6 +5,8 @@ export type SavedEntityReceipt = {
   id: string;
   at: string;
   mode: string;
+  destination: 'public' | 'private';
+  selectionEffect: 'changed' | 'skipped' | 'selected';
   runId: string;
   query: string;
   kind: string;
@@ -22,7 +24,7 @@ export function projectAssessmentState(state: unknown) {
 
 const canonicalRunId = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
 
-/** Read-only view joining a canonical saved record to the receipt that introduced it. */
+/** Read-only view joining a canonical saved record to its exact selection receipts. */
 export async function inspectSavedEntity(
   id: string,
   root: string,
@@ -43,6 +45,13 @@ export async function inspectSavedEntity(
         id: typeof receipt.id === 'string' ? receipt.id : `invalid-selection-${index}`,
         at: typeof receipt.at === 'string' ? receipt.at : '',
         mode: typeof receipt.mode === 'string' ? receipt.mode : 'unknown',
+        destination: selected.destination,
+        selectionEffect:
+          Array.isArray(receipt.changed) && receipt.changed.includes(id)
+            ? ('changed' as const)
+            : Array.isArray(receipt.skipped) && receipt.skipped.includes(id)
+              ? ('skipped' as const)
+              : ('selected' as const),
         runId: typeof receipt.runId === 'string' ? receipt.runId : '',
         query: typeof receipt.query === 'string' ? receipt.query : '',
         kind: typeof receipt.kind === 'string' ? receipt.kind : 'unknown',
@@ -54,7 +63,7 @@ export async function inspectSavedEntity(
         return {
           ...projected,
           reopenStatus: 'conflict',
-          reopenReason: 'The recorded introducing run ID is invalid.',
+          reopenReason: 'The recorded selection run ID is invalid.',
         };
       try {
         const run = await loadRun(receipt.runId, root);
@@ -71,7 +80,7 @@ export async function inspectSavedEntity(
           reopenStatus: 'unavailable',
           reopenReason:
             error instanceof Error && error.message === 'unknown_retained_run'
-              ? 'The frozen introducing run is no longer retained.'
+              ? 'The frozen selection run is no longer retained.'
               : 'The recorded frozen run cannot be validated or reopened.',
         };
       }
