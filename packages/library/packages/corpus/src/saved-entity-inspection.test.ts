@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadEntities, loadRun, retainRun, saveEntities } from './search-store.js';
-import { inspectSavedEntity } from './saved-entity-inspection.js';
+import { inspectSavedEntity, projectAssessmentState } from './saved-entity-inspection.js';
 import { budgets, type SearchResult } from '../../domain/src/search-contract.js';
 
 it('shows a privately saved assessed finding with its exact record and saved-search receipt', async () => {
@@ -61,9 +61,10 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
     id: 'receipt-2',
     selected: ['entity-000000000000000000000000'],
   };
+  const malformedQueryIdReceipt = { ...selectionHistory[0], queryId: 42 };
   await writeFile(
     join(root, '.signals/selections.json'),
-    JSON.stringify([...selectionHistory, mismatchReceipt]),
+    JSON.stringify([malformedQueryIdReceipt, mismatchReceipt]),
   );
   try {
     const inspected = await inspectSavedEntity(record.entity.id, root, 'private');
@@ -86,6 +87,7 @@ it('shows a privately saved assessed finding with its exact record and saved-sea
     expect(inspected.record).toEqual(record);
     expect(inspected.record.entity.evidence).toEqual(record.entity.evidence);
     expect(inspected.receipts.map(({ id }) => id)).toEqual([receipt.id]);
+    expect(inspected.receipts[0]).not.toHaveProperty('queryId');
     expect((await loadRun(run.runId, root)).items[0]?.entity.id).toBe(record.entity.id);
     expect(await readFile(recordPath, 'utf8')).toBe(exactRecordBytes);
     expect(await loadEntities(join(root, 'signals/entities'))).toEqual([]);
@@ -127,6 +129,76 @@ it('keeps a saved record inspectable when its recorded frozen run is missing', a
       {
         reopenStatus: 'unavailable',
         reopenReason: 'The frozen introducing run is no longer retained.',
+      },
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('fails closed on unsupported assessment states and the loader rejects malformed saved assessments', async () => {
+  expect(() => projectAssessmentState('future-state')).toThrow('unsupported_assessment_state');
+  expect(() => projectAssessmentState(undefined)).toThrow('unsupported_assessment_state');
+
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'saved-entity-invalid-assessment-')));
+  const [source] = await loadEntities(resolve('signals/entities'));
+  if (!source) throw new Error('missing_native_fixture');
+  const id = source.entity.id;
+  await mkdir(join(root, '.signals/corpus/entities'), { recursive: true });
+  try {
+    for (const state of ['future-state', undefined] as const) {
+      const entity = structuredClone(source.entity) as unknown as Record<string, unknown>;
+      const assessment = { ...(entity.assessment as Record<string, unknown>) };
+      if (state === undefined) delete assessment.state;
+      else assessment.state = state;
+      entity.assessment = assessment;
+      await writeFile(
+        join(root, '.signals/corpus/entities', `${id}.json`),
+        JSON.stringify({ recordVersion: 2, entity, state: 'user-saved' }),
+      );
+      await expect(inspectSavedEntity(id, root, 'private')).rejects.toThrow(
+        'invalid_entity_schema',
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('marks a malformed noncanonical run ID as a conflict without dropping its receipt', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'saved-entity-malformed-run-')));
+  const [source] = await loadEntities(resolve('signals/entities'));
+  if (!source) throw new Error('missing_native_fixture');
+  const record = { ...structuredClone(source), state: 'user-saved' as const };
+  const id = record.entity.id;
+  await mkdir(join(root, '.signals/corpus/entities'), { recursive: true });
+  await mkdir(join(root, '.signals'), { recursive: true });
+  await writeFile(join(root, '.signals/corpus/entities', `${id}.json`), JSON.stringify(record));
+  await writeFile(
+    join(root, '.signals/selections.json'),
+    JSON.stringify([
+      {
+        id: 'malformed-run-selection',
+        at: '2026-11-02T00:00:00Z',
+        mode: 'manual',
+        destination: 'private',
+        selected: [id],
+        changed: [id],
+        skipped: [],
+        runId: '------------------------------------',
+        query: 'old research',
+        kind: 'one-off',
+      },
+    ]),
+  );
+  try {
+    const inspected = await inspectSavedEntity(id, root, 'private');
+    expect(inspected.record).toEqual(record);
+    expect(inspected.receipts).toMatchObject([
+      {
+        runId: '------------------------------------',
+        reopenStatus: 'conflict',
+        reopenReason: 'The recorded introducing run ID is invalid.',
       },
     ]);
   } finally {
