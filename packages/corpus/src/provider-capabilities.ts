@@ -196,6 +196,7 @@ export async function providerCapabilities(
       ...['K01', 'K12', 'K13', 'K14', 'K15'].map((id) => ({ id, versions: ['1.0'] })),
       { id: 'library-explore', versions: ['1.0'] },
       { id: 'source-capture', versions: ['1.0'] },
+      { id: 'source-archive', versions: ['1.0'] },
       { id: 'source-change-review', versions: ['1.0'] },
       { id: 'source-watch', versions: ['1.0'] },
       { id: 'project-topic-relevance', versions: ['1.0'] },
@@ -370,6 +371,24 @@ export async function providerCapabilities(
       {
         name: 'read_source_captures',
         target_kinds: ['source_capture', 'source_annotation'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'create_source_archive',
+        target_kinds: ['source_capture'],
+        mutating: true,
+        authority_required: true,
+      },
+      {
+        name: 'read_source_archive',
+        target_kinds: ['source-archive', 'source_capture'],
+        mutating: false,
+        authority_required: false,
+      },
+      {
+        name: 'read_source_archive_request',
+        target_kinds: ['source_capture'],
         mutating: false,
         authority_required: false,
       },

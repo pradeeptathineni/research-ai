@@ -27,6 +27,12 @@ import {
   SourceWatchError,
 } from './source-watches.js';
 import {
+  createSourceArchive,
+  readSourceArchive,
+  readSourceArchiveRequest,
+  SourceArchiveError,
+} from './source-archives.js';
+import {
   createProjectTopicRelevance,
   listProjectTopicRelevance,
   previewProjectTopicRelevance,
@@ -563,6 +569,8 @@ export function searchApi(
       } else if (
         route === 'source-captures' ||
         route.startsWith('source-captures/') ||
+        route === 'source-archives' ||
+        route.startsWith('source-archives/') ||
         route === 'source-annotations'
       ) {
         await validateProcessObserver(
@@ -623,7 +631,62 @@ export function searchApi(
           };
         };
         const routeParams = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        if (route === 'source-captures' && mutation) {
+        if (route === 'source-archives' && mutation) {
+          if (routeParams.size)
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive creation does not accept query fields.',
+            );
+          json(
+            201,
+            await createSourceArchive(root, body, resolveSource, {
+              readBriefingContext,
+              ...(sourceCaptureFetcher ? { fetcher: sourceCaptureFetcher } : {}),
+            }),
+          );
+        } else if (/^source-archives\/requests\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (routeParams.size)
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive request readback does not accept query fields.',
+            );
+          json(200, await readSourceArchiveRequest(root, route.split('/')[2]!));
+        } else if (/^source-archives\/[a-f0-9-]{36}$/.test(route) && !mutation) {
+          if (
+            [...routeParams.keys()].some((key) => key !== 'ref') ||
+            routeParams.getAll('ref').length !== 1
+          )
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive reopen requires one exact capture RecordRef.',
+            );
+          let captureRef: unknown;
+          try {
+            captureRef = JSON.parse(routeParams.get('ref')!);
+          } catch {
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'ref must be URL-encoded closed source-capture RecordRef JSON.',
+            );
+          }
+          if (
+            !captureRef ||
+            typeof captureRef !== 'object' ||
+            Array.isArray(captureRef) ||
+            (captureRef as Record<string, unknown>).kind !== 'source_capture' ||
+            (captureRef as Record<string, unknown>).id !== route.split('/')[1]
+          )
+            throw new SourceArchiveError(
+              400,
+              'invalid_source_archive_request',
+              'Archive path UUID must match the exact source-capture RecordRef.',
+            );
+          json(200, await readSourceArchive(root, captureRef));
+        } else if (route === 'source-captures' && mutation) {
           if (routeParams.size)
             throw new SourceCaptureError(
               400,
@@ -2074,6 +2137,10 @@ export function searchApi(
         return true;
       }
       if (failure instanceof SourceCaptureError) {
+        json(failure.status, { code: failure.code, reason: failure.reason });
+        return true;
+      }
+      if (failure instanceof SourceArchiveError) {
         json(failure.status, { code: failure.code, reason: failure.reason });
         return true;
       }
