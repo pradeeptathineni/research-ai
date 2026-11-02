@@ -149,10 +149,11 @@ describe('JSON Feed HTTP media compatibility', () => {
     expect((await api.listSources())[0]?.record.termsRef).not.toBeNull();
   });
 
-  it('does not accept unrelated vendor +json media types as feed documents', async () => {
-    respond('application/vnd.example.payload+json', JSON.stringify(feed));
-    await expect(fetchEvidence('https://feeds.example.test/data.json')).rejects.toThrow(
-      'unsupported_content',
-    );
+  it('keeps vendor +json responses available to generic JSON evidence retrieval', async () => {
+    const payload = { result: { state: 'ready' }, cursor: 'next-page' };
+    respond('application/vnd.example.payload+json', JSON.stringify(payload));
+    const fetched = await fetchEvidence('https://feeds.example.test/data.json');
+    expect(fetched.json).toEqual(payload);
+    expect(fetched.material).toBeUndefined();
   });
 });
