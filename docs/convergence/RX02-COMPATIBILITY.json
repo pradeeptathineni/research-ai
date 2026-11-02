@@ -312,8 +312,8 @@
     "originalLibraryLockSha256": "6825a1a769e111dcc90b5d249b857730a28376e559101f27d0fb22a371db7dfa"
   },
   "qualificationLimits": [
-    "The explicit workspace guard in this isolated clone cannot complete because node_modules/@pradeeptathineni/research-ai is absent; no package install or link workaround was used.",
-    "Final 17af801 full ESLint (zero errors), TypeScript, release, corpus, format and production build passed. quality:structure still fails on baseline Knip unused exports; jscpd count improved from 21 at baseline73 to 20. One projects listener test is blocked by sandbox EPERM. External npm audit was automatically rejected because of dependency metadata disclosure and was not retried; the full verify gate is not passed."
+    "A fresh isolated clone of this exact workspace completed normal offline npm ci without source or lock edits; its declared Methods link passed the explicit workspace guard for 28 pinned versions and reviewed licenses.",
+    "Final 17af801 full ESLint (zero errors), TypeScript, release, corpus, format, production build and user-approved external npm audit passed. quality:structure still fails on baseline Knip unused exports; jscpd count improved from 21 at baseline73 to 20. One projects listener test is blocked by sandbox EPERM; the full verify gate is not passed."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
@@ -379,8 +379,8 @@
     },
     "explicitWorkspaceDependencyGuard": {
       "command": "node packages/library/scripts/dependency-check.mjs with explicit workspace environment",
-      "result": "blocked",
-      "reason": "ENOENT: isolated clone has no node_modules/@pradeeptathineni/research-ai workspace link; no installation or link creation performed"
+      "result": "passed in fresh isolated clone after normal offline npm ci --no-audit --ignore-scripts",
+      "verified": "28 exact direct versions and reviewed licenses; source and lock unchanged"
     },
     "fullVerify": "Not passed on final source; see libraryFinalGateEvidence."
   },
@@ -410,7 +410,7 @@
       "result": "blocked",
       "reason": "EPERM from sandbox"
     },
-    "fullVerify": "not passed; quality:structure baseline Knip findings, projects listener EPERM, and external npm audit rejection remain.",
+    "fullVerify": "not passed; quality:structure baseline Knip findings and projects listener EPERM remain.",
     "qualityStructure": {
       "result": "fail",
       "knip": "same unused-export findings as baseline 73e9925",
@@ -420,8 +420,8 @@
       }
     },
     "externalNpmAudit": {
-      "result": "automatically rejected",
-      "reason": "dependency metadata disclosure; not retried"
+      "result": "passed after specific user approval",
+      "finding": "no high or critical advisories; no dependency change"
     }
   }
 }
