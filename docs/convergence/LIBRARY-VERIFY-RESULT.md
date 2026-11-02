@@ -1,5 +1,7 @@
 # Library verify result for RX02
 
+The final Knip comparison has the baseline unused-export findings plus one additional finding for the pre-existing exported `SourceCaptureScope` type, now unused internally after a redundant assertion was removed. Its export remains for compatibility.
+
 This historical full-gate result applies to Library source 3cfd39. It remains the only recorded full `verify` invocation that reached lint; later source successors are covered by separate checks below, not by a full-gate pass. The full gate was run once on 2 November 2026 with Node 24.19.0/npm 12.1.0 from the isolated RX02 workspace, using `npm run verify --workspace signals-ai` and the explicit workspace manifest/lock environment. It exited 1 at lint.
 
 Passed before the stop:

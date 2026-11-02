@@ -313,7 +313,7 @@
   },
   "qualificationLimits": [
     "A fresh isolated clone of this exact workspace completed normal offline npm ci without source or lock edits; its declared Methods link passed the explicit workspace guard for 28 pinned versions and reviewed licenses.",
-    "Final 17af801 full ESLint (zero errors), TypeScript, release, corpus, format, production build and user-approved external npm audit passed. quality:structure still fails on baseline Knip unused exports; jscpd count improved from 21 at baseline73 to 20. One projects listener test is blocked by sandbox EPERM; the full verify gate is not passed."
+    "Final 17af801 full ESLint (zero errors), TypeScript, release, corpus, format, production build and user-approved external npm audit passed. quality:structure still fails on baseline Knip findings plus the pre-existing SourceCaptureScope export now unused internally; jscpd count improved from 21 at baseline73 to 20. One projects listener test is blocked by sandbox EPERM; the full verify gate is not passed."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
@@ -410,10 +410,10 @@
       "result": "blocked",
       "reason": "EPERM from sandbox"
     },
-    "fullVerify": "not passed; quality:structure baseline Knip findings and projects listener EPERM remain.",
+    "fullVerify": "not passed; quality:structure baseline findings plus one newly unused internal reference, and projects listener EPERM remain.",
     "qualityStructure": {
       "result": "fail",
-      "knip": "same unused-export findings as baseline 73e9925",
+      "knip": "baseline unused-export findings plus pre-existing exported SourceCaptureScope type, now unused internally after redundant assertion removal; external API preserved",
       "jscpd": {
         "baselineDuplicateCount": 21,
         "candidateDuplicateCount": 20
