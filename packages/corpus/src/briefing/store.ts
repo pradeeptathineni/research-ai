@@ -500,11 +500,16 @@ function makeApi(root: string): BriefingReadApi {
           ];
         });
         if (!members.length) return [];
+        const memberItemIds = new Set(members.map((member) => member.item.id));
+        const events = state.events.filter(
+          (event) => event.itemId !== undefined && memberItemIds.has(event.itemId),
+        );
         return [
           {
             story,
             storyReference: recordRef(story, 'briefing-story', story.id).reference,
             items: members,
+            ...(events.length ? { events } : {}),
             metrics: [
               ...new Map(
                 [
@@ -712,9 +717,10 @@ export async function briefingRecordBytes(
   id: string,
 ) {
   const state = await readState(root);
-  const record = kind === 'briefing-item'
-    ? state.items.find((item) => item.id === id)
-    : (await projectedSources(root, state)).find((source) => source.id === id);
+  const record =
+    kind === 'briefing-item'
+      ? state.items.find((item) => item.id === id)
+      : (await projectedSources(root, state)).find((source) => source.id === id);
   if (!record) {
     const error = new Error('briefing_record_not_found');
     Object.assign(error, { status: 404, code: 'briefing_record_not_found' });
@@ -755,7 +761,9 @@ export async function readBriefingCaptureContext(
     Object.assign(error, { status: 409, code: 'briefing_item_changed' });
     throw error;
   }
-  const source = (await projectedSources(root, state)).find((candidate) => candidate.id === item.sourceId);
+  const source = (await projectedSources(root, state)).find(
+    (candidate) => candidate.id === item.sourceId,
+  );
   if (!source) {
     const error = new Error('briefing_source_missing');
     Object.assign(error, { status: 404, code: 'briefing_source_missing' });

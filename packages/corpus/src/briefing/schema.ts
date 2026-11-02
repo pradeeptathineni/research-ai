@@ -340,6 +340,7 @@ export const BriefingRankInputSchema = Type.Object(
     story: StorySchema,
     storyReference: BriefingRecordReferenceSchema,
     items: Type.Array(BriefingRankItemInputSchema, { minItems: 1, maxItems: 100 }),
+    events: Type.Optional(Type.Array(EventSchema, { maxItems: 100 })),
     metrics: Type.Array(MetricObservationSchema, { maxItems: 1000 }),
     feedback: Type.Array(FeedbackSchema, { maxItems: 100 }),
   },
