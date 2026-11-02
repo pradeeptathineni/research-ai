@@ -81,7 +81,8 @@ describe('Briefing S0′ schema agreement', () => {
   it('uses append-only D3 feedback with exact undo identity', () => {
     expect(Value.Check(FeedbackSchema, feedbackFixture)).toBe(true);
     expect(Value.Check(FeedbackSchema, undoFixture)).toBe(true);
-    const { undoesFeedbackId: _omitted, ...invalidUndo } = undoFixture;
+    const { undoesFeedbackId: omittedFeedbackId, ...invalidUndo } = undoFixture;
+    expect(omittedFeedbackId).toBe(undoFixture.undoesFeedbackId);
     expect(Value.Check(FeedbackSchema, invalidUndo)).toBe(false);
   });
 

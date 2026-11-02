@@ -782,8 +782,9 @@ async function ownedBytes(
       return { bytes: await briefingRecordBytes(root, kind, id), storage: 'briefing_record' };
     } catch (error) {
       if (error && typeof error === 'object' && 'status' in error) {
-        const status = Number((error as { status: unknown }).status);
-        const code = String((error as { code?: unknown }).code ?? 'briefing_record_unavailable');
+        const status = Number(error.status);
+        const rawCode = 'code' in error ? error.code : undefined;
+        const code = typeof rawCode === 'string' ? rawCode : 'briefing_record_unavailable';
         if (status === 404) fail(404, code, 'The exact Briefing record is missing.');
       }
       fail(

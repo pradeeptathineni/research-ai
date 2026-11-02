@@ -68,7 +68,8 @@ describe('event-bound rank inputs', () => {
     const api = createBriefingApi(root);
     const sourceId = (await api.listSources())[0]!.record.id;
     const item = { ...itemFixture, sourceId };
-    const { itemId: _unboundItemId, ...unbound } = allDayEventFixture;
+    const { itemId: unboundItemId, ...unbound } = allDayEventFixture;
+    expect(unboundItemId).toBe(allDayEventFixture.itemId);
     const unrelated = { ...timedEventFixture, id: 'event-other', itemId: 'other-item' };
     const bound = { ...timedEventFixture, id: 'event-bound', itemId: item.id };
     await retainBriefingRecords(root, {

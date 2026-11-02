@@ -7,6 +7,7 @@ import { createBriefingApi, retainBriefingRecords } from './store.js';
 import { briefingRoute } from './http.js';
 import { itemFixture, storyFixture } from './fixtures.js';
 import type { Item, MetricObservation, Story } from './schema.js';
+import type { SocialPulseSummary } from '../briefing-pulse.js';
 
 const roots: string[] = [];
 afterEach(async () =>
@@ -113,16 +114,18 @@ describe('Briefing social pulse owner workflow', () => {
       const response = await briefingRoute(root, 'briefing/workbench', false, undefined, 0);
       expect(response?.status).toBe(200);
       const ranked = (
-        response!.body as { ranked: Array<{ input: { story: Story }; socialPulse: Array<any> }> }
+        response!.body as {
+          ranked: Array<{ input: { story: Story }; socialPulse: SocialPulseSummary[] }>;
+        }
       ).ranked;
       return Object.fromEntries(
         ranked.map(({ input, socialPulse }) => [input.story.representativeItemId, socialPulse]),
       );
     };
     const before = await readPulse();
-    expect(before['item-a']!.every((entry: any) => entry.itemId === 'item-a')).toBe(true);
+    expect(before['item-a']!.every((entry) => entry.itemId === 'item-a')).toBe(true);
     const pulse = (itemId: string, method = 'feed') =>
-      before[itemId]!.find((entry: any) => entry.method === method);
+      before[itemId]!.find((entry) => entry.method === method);
     expect(pulse('item-a')).toMatchObject({
       itemId: 'item-a',
       scope: 'item',

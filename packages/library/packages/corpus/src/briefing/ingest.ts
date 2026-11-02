@@ -400,14 +400,21 @@ function parseHackerNewsItem(
 function localTimeToUtc(value: string, zone: string) {
   const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/.exec(value);
   if (!match) throw new Error('invalid_ics_datetime');
-  const wanted = match.slice(1).map(Number);
+  const wanted = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number(match[4]),
+    minute: Number(match[5]),
+    second: Number(match[6]),
+  };
   let candidate = Date.UTC(
-    wanted[0]!,
-    wanted[1]! - 1,
-    wanted[2]!,
-    wanted[3]!,
-    wanted[4]!,
-    wanted[5]!,
+    wanted.year,
+    wanted.month - 1,
+    wanted.day,
+    wanted.hour,
+    wanted.minute,
+    wanted.second,
   );
   const format = new Intl.DateTimeFormat('en-CA', {
     timeZone: zone,
@@ -423,43 +430,59 @@ function localTimeToUtc(value: string, zone: string) {
     const parts = Object.fromEntries(
       format.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]),
     );
-    return [
-      Number(parts.year),
-      Number(parts.month),
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-      Number(parts.second),
-    ];
+    return {
+      year: Number(parts.year),
+      month: Number(parts.month),
+      day: Number(parts.day),
+      hour: Number(parts.hour),
+      minute: Number(parts.minute),
+      second: Number(parts.second),
+    };
   };
   for (let index = 0; index < 4; index++) {
     const local = partsAt(candidate);
     const represented = Date.UTC(
-      local[0]!,
-      local[1]! - 1,
-      local[2]!,
-      local[3]!,
-      local[4]!,
-      local[5]!,
+      local.year,
+      local.month - 1,
+      local.day,
+      local.hour,
+      local.minute,
+      local.second,
     );
     const target = Date.UTC(
-      wanted[0]!,
-      wanted[1]! - 1,
-      wanted[2]!,
-      wanted[3]!,
-      wanted[4]!,
-      wanted[5]!,
+      wanted.year,
+      wanted.month - 1,
+      wanted.day,
+      wanted.hour,
+      wanted.minute,
+      wanted.second,
     );
     const delta = target - represented;
     if (delta === 0) break;
     candidate += delta;
   }
-  if (partsAt(candidate).some((part, index) => part !== wanted[index]))
+  const resolved = partsAt(candidate);
+  if (
+    resolved.year !== wanted.year ||
+    resolved.month !== wanted.month ||
+    resolved.day !== wanted.day ||
+    resolved.hour !== wanted.hour ||
+    resolved.minute !== wanted.minute ||
+    resolved.second !== wanted.second
+  )
     throw new Error('ics_nonexistent_local_time');
-  const ambiguous = [-3600000, 3600000].some(
-    (shift) =>
-      shift !== 0 && partsAt(candidate + shift).every((part, index) => part === wanted[index]),
-  );
+  const ambiguous = [-3600000, 3600000].some((shift) => {
+    const shifted = partsAt(candidate + shift);
+    return (
+      shift !== 0 &&
+      shifted.year === wanted.year &&
+      shifted.month === wanted.month &&
+      shifted.day === wanted.day &&
+      shifted.hour === wanted.hour &&
+      shifted.minute === wanted.minute &&
+      shifted.second === wanted.second
+    );
+  });
   return { timestamp: new Date(candidate).toISOString(), ambiguous };
 }
 
@@ -589,9 +612,14 @@ export function parseJsonFeed(
     const url = new URL(link);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return [];
     const excerpt = typeof value.content_text === 'string' ? value.content_text.slice(0, 5000) : '';
+    const authors: unknown = value.authors;
+    const firstAuthor: unknown = Array.isArray(authors) ? authors[0] : undefined;
     const author =
-      Array.isArray(value.authors) && typeof value.authors[0]?.name === 'string'
-        ? value.authors[0].name.slice(0, 300)
+      firstAuthor !== null &&
+      typeof firstAuthor === 'object' &&
+      'name' in firstAuthor &&
+      typeof firstAuthor.name === 'string'
+        ? firstAuthor.name.slice(0, 300)
         : null;
     const publishedAt =
       typeof value.date_published === 'string' && Number.isFinite(Date.parse(value.date_published))

@@ -82,7 +82,8 @@ describe('Briefing same-store API', () => {
         root,
       ),
     ).rejects.toThrow('briefing_import_receipts_read_only');
-    const { briefingOpmlImports: _omitted, ...legacyShape } = committed;
+    const { briefingOpmlImports: omittedImports, ...legacyShape } = committed;
+    expect(omittedImports).toEqual(receipt);
     await saveSettings(legacyShape, root);
     await saveSettings(committed, root);
     expect((await loadSettings(root)).briefingOpmlImports).toEqual(receipt);

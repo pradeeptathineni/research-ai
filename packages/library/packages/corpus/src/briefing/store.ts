@@ -9,13 +9,11 @@ import {
   EventSchema,
   FeedbackSchema,
   InterestPreferenceSchema,
-  InterestSchema,
   ItemSchema,
   MetricObservationSchema,
   RankingPreferencesSchema,
   SeenStateSchema,
   SourcePreferenceSchema,
-  SourceSchema,
   SourceTermsPolicySchema,
   StorySchema,
   DEFAULT_INTEREST_HALF_LIFE_DAYS,
@@ -142,7 +140,7 @@ async function readState(root: string): Promise<State> {
     20000000,
   );
   if (!Value.Check(stateSchema, value)) throw new Error('invalid_briefing_state');
-  return value as State;
+  return value;
 }
 async function writeState(root: string, state: State) {
   if (!Value.Check(stateSchema, state)) throw new Error('invalid_briefing_state');
