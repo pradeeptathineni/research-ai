@@ -823,6 +823,12 @@ export function searchApi(
               'Supply exact watch and new-capture references.',
             );
           const input = body as Record<string, unknown>;
+          if (Object.keys(input).some((key) => !['watch_ref', 'new_capture_ref'].includes(key)))
+            throw new SourceWatchError(
+              400,
+              'invalid_source_watch',
+              'Watch checks accept only exact watch and new-capture references.',
+            );
           json(200, await checkSourceWatch(root, input.watch_ref, input.new_capture_ref));
         } else if (/^source-change-reviews\/watches\/[a-f0-9-]{36}$/.test(route) && !mutation) {
           if (params.size)

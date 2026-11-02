@@ -6,6 +6,7 @@ import {
   createSourceWatch,
   listSourceWatches,
   readSourceWatch,
+  SourceWatchError,
 } from '../packages/corpus/src/source-watches.js';
 
 const args = process.argv.slice(2);
@@ -15,6 +16,7 @@ const usage = `Usage:
   npm run source-watches -- --root PRIVATE_ROOT read WATCH_UUID
   npm run source-watches -- --root PRIVATE_ROOT check WATCH_REF_JSON NEW_CAPTURE_REF_JSON
 
+JSON arguments are literal JSON text quoted as one shell argument, not filenames.
 Create requires exact baseline capture ref, literal unique section markers, and exact ignore_lines.
 Check reads retained captures only; it never fetches the source or judges semantic importance.`;
 const parse = (value: string | undefined): unknown => {
@@ -48,7 +50,9 @@ try {
     JSON.stringify({
       code: error.message,
       reason:
-        'Inspect the exact watch, selected capture refs, and private history; no automatic retry or repair was performed.',
+        error instanceof SourceWatchError
+          ? error.reason
+          : 'Inspect the exact watch, selected capture refs, and private history; no automatic retry or repair was performed.',
     }),
   );
   if (error.message === 'invalid_command') console.error(usage);
