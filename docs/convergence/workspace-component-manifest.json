@@ -45,9 +45,9 @@
       "component": "Library",
       "owner": "signals-ai",
       "sourceRoot": "/Users/pradeeptathineni/.admin/Codex/2026-10-27/task/resume-20261102/library-vetting",
-      "sourceCommit": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
-      "sourceTree": "92980771fdcca7bd9cb6a38308f25c28734f80ed",
-      "sourceParent": "80d165a21fd496641871331106bb0dda00f65594",
+      "sourceCommit": "3cfd39c31a075e1e18985c57981d4821e80dd601",
+      "sourceTree": "d647c3eab49f0c1ec7fa31f298adf7aaf565fa30",
+      "sourceParent": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
       "targetPath": "packages/library",
       "packageName": "signals-ai",
       "packageVersion": "0.3.0",
@@ -79,6 +79,7 @@
         "packages/library/docs/signals-contract.md",
         "packages/library/docs/source-change-review.md",
         "packages/library/package.json",
+        "packages/library/packages/corpus/src/briefing-calendar.test.ts",
         "packages/library/packages/corpus/src/briefing-event-freshness.test.ts",
         "packages/library/packages/corpus/src/briefing-event-freshness.ts",
         "packages/library/packages/corpus/src/briefing-feedback.ts",
@@ -93,8 +94,10 @@
         "packages/library/packages/corpus/src/briefing/http.ts",
         "packages/library/packages/corpus/src/briefing/ingest.ts",
         "packages/library/packages/corpus/src/briefing/interest-feedback-workflow.test.ts",
+        "packages/library/packages/corpus/src/briefing/json-feed-media.test.ts",
         "packages/library/packages/corpus/src/briefing/lobsters-feed.test.ts",
         "packages/library/packages/corpus/src/briefing/mastodon-adapter.test.ts",
+        "packages/library/packages/corpus/src/briefing/refresh-due.test.ts",
         "packages/library/packages/corpus/src/briefing/schema.ts",
         "packages/library/packages/corpus/src/briefing/social-pulse-workflow.test.ts",
         "packages/library/packages/corpus/src/briefing/store.test.ts",
@@ -120,7 +123,7 @@
         "packages/library/scripts/source-archives.ts",
         "packages/library/scripts/source-watches.ts"
       ],
-      "workspaceTree": "830ed22772be264e0ae55550ffdbb3730e5e9792",
+      "workspaceTree": "1005cb41c9b6b8e7647cb9fd738cb3a7b7eb88a3",
       "sourceBlobComparison": {
         "trackedFileCount": 389,
         "missing": 0,
@@ -128,7 +131,7 @@
         "changedPaths": [
           "package.json"
         ],
-        "qualification": "All other workspace Library blobs match native 6195b0e exactly; package.json differs only at dependencies.@pradeeptathineni/research-ai as recorded in workspaceMetadataAdaptation."
+        "qualification": "All other workspace Library blobs, including the 13 Prettier-only files, match native 3cfd39 exactly; package.json differs only at dependencies.@pradeeptathineni/research-ai as recorded in workspaceMetadataAdaptation."
       },
       "capabilities": [
         {
@@ -383,9 +386,9 @@
     },
     {
       "component": "Library",
-      "sourceCommit": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
+      "sourceCommit": "3cfd39c31a075e1e18985c57981d4821e80dd601",
       "targetPrefix": "packages/library",
-      "workspaceMergeCommit": "edd7ce76710ea22f45de9ed1e1a5b27157205aea",
+      "workspaceMergeCommit": "ae15647b233c5748fcdb44a7747d9c4fd3bb4f1f",
       "strategy": "git merge -s subtree -Xsubtree=packages/library"
     }
   ]

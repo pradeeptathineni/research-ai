@@ -6,10 +6,10 @@
       "target": "packages/methods"
     },
     "library": {
-      "revision": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42",
+      "revision": "3cfd39c31a075e1e18985c57981d4821e80dd601",
       "target": "packages/library",
-      "tree": "92980771fdcca7bd9cb6a38308f25c28734f80ed",
-      "parent": "80d165a21fd496641871331106bb0dda00f65594"
+      "tree": "d647c3eab49f0c1ec7fa31f298adf7aaf565fa30",
+      "parent": "6195b0e47cc97874ab17e2434b1a1cd7be79fc42"
     }
   },
   "methods": {
@@ -314,11 +314,11 @@
   "qualificationLimits": [
     "No external Deep consumer runtime was independently mounted",
     "No publish, install, listener, live provider/model, or real store",
-    "Full Library verify suite not run for this focused subtree advance; typecheck, build, dependency integrity, saved-entity tests, and cross-owner workbench flow passed."
+    "Full Library verify ran once on native source 3cfd39 and stopped at ESLint: 111 errors across 27 workspace blobs identical to native; later phases unrun. See docs/convergence/LIBRARY-VERIFY-RESULT.md."
   ],
   "integrationNotes": [
     "Methods workspace source is exact accepted cecbe5d imported with a history-preserving subtree merge; package name/version, existing CLI paths, ESM/type entrypoints and zero runtime dependencies are unchanged. The component manifest binds every file in its declared package payload.",
-    "Library workspace source is exact native 6195b0e imported with a history-preserving subtree merge; the UI and read-only saved-entity inspection descriptor are included. Its workspace package.json retains the Methods file link. Standalone package-lock and fixed archive bytes stay at their original digests.",
+    "Library workspace source is exact native 3cfd39, a history-preserving child of 6195b0e. Its only source changes are the bounded Prettier-only correction of the 13 frozen format findings; the package.json workspace link remains the sole non-source adaptation. Library standalone package-lock and fixed archive bytes are unchanged.",
     "The workbench smoke uses synthetic records and an injected fixture fetcher, with no listening server, network, model, or real store."
   ],
   "workbenchConsumerFlow": {
@@ -333,5 +333,33 @@
     "testsPassed": 6,
     "networkOrModel": false,
     "realStore": false
+  },
+  "libraryFullVerify": {
+    "command": "npm run verify --workspace signals-ai",
+    "node": "24.19.0",
+    "npm": "12.1.0",
+    "exitCode": 1,
+    "passedPhases": [
+      "release:check",
+      "corpus check",
+      "format:check"
+    ],
+    "failedPhase": "lint",
+    "lintErrors": 111,
+    "lintWarnings": 0,
+    "lintFiles": 27,
+    "laterPhasesRun": false,
+    "sourceAttribution": "All 27 lint-failing Library blobs equal native 3cfd39; none is workspace-only.",
+    "receipt": "docs/convergence/LIBRARY-VERIFY-RESULT.md"
+  },
+  "targetedSavedEntityLint": {
+    "files": [
+      "packages/library/apps/corpus/src/candidate-views.tsx",
+      "packages/library/apps/corpus/src/experience.tsx",
+      "packages/library/packages/corpus/src/saved-entity-inspection.ts"
+    ],
+    "result": "pass",
+    "reviewer": "root",
+    "scope": "read-only targeted lint; existing nearby findings in provider-capabilities.ts and search-api.ts are outside these changed lines"
   }
 }
