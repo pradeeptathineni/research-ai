@@ -773,6 +773,7 @@ export function Workbench({
                 settings={settings}
                 onChange={setSettings}
                 scan={() => api('source-scan', {})}
+                api={api}
               />
               <details>
                 <summary>Configured acquisition and extraction providers</summary>

@@ -9,6 +9,7 @@ import {
   importBriefingOpml,
   previewBriefingOpml,
   readBriefingOpmlImport,
+  exportOpml,
   refreshDue,
   refreshBriefing,
 } from './ingest.js';
@@ -211,6 +212,14 @@ export async function briefingRoute(
     if (queryCount !== 1 || entries.length !== 1 || entries[0]![0] !== 'requestId')
       throw new Error('invalid_briefing_opml_import_status_query');
     return { status: 200, body: await readBriefingOpmlImport(root, entries[0]![1]) };
+  }
+  if (!mutation && route === 'briefing/opml/export') {
+    if (queryCount !== 0) throw new Error('invalid_briefing_opml_export_query');
+    const sources = (await api.listSources()).map(({ record }) => record);
+    return {
+      status: 200,
+      body: { opml: exportOpml(sources), sourceCount: sources.length },
+    };
   }
   if (!mutation && route === 'briefing/refresh-status') {
     const entries = [...(query ?? new URLSearchParams()).entries()];
