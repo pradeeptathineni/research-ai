@@ -133,8 +133,7 @@ const sameRef = (left: WorkflowRef, right: WorkflowRef) =>
   left.workflowId === right.workflowId &&
   left.revision === right.revision &&
   left.sha256 === right.sha256;
-const workflowPath = (ref: WorkflowRef) =>
-  `perspective-workflows/${ref.workflowId.slice('workflow:'.length)}`;
+const workflowPath = (ref: WorkflowRef) => `perspective-workflows/${ref.workflowId}`;
 const exactRefQuery = (ref: WorkflowRef) => new URLSearchParams({ ref: JSON.stringify(ref) });
 
 function errorMessage(error: unknown): string {
@@ -157,9 +156,12 @@ function SpanList({ label, spans }: { label: string; spans: ContributionSpan[] }
               <p>
                 Source {span.source + 1}: {span.sourceUri}
               </p>
-              <p>
-                SHA-256 <code>{span.sourceSha256}</code> · UTF-16 offsets {span.start}–{span.end}
-              </p>
+              <details>
+                <summary>Exact source reference</summary>
+                <p>
+                  SHA-256 <code>{span.sourceSha256}</code> · UTF-16 offsets {span.start}–{span.end}
+                </p>
+              </details>
               {span.citedBy && <p>Cited by: {span.citedBy.join(', ')}</p>}
             </li>
           ))}
@@ -183,7 +185,10 @@ function ContributionView({ rows }: { rows: Contribution[] }) {
             {row.lensId} · {row.status}
           </h4>
           {row.reason && <p>{row.reason}</p>}
-          <p>{row.qualification}</p>
+          <details>
+            <summary>How these counts are qualified</summary>
+            <p>{row.qualification}</p>
+          </details>
           <div className="perspective-span-columns">
             <SpanList label="Only this perspective cited" spans={row.uniqueCitedSpans} />
             <SpanList label="Shared cited spans" spans={row.sharedCitedSpans} />
@@ -607,7 +612,10 @@ export function PerspectiveWorkbench({ api, onBack }: { api: LocalApi; onBack: (
                     Revision {row.ref.revision} · {row.status} · {row.sourceRefs.length} retained
                     capture(s)
                   </p>
-                  <code>{row.ref.sha256}</code>
+                  <details>
+                    <summary>Exact saved reference</summary>
+                    <code>{row.ref.sha256}</code>
+                  </details>
                 </div>
                 <button
                   type="button"
@@ -634,9 +642,11 @@ export function PerspectiveWorkbench({ api, onBack }: { api: LocalApi; onBack: (
               Start another workflow
             </button>
           </div>
-          <p>
-            Workflow revision {active.ref.revision} · SHA-256 <code>{active.ref.sha256}</code>
-          </p>
+          <p>Workflow revision {active.ref.revision}</p>
+          <details>
+            <summary>Exact workflow digest</summary>
+            <code>{active.ref.sha256}</code>
+          </details>
           <p>
             Frozen source captures: {active.sourceRefs.length}. No source acquisition occurs in this
             workflow.
@@ -644,8 +654,12 @@ export function PerspectiveWorkbench({ api, onBack }: { api: LocalApi; onBack: (
           <ul>
             {active.workflow.sources.map((source, index) => (
               <li key={`${source.sha256}:${index}`}>
-                Source {index + 1}: {source.uri} · SHA-256 <code>{source.sha256}</code> ·{' '}
-                {source.text.length.toLocaleString()} retained characters
+                Source {index + 1}: {source.uri} · {source.text.length.toLocaleString()} retained
+                characters
+                <details>
+                  <summary>Exact source digest</summary>
+                  <code>{source.sha256}</code>
+                </details>
               </li>
             ))}
           </ul>

@@ -516,7 +516,7 @@ export async function previewPerspectiveAddition(
     invalid(failure instanceof Error ? failure.message : undefined);
   }
   const previewDigest = requestConfigurationDigest({ workflowRef: record.ref, choice, preview });
-  return { ref: record.ref, preview: preview!, previewDigest };
+  return { ref: record.ref, preview, previewDigest };
 }
 async function assertWorkflowHead(ref: WorkflowRef, root: string) {
   const dir = join(folder(root), ref.workflowId);

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('reviews and appends one independent lens over a retained capture, then cold reopens it', async ({
   page,
-}) => {
+}, testInfo) => {
   test.setTimeout(60_000);
   let appendRequests = 0;
   page.on('request', (request) => {
@@ -31,7 +31,9 @@ test('reviews and appends one independent lens over a retained capture, then col
     hasText: 'https://example.test/rs04-retained-source',
   });
   await expect(captureOption).toHaveCount(1);
-  await capturePicker.selectOption((await captureOption.getAttribute('value'))!);
+  const captureValue = await captureOption.getAttribute('value');
+  expect(captureValue).not.toBeNull();
+  await capturePicker.selectOption(captureValue ?? '');
   await page
     .getByLabel('Research topic')
     .fill('What does this retained study say, and what limitations does it state?');
@@ -40,7 +42,7 @@ test('reviews and appends one independent lens over a retained capture, then col
 
   await page.getByRole('button', { name: 'Run Basic Facts', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Basic Facts · complete', exact: true }),
+    page.getByRole('heading', { name: 'Basic facts · complete', exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'Perspective span contributions', exact: true }),
@@ -68,11 +70,11 @@ test('reviews and appends one independent lens over a retained capture, then col
   });
   await expect(contributions).toContainText('short-term reduction');
   await expect(contributions).toContainText('Follow-up lasted six months.');
-  await expect(contributions.getByRole('region', { name: 'Shared cited spans' })).toContainText(
-    'short-term reduction',
-  );
   await expect(
-    contributions.getByRole('region', { name: 'Cited in recorded conflicts' }),
+    contributions.getByRole('region', { name: 'Shared cited spans' }).last(),
+  ).toContainText('short-term reduction');
+  await expect(
+    contributions.getByRole('region', { name: 'Cited in recorded conflicts' }).last(),
   ).toContainText('No exact cited spans in this category.');
   expect(appendRequests).toBe(1);
 
@@ -105,6 +107,8 @@ test('reviews and appends one independent lens over a retained capture, then col
 
   await page.setViewportSize({ width: 1440, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('rs04-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 360, height: 800 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('rs04-phone.png'), fullPage: true });
 });

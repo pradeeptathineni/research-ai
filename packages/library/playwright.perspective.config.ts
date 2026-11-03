@@ -9,7 +9,7 @@ export default defineConfig({
   workers: 1,
   use: { baseURL },
   webServer: {
-    command: 'node tests/workbench/perspective-server.mjs',
+    command: 'node --import tsx tests/workbench/perspective-server.mjs',
     url: baseURL,
     reuseExistingServer: false,
   },
