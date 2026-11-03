@@ -123,6 +123,13 @@ describe('Briefing refreshDue owner workflow', () => {
           links: [
             { uri: 'https://example.test/story/climate-release', title: 'Climate data release' },
           ],
+          feedEntries: [
+            {
+              identity: null,
+              author: 'Public feed editor',
+              publishedAt: '2026-10-28T00:00:00.000Z',
+            },
+          ],
           sections: [{ locator: 'item:1', text: 'A synthetic climate data update.' }],
           extractor: 'synthetic-fixture',
         },
@@ -135,6 +142,10 @@ describe('Briefing refreshDue owner workflow', () => {
       { fetch: firstFetch },
     );
     expect(first).toMatchObject({ status: 'complete', replayed: false });
+    expect((await createBriefingApi(root).listItems())[0]?.record).toMatchObject({
+      author: 'Public feed editor',
+      publishedAt: '2026-10-28T00:00:00.000Z',
+    });
     expect(firstCalls).toHaveLength(2);
     expect(firstCalls.every(({ options }) => options?.allowNotModified !== true)).toBe(true);
 
