@@ -21,6 +21,7 @@ import type { QueryBatch } from '../../../packages/corpus/src/search-query-list.
 import type { DirectSearchResult } from '../../../packages/corpus/src/search-direct.js';
 import { PersonalEditor } from './workbench-personal.js';
 import { SourceManager } from './workbench-sources.js';
+import { DatasetWorkbench } from './workbench-datasets.js';
 import type { PersonalState } from '../../../packages/domain/src/search-priority.js';
 import type { InboxEntry } from '../../../packages/corpus/src/search-inbox.js';
 import type { runDueOnce } from '../../../packages/corpus/src/search-scheduler.js';
@@ -35,7 +36,14 @@ import {
 } from './candidate-views.js';
 
 const settingsTabs = ['Settings', 'Interests', 'Sources', 'Jobs'];
-type WorkbenchPanel = 'Search' | 'Inbox' | 'Interests' | 'Sources' | 'Jobs' | 'Settings';
+type WorkbenchPanel =
+  | 'Search'
+  | 'Inbox'
+  | 'Interests'
+  | 'Sources'
+  | 'Jobs'
+  | 'Settings'
+  | 'Datasets';
 /** The parent's loopback transport: one session token, checked session failures, optional abort. */
 type LocalApi = <T>(route: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
 export function Workbench({
@@ -570,7 +578,9 @@ export function Workbench({
         </dialog>
         {error && <p role="alert">{error}</p>}
         {message && <p role="status">{message}</p>}
-        {settingsTabs.includes(tab) && settings ? (
+        {tab === 'Datasets' ? (
+          <DatasetWorkbench api={api} />
+        ) : settingsTabs.includes(tab) && settings ? (
           <section aria-labelledby="settings-title">
             <h1 id="settings-title">{tab}</h1>
             {tab === 'Jobs' && busy && (

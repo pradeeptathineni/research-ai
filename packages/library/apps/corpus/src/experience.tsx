@@ -30,7 +30,15 @@ import { LibrarySavingSettings } from './library-saving-settings.js';
 
 const base = import.meta.env.BASE_URL;
 const local = (window as Window & { __SIGNALS_LOCAL__?: boolean }).__SIGNALS_LOCAL__ === true;
-const primaryViews = ['Home', 'Search', 'Projects', 'Library', 'Following', 'Briefing'] as const;
+const primaryViews = [
+  'Home',
+  'Search',
+  'Projects',
+  'Library',
+  'Following',
+  'Briefing',
+  'Data',
+] as const;
 type View = (typeof primaryViews)[number] | 'Activity' | 'Settings';
 type LocationState = {
   view: View;
@@ -470,9 +478,11 @@ export function Experience() {
             : 'Interests'
           : state.view === 'Library' && state.panel === 'inbox'
             ? 'Inbox'
-            : state.view === 'Search' && state.mode !== 'library'
-              ? 'Search'
-              : null;
+            : state.view === 'Data'
+              ? 'Datasets'
+              : state.view === 'Search' && state.mode !== 'library'
+                ? 'Search'
+                : null;
   useEffect(() => {
     if (powered && local) setWorkbenchStarted(true);
   }, [powered]);
