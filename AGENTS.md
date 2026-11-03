@@ -1,10 +1,10 @@
 # Research AI authoring
 
 Read [README.md](README.md) for the workspace entrypoint and owner boundaries.
-Research Methods owns bounded research execution and source-grounded methods;
-Research Library owns saved entities, sources, interests and Briefing. Workbench
-is Library's local interface. Keep one owner for each record and do not add a
-second research executor or store at the workspace root.
+Research Methods owns bounded research execution. Research Library owns saved
+records and Workbench, as described in the README. Keep one owner for each
+record and do not add a second research executor or store at the workspace
+root.
 
 - For Methods changes, read [Methods instructions](packages/methods/AGENTS.md)
   and its [task context](packages/methods/.meta/context/README.md).
