@@ -299,8 +299,8 @@ export function DatasetWorkbench({ api }: { api: LocalApi }) {
       <div className="intro">
         <h1 id="datasets-title">Datasets</h1>
         <p>
-          Store exact CSV bytes by immutable version and reopen them with a digest check. CSV
-          parsing and analysis are not enabled in this slice.
+          Save exact CSV bytes by version, reopen them with a digest check, and inspect a parsed
+          table or saved analysis when the required local tools are configured.
         </p>
       </div>
       <form onSubmit={(event) => void submit(event)}>
@@ -484,7 +484,12 @@ export function DatasetWorkbench({ api }: { api: LocalApi }) {
               </dd>
             </div>
           </dl>
-          <DatasetAnalysisPanel api={api} datasetRef={reopened.ref} metadata={reopened.metadata} />
+          <DatasetAnalysisPanel
+            key={`${reopened.ref.datasetId}:${reopened.ref.version}:${reopened.ref.sha256}`}
+            api={api}
+            datasetRef={reopened.ref}
+            metadata={reopened.metadata}
+          />
         </section>
       )}
     </section>
