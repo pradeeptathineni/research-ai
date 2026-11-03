@@ -817,10 +817,11 @@ function DatasetAnalysisPanel({
       setMessage(`Saved run ${response.runRef.runId} (${response.run.state}).`);
     } catch (failure) {
       const reason = failure instanceof Error ? failure.message : String(failure);
+      await reloadRuns(analysisRef).catch(() => undefined);
       setError(
         reason.includes('table_engine_unavailable')
           ? 'The host DuckDB runtime is unavailable. Running stays disabled until its configured package is available.'
-          : reason,
+          : `${reason} Check saved runs before trying again; the previous run may have been saved.`,
       );
     } finally {
       setBusy(false);
