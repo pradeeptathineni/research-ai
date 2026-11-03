@@ -218,13 +218,49 @@ export function Experience() {
         authorization = ((await response.json()) as { token: string }).token;
         setToken(authorization);
       }
+      const providerRoute = /^(?:datasets|analyses)(?:\/|$)/u.test(route);
+      let providerHeaders: Record<string, string> = {};
+      if (providerRoute) {
+        const scopeResponse = await fetch(`${base}__signals/api/request-scope`, { signal });
+        if (!scopeResponse.ok)
+          throw new Error('Saved dataset scope is unavailable. No scope was initialized.');
+        const scope: unknown = await scopeResponse.json();
+        if (
+          !scope ||
+          typeof scope !== 'object' ||
+          !('owner' in scope) ||
+          scope.owner !== 'signals-ai' ||
+          !('contract' in scope) ||
+          scope.contract !== 'research-request-v1' ||
+          !('identity' in scope) ||
+          typeof scope.identity !== 'string' ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+            scope.identity,
+          ) ||
+          !('epoch' in scope) ||
+          typeof scope.epoch !== 'string' ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+            scope.epoch,
+          )
+        )
+          throw new Error('Saved dataset scope is missing or corrupt. No scope was initialized.');
+        providerHeaders = {
+          'x-signals-provider-version': '1.0',
+          'x-signals-instance-id': scope.identity,
+          'x-signals-owner-epoch': scope.epoch,
+        };
+      }
       const response = await fetch(
         `${base}__signals/api/${route}`,
         body === undefined
-          ? { signal }
+          ? { headers: providerHeaders, signal }
           : {
               method: 'POST',
-              headers: { 'content-type': 'application/json', 'x-signals-token': authorization },
+              headers: {
+                ...providerHeaders,
+                'content-type': 'application/json',
+                'x-signals-token': authorization,
+              },
               body: JSON.stringify(body),
               signal,
             },
