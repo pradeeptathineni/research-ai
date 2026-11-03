@@ -104,9 +104,7 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await expect(page.getByText('Reopened analysis revision 1.', { exact: true })).toBeVisible();
   const runPicker = page.getByLabel('Reopen saved result');
   await expect(runPicker.locator('option')).toHaveCount(2);
-  await runPicker.focus();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
+  await runPicker.selectOption({ index: 1 });
   await expect(page.getByText(/Reopened saved run .*; no query was rerun\./u)).toBeVisible();
   const reopenedResult = page.getByRole('region', { name: 'Saved analysis result', exact: true });
   await expect(reopenedResult.locator('code').first()).toHaveText(savedRunDigest);
@@ -116,7 +114,25 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await page.setViewportSize({ width: 1440, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.setViewportSize({ width: 360, height: 800 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const narrowLayout = await page.evaluate(() => ({
+    width: innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    offenders: [...document.querySelectorAll('body *')]
+      .filter((element) => element.scrollWidth > element.clientWidth + 1)
+      .slice(0, 8)
+      .map((element) => ({
+        tag: element.tagName,
+        className: element.className,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        overflowX: getComputedStyle(element).overflowX,
+      })),
+  }));
+  expect(narrowLayout, JSON.stringify(narrowLayout)).toMatchObject({
+    width: 360,
+    scrollWidth: 360,
+  });
   expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(
     true,
   );

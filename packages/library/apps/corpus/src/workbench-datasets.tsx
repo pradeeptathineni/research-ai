@@ -112,7 +112,7 @@ type TableQueryColumn = {
   id: string;
   label: string;
   sql_type: string;
-  representation: 'text';
+  representation: 'text' | 'number';
 };
 type AnalysisResponse = { ref: AnalysisRef; analysis: Analysis };
 type AnalysisOpenResponse = AnalysisResponse & {
@@ -607,7 +607,7 @@ function DatasetAnalysisPanel({
     }
     setParsed(response);
     setTableName('sample');
-    setChartX(response.table.columns.length ? 'q0' : '');
+    setChartX(response.table.columns.length ? 'q1' : '');
     setMessage(
       `Parsed ${response.table.rows.length} rows. All ${response.table.columns.length} columns and cell values remain text.`,
     );
@@ -690,7 +690,7 @@ function DatasetAnalysisPanel({
       });
       setTitle(response.analysis.title);
       setTableName(response.analysis.tables[0]?.name ?? 'sample');
-      setChartX(response.analysis.chart?.x ?? (response.dataset.table.columns.length ? 'q0' : ''));
+      setChartX(response.analysis.chart?.x ?? (response.dataset.table.columns.length ? 'q1' : ''));
       await reloadRuns(response.ref);
       setMessage(`Reopened analysis revision ${response.ref.revision}.`);
     } catch (failure) {
@@ -771,12 +771,15 @@ function DatasetAnalysisPanel({
       if (response.ref.analysisDigest !== analysisRef.analysisDigest)
         throw new Error('The preview belongs to a different analysis revision.');
       setPreview(response.preview);
-      const chartColumns: TableQueryColumn[] = parsed!.table.columns.map((column, index) => ({
-        id: `q${index}`,
-        label: column.label,
-        sql_type: 'VARCHAR',
-        representation: 'text',
-      }));
+      const chartColumns: TableQueryColumn[] = [
+        { id: 'q0', label: '_row', sql_type: 'INTEGER', representation: 'number' },
+        ...parsed.table.columns.map((_, index) => ({
+          id: `q${index + 1}`,
+          label: `c${index}`,
+          sql_type: 'VARCHAR',
+          representation: 'text' as const,
+        })),
+      ];
       const chartResponse = await api<{ ref: AnalysisRef; preview: TableQueryPreview }>(
         `analyses/${analysisRef.analysisId}/preview`,
         { ref: analysisRef, target: { kind: 'chart', columns: chartColumns } },
@@ -1041,7 +1044,7 @@ function DatasetAnalysisPanel({
                 }}
               >
                 {parsed.table.columns.map((column, index) => (
-                  <option key={column.id} value={`q${index}`}>
+                  <option key={column.id} value={`q${index + 1}`}>
                     {column.label}
                   </option>
                 ))}

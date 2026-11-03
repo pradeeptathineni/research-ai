@@ -338,6 +338,8 @@
 .dataset-workbench {
   max-width: 920px;
   margin: 0 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .dataset-workbench form {
   display: grid;
@@ -406,6 +408,13 @@
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--desk-line);
+}
+.dataset-analysis-panel code {
+  overflow-wrap: anywhere;
+}
+.dataset-analysis-panel pre {
+  max-width: 100%;
+  overflow-x: auto;
 }
 .dataset-capabilities,
 .dataset-analysis-actions {
