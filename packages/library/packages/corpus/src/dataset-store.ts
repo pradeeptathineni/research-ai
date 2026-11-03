@@ -83,6 +83,7 @@ export class DatasetStoreError extends Error {
       | 'limit_exceeded'
       | 'analysis_not_found'
       | 'analysis_head_changed'
+      | 'analysis_review_changed'
       | 'analysis_corrupt'
       | 'table_engine_unavailable',
     message: string,
@@ -209,7 +210,7 @@ async function immutableWrite(folder: string, name: string, bytes: Uint8Array | 
       throw new DatasetStoreError('dataset_head_changed', 'Dataset version already exists.');
     throw error;
   } finally {
-    await unlink(temporary);
+    await unlink(temporary).catch(() => undefined);
   }
 }
 
@@ -357,7 +358,12 @@ async function currentRefs(folder: string, datasetId: string): Promise<DatasetVe
     const stat = await lstat(path);
     if (!stat.isFile() || stat.isSymbolicLink())
       throw new DatasetStoreError('dataset_corrupt', 'Dataset metadata must not follow symlinks.');
-    const parsed: unknown = JSON.parse(await readFile(path, 'utf8'));
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(path, 'utf8'));
+    } catch {
+      throw new DatasetStoreError('dataset_corrupt', 'Stored dataset metadata is not valid JSON.');
+    }
     const { ref } = refFromRecord(parsed);
     if (ref.datasetId !== datasetId || recordName(ref.version) !== name)
       throw new DatasetStoreError(
@@ -655,6 +661,7 @@ export async function importDatasetTable(
     table: parsed.table,
     import: parsed.import,
   };
+  validateParsedRecord(record, source.ref);
   const path = tableRecordPath(ref, resolve(root));
   try {
     await immutableWrite(dirname(path), basename(path), JSON.stringify(record, null, 2) + '\n');
@@ -966,56 +973,50 @@ export async function appendDatasetAnalysisRevision(
   const expected = validateAnalysisRef(expectedHead);
   const source = await readDatasetTable(expected.datasetRef, root);
   const folder = analysisFolder(expected, resolve(root));
-  const lock = join(folder, '.revision-lock');
+  const refs = await currentAnalysisRefs(
+    folder,
+    expected.datasetRef.datasetId,
+    expected.analysisId,
+    expected.datasetRef,
+  );
+  const head = refs.at(-1);
+  if (
+    !head ||
+    head.revision !== expected.revision ||
+    head.analysisDigest !== expected.analysisDigest ||
+    head.datasetRef.sha256 !== expected.datasetRef.sha256 ||
+    head.tableSha256 !== expected.tableSha256 ||
+    head.tableId !== expected.tableId
+  )
+    throw new DatasetStoreError(
+      'analysis_head_changed',
+      'Analysis changed since its expected revision was read.',
+    );
+  if (head.revision >= MAX_VERSIONS)
+    throw new DatasetStoreError(
+      'dataset_version_limit',
+      'Analysis reached its 20-revision history limit.',
+    );
+  const prior = await readDatasetAnalysis(head, root);
+  const analysis = analysisInputFromHead(
+    { ...input, tableName: input.tableName },
+    source,
+    prior.analysis.id,
+    head.revision + 1,
+    prior.analysis.analysis_digest,
+  );
+  const ref = analysisRefFor(analysis, source.datasetRef, source.table);
   try {
-    await mkdir(lock, { mode: 0o700 });
+    await immutableAnalysisWrite(folder, ref, analysis);
   } catch (failure) {
-    if ((failure as NodeJS.ErrnoException).code === 'EEXIST')
+    if (failure instanceof DatasetStoreError && failure.code === 'dataset_head_changed')
       throw new DatasetStoreError(
         'analysis_head_changed',
-        'Analysis has a concurrent revision update.',
+        'Analysis changed while the new revision was being saved.',
       );
     throw failure;
   }
-  try {
-    const refs = await currentAnalysisRefs(
-      folder,
-      expected.datasetRef.datasetId,
-      expected.analysisId,
-      expected.datasetRef,
-    );
-    const head = refs.at(-1);
-    if (
-      !head ||
-      head.revision !== expected.revision ||
-      head.analysisDigest !== expected.analysisDigest ||
-      head.datasetRef.sha256 !== expected.datasetRef.sha256 ||
-      head.tableSha256 !== expected.tableSha256 ||
-      head.tableId !== expected.tableId
-    )
-      throw new DatasetStoreError(
-        'analysis_head_changed',
-        'Analysis changed since its expected revision was read.',
-      );
-    if (head.revision >= MAX_VERSIONS)
-      throw new DatasetStoreError(
-        'dataset_version_limit',
-        'Analysis reached its 20-revision history limit.',
-      );
-    const prior = await readDatasetAnalysis(head, root);
-    const analysis = analysisInputFromHead(
-      { ...input, tableName: input.tableName },
-      source,
-      prior.analysis.id,
-      head.revision + 1,
-      prior.analysis.analysis_digest,
-    );
-    const ref = analysisRefFor(analysis, source.datasetRef, source.table);
-    await immutableAnalysisWrite(folder, ref, analysis);
-    return { ref, analysis };
-  } finally {
-    await rmdir(lock);
-  }
+  return { ref, analysis };
 }
 
 export async function readDatasetAnalysis(
@@ -1119,6 +1120,11 @@ export interface DatasetAnalysisRun {
   chart: ReturnType<typeof chartSeries> | null;
 }
 
+export interface ReviewedAnalysisQueryDigests {
+  steps: Array<{ step: string; queryDigest: string }>;
+  chart: string | null;
+}
+
 interface AnalysisRunRecord {
   schemaVersion: 1;
   runRef: DatasetAnalysisRunRef;
@@ -1141,6 +1147,7 @@ function chartForRun(analysis: ResearchTableAnalysis, run: ResearchAnalysisRun) 
 export async function runDatasetAnalysis(
   ref: DatasetAnalysisRef,
   engineRoot: string | undefined,
+  reviewedQueryDigests: ReviewedAnalysisQueryDigests,
   root = resolve('.signals/datasets'),
 ): Promise<DatasetAnalysisRun> {
   if (!engineRoot || !isAbsolute(engineRoot))
@@ -1151,6 +1158,41 @@ export async function runDatasetAnalysis(
   const opened = await readDatasetAnalysis(ref, root);
   const analysis = opened.analysis;
   const tables = [{ name: analysis.tables[0]!.name, table: opened.dataset.table }];
+  if (
+    !plain(reviewedQueryDigests) ||
+    Object.keys(reviewedQueryDigests).sort().join(',') !== 'chart,steps' ||
+    !Array.isArray(reviewedQueryDigests.steps) ||
+    reviewedQueryDigests.steps.length !== analysis.steps.length ||
+    (analysis.chart
+      ? typeof reviewedQueryDigests.chart !== 'string' ||
+        !digestPattern.test(reviewedQueryDigests.chart)
+      : reviewedQueryDigests.chart !== null)
+  )
+    throw new DatasetStoreError(
+      'analysis_review_changed',
+      'Review every compiled step and chart query before running.',
+    );
+  for (const [index, step] of analysis.steps.entries()) {
+    const reviewed = reviewedQueryDigests.steps[index];
+    if (
+      !plain(reviewed) ||
+      Object.keys(reviewed).sort().join(',') !== 'queryDigest,step' ||
+      reviewed.step !== step.name ||
+      typeof reviewed.queryDigest !== 'string' ||
+      !digestPattern.test(reviewed.queryDigest)
+    )
+      throw new DatasetStoreError(
+        'analysis_review_changed',
+        'Reviewed step digests do not match the saved analysis.',
+      );
+    const target: AnalysisTarget = { kind: 'step', step: step.name, mode: 'rows' };
+    const preview = prepareAnalysisQuery(analysis, tables, target);
+    if (preview.query_digest !== reviewed.queryDigest)
+      throw new DatasetStoreError(
+        'analysis_review_changed',
+        'A compiled step query changed after review.',
+      );
+  }
   const entries: Array<{ target: AnalysisTarget; result: TableQueryResult }> = [];
   const stepResults = new Map<string, TableQueryComplete>();
   for (const step of analysis.steps) {
@@ -1165,11 +1207,26 @@ export async function runDatasetAnalysis(
     const columns = stepResults.get(analysis.chart.step)?.columns;
     if (columns) {
       const target: AnalysisTarget = { kind: 'chart', columns };
+      const chartPreview = prepareAnalysisQuery(analysis, tables, target);
+      if (chartPreview.query_digest !== reviewedQueryDigests.chart)
+        throw new DatasetStoreError(
+          'analysis_review_changed',
+          'The chart query changed after review.',
+        );
       const result = await runAnalysisTarget(analysis, tables, target, { engineRoot });
       entries.push({ target, result });
     }
   }
-  const run = buildAnalysisRun(analysis, entries);
+  const builtRun = buildAnalysisRun(analysis, entries);
+  let run: ResearchAnalysisRun;
+  try {
+    run = validateAnalysisRun(builtRun, { analysis, tables });
+  } catch {
+    throw new DatasetStoreError(
+      'analysis_corrupt',
+      'Methods rejected the newly built analysis run.',
+    );
+  }
   const runRef: DatasetAnalysisRunRef = {
     schemaVersion: 1,
     runId: run.id,
@@ -1200,6 +1257,20 @@ function validateRunRef(value: unknown): DatasetAnalysisRunRef {
   return { schemaVersion: 1, runId: value.runId, analysisRef, runDigest: value.runDigest };
 }
 
+function sameAnalysisRef(left: DatasetAnalysisRef, right: DatasetAnalysisRef): boolean {
+  return (
+    left.analysisId === right.analysisId &&
+    left.revision === right.revision &&
+    left.analysisDigest === right.analysisDigest &&
+    left.tableId === right.tableId &&
+    left.tableSha256 === right.tableSha256 &&
+    left.datasetRef.datasetId === right.datasetRef.datasetId &&
+    left.datasetRef.version === right.datasetRef.version &&
+    left.datasetRef.sha256 === right.datasetRef.sha256 &&
+    left.datasetRef.name === right.datasetRef.name
+  );
+}
+
 export async function listDatasetAnalysisRuns(
   ref: DatasetAnalysisRef,
   root = resolve('.signals/datasets'),
@@ -1218,22 +1289,33 @@ export async function listDatasetAnalysisRuns(
     );
   const refs: DatasetAnalysisRunRef[] = [];
   for (const name of (await readdir(folder)).sort()) {
+    if (
+      /^\.pending-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(name)
+    ) {
+      const pendingStat = await lstat(join(folder, name));
+      if (!pendingStat.isFile() || pendingStat.isSymbolicLink())
+        throw new DatasetStoreError(
+          'analysis_corrupt',
+          'Pending run storage must be an ordinary file.',
+        );
+      continue;
+    }
     if (!runIdPattern.test(name.replace(/\.json$/u, '')) || !name.endsWith('.json'))
       throw new DatasetStoreError('analysis_corrupt', 'Run storage contains an invalid identity.');
     const path = join(folder, name);
     const recordStat = await lstat(path);
     if (!recordStat.isFile() || recordStat.isSymbolicLink())
       throw new DatasetStoreError('analysis_corrupt', 'Saved run must not follow symlinks.');
-    const value = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    let value: unknown;
+    try {
+      value = JSON.parse(await readFile(path, 'utf8'));
+    } catch {
+      throw new DatasetStoreError('analysis_corrupt', 'Saved run record is not valid JSON.');
+    }
     if (!plain(value) || value.schemaVersion !== 1 || !plain(value.runRef))
       throw new DatasetStoreError('analysis_corrupt', 'Saved run record is malformed.');
     const runRef = validateRunRef(value.runRef);
-    if (
-      runRef.runId !== name.slice(0, -5) ||
-      runRef.analysisRef.analysisId !== ref.analysisId ||
-      runRef.analysisRef.revision !== ref.revision ||
-      runRef.analysisRef.analysisDigest !== ref.analysisDigest
-    )
+    if (runRef.runId !== name.slice(0, -5) || !sameAnalysisRef(runRef.analysisRef, ref))
       throw new DatasetStoreError(
         'analysis_corrupt',
         'Saved run belongs to a different analysis revision.',
@@ -1279,10 +1361,10 @@ export async function readDatasetAnalysisRun(
   }
   if (
     runRef.runId !== ref.runId ||
+    runRef.runId !== run.id ||
+    ref.runDigest !== runRef.runDigest ||
     runRef.runDigest !== run.run_digest ||
-    runRef.analysisRef.analysisId !== opened.ref.analysisId ||
-    runRef.analysisRef.revision !== opened.ref.revision ||
-    runRef.analysisRef.analysisDigest !== opened.ref.analysisDigest
+    !sameAnalysisRef(runRef.analysisRef, opened.ref)
   )
     throw new DatasetStoreError('analysis_head_changed', 'Run ref does not match the saved run.');
   return {

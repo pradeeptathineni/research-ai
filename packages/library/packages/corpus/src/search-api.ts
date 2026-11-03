@@ -79,6 +79,7 @@ import {
   type DatasetAnalysisRef,
   type DatasetAnalysisRunRef,
   type DatasetVersionRef,
+  type ReviewedAnalysisQueryDigests,
 } from './dataset-store.js';
 import { prepareAnalysisQuery } from '@pradeeptathineni/research-ai';
 import type { AnalysisTarget } from '@pradeeptathineni/research-ai';
@@ -208,6 +209,16 @@ import {
 } from './search-query-list.js';
 import { briefingRoute } from './briefing/http.js';
 import { readBriefingCaptureContext } from './briefing/store.js';
+import { parseJsonRequestBody } from './json-request-body.js';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+  );
+}
 
 const selection = Type.Object(
   {
@@ -435,18 +446,13 @@ export function searchApi(
       if (mutation) {
         if (!request.headers['content-type']?.startsWith('application/json'))
           throw new Error('json_required');
-        let raw = '';
         const limit =
           route === 'private-documents'
             ? 6 * 1024 * 1024
             : route === 'datasets' || route.startsWith('datasets/')
               ? 1_500_000
               : 128000;
-        for await (const chunk of request) {
-          raw += String(chunk);
-          if (Buffer.byteLength(raw) > limit) throw new Error('request_too_large');
-        }
-        body = JSON.parse(raw);
+        body = await parseJsonRequestBody(request, limit);
       }
       if (
         route === 'datasets' ||
@@ -483,7 +489,9 @@ export function searchApi(
           if (params.size !== 1 || params.getAll(key).length !== 1)
             throw new Error('invalid_dataset_ref');
           try {
-            return JSON.parse(params.get(key)!) as T;
+            const ref: unknown = JSON.parse(params.get(key)!);
+            if (!isRecord(ref)) throw new Error('invalid_dataset_ref');
+            return ref as T;
           } catch {
             throw new Error('invalid_dataset_ref');
           }
@@ -510,7 +518,7 @@ export function searchApi(
           if (params.size) throw new Error('invalid_dataset_request');
           const payload = body as Record<string, unknown>;
           if (
-            !payload ||
+            !isRecord(payload) ||
             Object.keys(payload).sort().join(',') !==
               'authorization,bytesBase64,license,name,source'
           )
@@ -547,7 +555,7 @@ export function searchApi(
             const payload = body as Record<string, unknown>;
             const allowed = ['chart', 'datasetRef', 'steps', 'tableName', 'tableSha256', 'title'];
             if (
-              !payload ||
+              !isRecord(payload) ||
               Object.keys(payload).some((key) => !allowed.includes(key)) ||
               (Object.keys(payload).sort().join(',') !==
                 'datasetRef,steps,tableName,tableSha256,title' &&
@@ -567,7 +575,7 @@ export function searchApi(
             if (params.size) throw new Error('invalid_analysis_request');
             const payload = body as Record<string, unknown>;
             if (
-              !payload ||
+              !isRecord(payload) ||
               Object.keys(payload).some(
                 (key) => !['chart', 'expectedHead', 'steps', 'tableName', 'title'].includes(key),
               ) ||
@@ -575,11 +583,10 @@ export function searchApi(
                 'expectedHead,steps,tableName,title',
                 'chart,expectedHead,steps,tableName,title',
               ].includes(Object.keys(payload).sort().join(',')) ||
-              !payload.expectedHead ||
-              typeof payload.expectedHead !== 'object'
+              !isRecord(payload.expectedHead)
             )
               throw new Error('invalid_analysis_request');
-            const expectedHead = payload.expectedHead as DatasetAnalysisRef;
+            const expectedHead = payload.expectedHead as unknown as DatasetAnalysisRef;
             if (expectedHead.analysisId !== analysisRevisionMatch[1])
               throw new Error('invalid_analysis_ref');
             const { tableName, title, steps, chart } = payload as unknown as Omit<
@@ -595,9 +602,10 @@ export function searchApi(
           } else if (analysisPreviewMatch && mutation) {
             if (params.size) throw new Error('invalid_analysis_request');
             const payload = body as Record<string, unknown>;
-            if (!payload || Object.keys(payload).sort().join(',') !== 'ref,target')
+            if (!isRecord(payload) || Object.keys(payload).sort().join(',') !== 'ref,target')
               throw new Error('invalid_analysis_request');
-            const ref = payload.ref as DatasetAnalysisRef;
+            if (!isRecord(payload.ref)) throw new Error('invalid_analysis_ref');
+            const ref = payload.ref as unknown as DatasetAnalysisRef;
             if (ref.analysisId !== analysisPreviewMatch[1]) throw new Error('invalid_analysis_ref');
             const opened = await readDatasetAnalysis(ref, analysisRoot);
             const preview = prepareAnalysisQuery(
@@ -609,11 +617,24 @@ export function searchApi(
           } else if (analysisRunMatch && mutation) {
             if (params.size) throw new Error('invalid_analysis_request');
             const payload = body as Record<string, unknown>;
-            if (!payload || Object.keys(payload).sort().join(',') !== 'ref')
+            if (
+              !isRecord(payload) ||
+              Object.keys(payload).sort().join(',') !== 'ref,reviewedQueryDigests' ||
+              !isRecord(payload.reviewedQueryDigests)
+            )
               throw new Error('invalid_analysis_request');
-            const ref = payload.ref as DatasetAnalysisRef;
+            if (!isRecord(payload.ref)) throw new Error('invalid_analysis_ref');
+            const ref = payload.ref as unknown as DatasetAnalysisRef;
             if (ref.analysisId !== analysisRunMatch[1]) throw new Error('invalid_analysis_ref');
-            json(201, await runDatasetAnalysis(ref, datasetRuntime.tableEngineRoot, analysisRoot));
+            json(
+              201,
+              await runDatasetAnalysis(
+                ref,
+                datasetRuntime.tableEngineRoot,
+                payload.reviewedQueryDigests as unknown as ReviewedAnalysisQueryDigests,
+                analysisRoot,
+              ),
+            );
           } else if (analysisRunsMatch && !mutation) {
             const ref = refFromQuery<DatasetAnalysisRef>('ref');
             if (ref.analysisId !== analysisRunsMatch[1]) throw new Error('invalid_analysis_ref');
@@ -622,6 +643,7 @@ export function searchApi(
             const ref = refFromQuery<DatasetAnalysisRunRef>('ref');
             if (
               ref.runId !== analysisRunReadMatch[2] ||
+              !isRecord(ref.analysisRef) ||
               ref.analysisRef.analysisId !== analysisRunReadMatch[1]
             )
               throw new Error('invalid_analysis_ref');
@@ -643,9 +665,10 @@ export function searchApi(
           } else if (mutation && parseMatch) {
             if (params.size) throw new Error('invalid_dataset_request');
             const payload = body as Record<string, unknown>;
-            if (!payload || Object.keys(payload).sort().join(',') !== 'ref')
+            if (!isRecord(payload) || Object.keys(payload).sort().join(',') !== 'ref')
               throw new Error('invalid_dataset_request');
-            const ref = payload.ref as DatasetVersionRef;
+            if (!isRecord(payload.ref)) throw new Error('invalid_dataset_ref');
+            const ref = payload.ref as unknown as DatasetVersionRef;
             if (ref.datasetId !== parseMatch[1]) throw new Error('invalid_dataset_ref');
             const parsed = await importDatasetTable(
               ref,
@@ -671,15 +694,13 @@ export function searchApi(
             if (params.size) throw new Error('invalid_dataset_request');
             const payload = body as Record<string, unknown>;
             if (
-              !payload ||
+              !isRecord(payload) ||
               Object.keys(payload).sort().join(',') !==
                 'authorization,bytesBase64,expectedHead,license,name,source' ||
-              !payload.expectedHead ||
-              typeof payload.expectedHead !== 'object' ||
-              Array.isArray(payload.expectedHead)
+              !isRecord(payload.expectedHead)
             )
               throw new Error('invalid_dataset_request');
-            const expectedHead = payload.expectedHead as DatasetVersionRef;
+            const expectedHead = payload.expectedHead as unknown as DatasetVersionRef;
             if (expectedHead.datasetId !== versionMatch[1]) throw new Error('invalid_dataset_ref');
             const metadata = metadataFrom(payload);
             const ref = await appendDatasetVersion(
@@ -2445,6 +2466,7 @@ export function searchApi(
             ? 404
             : failure.code === 'dataset_head_changed' ||
                 failure.code === 'analysis_head_changed' ||
+                failure.code === 'analysis_review_changed' ||
                 failure.code === 'dataset_table_not_parsed' ||
                 failure.code === 'dataset_table_changed'
               ? 409
