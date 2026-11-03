@@ -118,7 +118,10 @@ function validateMetadata(metadata: unknown): asserts metadata is DatasetMetadat
 
 function validateBytes(bytes: Uint8Array): Buffer {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES)
-    throw new DatasetStoreError('invalid_dataset_bytes', 'Dataset must contain 1 to 1,000,000 bytes.');
+    throw new DatasetStoreError(
+      'invalid_dataset_bytes',
+      'Dataset must contain 1 to 1,000,000 bytes.',
+    );
   const copy = Buffer.from(bytes);
   try {
     new TextDecoder('utf-8', { fatal: true }).decode(copy);
@@ -144,6 +147,22 @@ async function directory(path: string) {
       });
       stat = await lstat(current);
     }
+    if (!stat.isDirectory() || stat.isSymbolicLink() || (await realpath(current)) !== current)
+      throw new DatasetStoreError('dataset_corrupt', 'Dataset storage must not follow symlinks.');
+  }
+}
+
+async function existingDirectory(path: string) {
+  const target = resolve(path);
+  const root = parse(target).root;
+  let current = root;
+  for (const component of target.slice(root.length).split(sep).filter(Boolean)) {
+    current = join(current, component);
+    const stat = await lstat(current).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT')
+        throw new DatasetStoreError('dataset_not_found', 'Dataset version was not found.');
+      throw error;
+    });
     if (!stat.isDirectory() || stat.isSymbolicLink() || (await realpath(current)) !== current)
       throw new DatasetStoreError('dataset_corrupt', 'Dataset storage must not follow symlinks.');
   }
@@ -179,7 +198,11 @@ function bytesName(version: number) {
   return recordName(version).replace(/\.json$/u, '.csv');
 }
 
-function refFromRecord(value: unknown): { ref: DatasetVersionRef; metadata: DatasetMetadata; byteLength: number } {
+function refFromRecord(value: unknown): {
+  ref: DatasetVersionRef;
+  metadata: DatasetMetadata;
+  byteLength: number;
+} {
   if (
     !plain(value) ||
     value.schemaVersion !== 1 ||
@@ -210,6 +233,7 @@ function refFromRecord(value: unknown): { ref: DatasetVersionRef; metadata: Data
 }
 
 async function readStored(ref: DatasetVersionRef, root: string): Promise<DatasetVersion> {
+  await existingDirectory(root);
   const folder = folderFor(root, ref.datasetId);
   const file = join(folder, recordName(ref.version));
   const folderStat = await lstat(folder).catch((error: NodeJS.ErrnoException) => {
@@ -248,7 +272,10 @@ async function readStored(ref: DatasetVersionRef, root: string): Promise<Dataset
     actualRef.sha256 !== ref.sha256 ||
     actualRef.name !== ref.name
   )
-    throw new DatasetStoreError('dataset_head_changed', 'Dataset reference does not match stored version.');
+    throw new DatasetStoreError(
+      'dataset_head_changed',
+      'Dataset reference does not match stored version.',
+    );
   const bytesPath = join(folder, bytesName(ref.version));
   const bytesStat = await lstat(bytesPath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT')
@@ -260,7 +287,10 @@ async function readStored(ref: DatasetVersionRef, root: string): Promise<Dataset
   const bytes = await readFile(bytesPath);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   if (bytes.byteLength !== byteLength || sha256 !== actualRef.sha256)
-    throw new DatasetStoreError('dataset_corrupt', 'Stored dataset bytes failed their digest check.');
+    throw new DatasetStoreError(
+      'dataset_corrupt',
+      'Stored dataset bytes failed their digest check.',
+    );
   return { ...actualRef, ref: actualRef, metadata, bytes };
 }
 
@@ -270,7 +300,11 @@ async function currentRefs(folder: string, datasetId: string): Promise<DatasetVe
     throw error;
   });
   if (!folderStat) return [];
-  if (!folderStat.isDirectory() || folderStat.isSymbolicLink() || (await realpath(folder)) !== folder)
+  if (
+    !folderStat.isDirectory() ||
+    folderStat.isSymbolicLink() ||
+    (await realpath(folder)) !== folder
+  )
     throw new DatasetStoreError('dataset_corrupt', 'Dataset storage must not follow symlinks.');
   const names = await readdir(folder).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return [];
@@ -283,7 +317,10 @@ async function currentRefs(folder: string, datasetId: string): Promise<DatasetVe
     metadataNames.some((name) => !byteNames.has(name.replace(/\.json$/u, '.csv'))) ||
     [...byteNames].some((name) => !metadataNames.includes(name.replace(/\.csv$/u, '.json')))
   )
-    throw new DatasetStoreError('dataset_corrupt', 'Dataset history contains an orphaned version file.');
+    throw new DatasetStoreError(
+      'dataset_corrupt',
+      'Dataset history contains an orphaned version file.',
+    );
   const refs: DatasetVersionRef[] = [];
   for (const name of metadataNames) {
     const path = join(folder, name);
@@ -293,7 +330,10 @@ async function currentRefs(folder: string, datasetId: string): Promise<DatasetVe
     const parsed: unknown = JSON.parse(await readFile(path, 'utf8'));
     const { ref } = refFromRecord(parsed);
     if (ref.datasetId !== datasetId || recordName(ref.version) !== name)
-      throw new DatasetStoreError('dataset_corrupt', 'Dataset history contains an invalid version.');
+      throw new DatasetStoreError(
+        'dataset_corrupt',
+        'Dataset history contains an invalid version.',
+      );
     const bytePath = join(folder, bytesName(ref.version));
     const byteStat = await lstat(bytePath);
     if (!byteStat.isFile() || byteStat.isSymbolicLink())
@@ -325,7 +365,8 @@ async function writeVersion(
     await immutableWrite(
       folder,
       recordName(version),
-      JSON.stringify({ schemaVersion: 1, ref, byteLength: bytes.byteLength, metadata }, null, 2) + '\n',
+      JSON.stringify({ schemaVersion: 1, ref, byteLength: bytes.byteLength, metadata }, null, 2) +
+        '\n',
     );
   } catch (error) {
     await unlink(join(folder, bytesName(version))).catch(() => undefined);
@@ -377,20 +418,25 @@ export async function appendDatasetVersion(
     await mkdir(lock, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST')
-      throw new DatasetStoreError('dataset_head_changed', 'Dataset already has a concurrent version update.');
+      throw new DatasetStoreError(
+        'dataset_head_changed',
+        'Dataset already has a concurrent version update.',
+      );
     throw error;
   }
   try {
     const refs = await currentRefs(folder, expectedHead.datasetId);
     const head = refs.at(-1);
-    if (
-      !head ||
-      head.version !== expectedHead.version ||
-      head.sha256 !== expectedHead.sha256
-    )
-      throw new DatasetStoreError('dataset_head_changed', 'Dataset changed since the expected head was read.');
+    if (!head || head.version !== expectedHead.version || head.sha256 !== expectedHead.sha256)
+      throw new DatasetStoreError(
+        'dataset_head_changed',
+        'Dataset changed since the expected head was read.',
+      );
     if (head.version >= MAX_VERSIONS)
-      throw new DatasetStoreError('dataset_version_limit', 'Dataset reached its 20-version history limit.');
+      throw new DatasetStoreError(
+        'dataset_version_limit',
+        'Dataset reached its 20-version history limit.',
+      );
     return await writeVersion(
       expectedHead.datasetId,
       head.version + 1,
@@ -426,15 +472,21 @@ export async function readDataset(
 }
 
 /** List all retained versions in deterministic order; this is metadata-only and does not parse datasets. */
-export async function listDatasets(root = resolve('.signals/datasets')): Promise<DatasetVersionRef[]> {
+export async function listDatasets(
+  root = resolve('.signals/datasets'),
+): Promise<DatasetVersionRef[]> {
   await directory(root);
   const ids = (await readdir(root)).filter((item) => idPattern.test(item)).sort();
   if (ids.length > MAX_DATASETS)
     throw new DatasetStoreError('dataset_corrupt', 'Dataset storage exceeds its item limit.');
   const refs = (await Promise.all(ids.map((id) => currentRefs(join(root, id), id)))).flat();
-  return refs.sort((left, right) =>
-    left.datasetId.localeCompare(right.datasetId) || left.version - right.version,
+  return refs.sort(
+    (left, right) => left.datasetId.localeCompare(right.datasetId) || left.version - right.version,
   );
 }
 
-export const datasetStoreLimits = Object.freeze({ bytes: MAX_BYTES, versions: MAX_VERSIONS, datasets: MAX_DATASETS });
+export const datasetStoreLimits = Object.freeze({
+  bytes: MAX_BYTES,
+  versions: MAX_VERSIONS,
+  datasets: MAX_DATASETS,
+});

@@ -18,7 +18,7 @@ type DatasetReadResponse = DatasetResponse & { bytesBase64: string };
 type LocalApi = <T>(route: string, body?: unknown) => Promise<T>;
 type PreparedFile = { file: File; bytes: Uint8Array; sha256: string };
 
-const maxBytes = 1024 * 1024;
+const maxBytes = 1_000_000;
 
 function encodeBase64(bytes: Uint8Array): string {
   let binary = '';

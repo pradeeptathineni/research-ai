@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, unlink } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, symlink, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -46,19 +46,31 @@ it('preserves old versions and rejects a stale or concurrent expected head', asy
   const original = Buffer.from('region,value\nwest,10\n');
   const first = await importDataset(original, { name: 'Sales.csv', metadata }, root);
   const replacement = Buffer.from('region,value\neast,20\n');
-  const second = await appendDatasetVersion(first, replacement, { name: 'Sales.csv', metadata }, root);
+  const second = await appendDatasetVersion(
+    first,
+    replacement,
+    { name: 'Sales.csv', metadata },
+    root,
+  );
   expect(second).toMatchObject({ datasetId: first.datasetId, version: 2 });
   expect((await readDataset(first, root)).bytes).toEqual(original);
   expect((await readDataset(second, root)).bytes).toEqual(replacement);
   await expect(
-    appendDatasetVersion(first, Buffer.from('region,value\nnorth,30\n'), { name: 'Sales.csv', metadata }, root),
+    appendDatasetVersion(
+      first,
+      Buffer.from('region,value\nnorth,30\n'),
+      { name: 'Sales.csv', metadata },
+      root,
+    ),
   ).rejects.toMatchObject({ code: 'dataset_head_changed' });
   expect(await listDatasets(root)).toEqual([first, second]);
 });
 
 it('refuses unbounded, malformed, and unauthorized dataset imports', async () => {
   const root = await temp();
-  await expect(importDataset(Buffer.from(''), { name: 'bad.csv', metadata }, root)).rejects.toMatchObject({
+  await expect(
+    importDataset(Buffer.from(''), { name: 'bad.csv', metadata }, root),
+  ).rejects.toMatchObject({
     code: 'invalid_dataset_bytes',
   });
   await expect(
@@ -68,13 +80,24 @@ it('refuses unbounded, malformed, and unauthorized dataset imports', async () =>
     importDataset(Buffer.from([0x61, 0xff]), { name: 'bad.csv', metadata }, root),
   ).rejects.toMatchObject({ code: 'invalid_dataset_bytes' });
   await expect(
-    importDataset(Buffer.from('a\n'), {
-      name: 'bad.csv',
-      metadata: { ...metadata, authorization: { status: 'user-confirmed', recordedAt: 'invalid' } },
-    }, root),
+    importDataset(
+      Buffer.from('a\n'),
+      {
+        name: 'bad.csv',
+        metadata: {
+          ...metadata,
+          authorization: { status: 'user-confirmed', recordedAt: 'invalid' },
+        },
+      },
+      root,
+    ),
   ).rejects.toMatchObject({ code: 'invalid_dataset' });
   await expect(
-    importDataset(new Uint8Array(datasetStoreLimits.bytes + 1), { name: 'large.csv', metadata }, root),
+    importDataset(
+      new Uint8Array(datasetStoreLimits.bytes + 1),
+      { name: 'large.csv', metadata },
+      root,
+    ),
   ).rejects.toMatchObject({ code: 'invalid_dataset_bytes' });
   expect(await listDatasets(root)).toEqual([]);
 });
@@ -86,4 +109,16 @@ it('detects and preserves an orphaned source-byte file after an interrupted vers
   await unlink(join(root, ref.datasetId, '01.json'));
   await expect(listDatasets(root)).rejects.toMatchObject({ code: 'dataset_corrupt' });
   expect(await readFile(join(root, ref.datasetId, '01.csv'))).toEqual(bytes);
+});
+
+it('refuses a symlinked storage root on a cold read', async () => {
+  const root = await temp();
+  const ref = await importDataset(
+    Buffer.from('a,b\n1,2\n'),
+    { name: 'Fixture.csv', metadata },
+    root,
+  );
+  const link = join(root, '..', 'linked-datasets');
+  await symlink(root, link);
+  await expect(readDataset(ref, link)).rejects.toMatchObject({ code: 'dataset_corrupt' });
 });
