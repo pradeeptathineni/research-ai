@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('imports, analyzes and cold-reopens an exact synthetic CSV version', async ({ page }) => {
+test('imports, analyzes and cold-reopens an exact synthetic CSV version', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   let analysisRuns = 0;
@@ -161,6 +161,7 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
 
   await page.setViewportSize({ width: 1440, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('rs07-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 360, height: 800 });
   const narrowLayout = await page.evaluate(() => ({
     width: innerWidth,
@@ -181,6 +182,7 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
     width: 360,
     scrollWidth: 360,
   });
+  await page.screenshot({ path: testInfo.outputPath('rs07-phone.png'), fullPage: true });
   expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(
     true,
   );
