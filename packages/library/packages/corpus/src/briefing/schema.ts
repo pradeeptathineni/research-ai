@@ -252,28 +252,42 @@ const rankingWeights = Type.Object(
   },
   closed,
 );
-export const RankingExplanationSchema = Type.Object(
-  {
-    storyId: opaqueId,
-    formula: Type.Literal('briefing-linear-v1'),
-    components: Type.Object(
-      {
-        relevance: rankingComponent,
-        freshness: rankingComponent,
-        sourcePriority: rankingComponent,
-        novelty: rankingComponent,
-        velocity: rankingComponent,
-      },
-      closed,
-    ),
-    weights: rankingWeights,
-    completeness: Type.Enum(['partial', 'complete']),
-    total: Type.Number({ minimum: 0, maximum: 100 }),
-    computedAt: instant,
-    inputDigest: digest,
-  },
-  closed,
-);
+const rankingExplanationFields = {
+  storyId: opaqueId,
+  components: Type.Object(
+    {
+      relevance: rankingComponent,
+      freshness: rankingComponent,
+      sourcePriority: rankingComponent,
+      novelty: rankingComponent,
+      velocity: rankingComponent,
+    },
+    closed,
+  ),
+  weights: rankingWeights,
+  completeness: Type.Enum(['partial', 'complete']),
+  total: Type.Number({ minimum: 0, maximum: 100 }),
+  computedAt: instant,
+  inputDigest: digest,
+};
+export const RankingExplanationSchema = Type.Union([
+  Type.Object({ ...rankingExplanationFields, formula: Type.Literal('briefing-linear-v1') }, closed),
+  Type.Object(
+    {
+      ...rankingExplanationFields,
+      formula: Type.Literal('briefing-linear-v2'),
+      manualPreference: Type.Object(
+        {
+          points: Type.Number({ minimum: -100, maximum: 100 }),
+          reason: Type.String({ minLength: 1, maxLength: 500 }),
+          refs: Type.Array(opaqueId, { maxItems: 100, uniqueItems: true }),
+        },
+        closed,
+      ),
+    },
+    closed,
+  ),
+]);
 
 export const InterestTuningValueSchema = Type.Object(
   {
@@ -536,14 +550,16 @@ export function effectiveRankingWeights(velocity: number) {
 export function rankingTotal(
   components: RankingExplanation['components'],
   weights: RankingExplanation['weights'],
+  manualPreferencePoints = 0,
 ) {
   const total =
     (components.relevance.value ?? 0) * weights.relevance +
     (components.freshness.value ?? 0) * weights.freshness +
     (components.sourcePriority.value ?? 0) * weights.sourcePriority +
     (components.novelty.value ?? 0) * weights.novelty +
-    (components.velocity.value ?? 0) * weights.velocity;
-  return Math.round(total * 100) / 100;
+    (components.velocity.value ?? 0) * weights.velocity +
+    manualPreferencePoints * weights.relevance;
+  return Math.round(Math.max(0, Math.min(100, total)) * 100) / 100;
 }
 export function isRankingExplanation(value: unknown): value is RankingExplanation {
   if (!Value.Check(RankingExplanationSchema, value)) return false;
@@ -558,7 +574,12 @@ export function isRankingExplanation(value: unknown): value is RankingExplanatio
   return (
     statusesValid &&
     explanation.completeness === (allKnown ? 'complete' : 'partial') &&
-    explanation.total === rankingTotal(explanation.components, explanation.weights)
+    explanation.total ===
+      rankingTotal(
+        explanation.components,
+        explanation.weights,
+        explanation.formula === 'briefing-linear-v2' ? explanation.manualPreference.points : 0,
+      )
   );
 }
 

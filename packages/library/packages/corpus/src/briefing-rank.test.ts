@@ -178,8 +178,8 @@ describe('briefing story ranking', () => {
     );
   });
 
-  it('applies explicit more feedback and removes it when the exact record is undone', async () => {
-    const more = {
+  it('keeps content relevance separate from exact manual preference and its undo', async () => {
+    const less = {
       id: '30000000-0000-4000-8000-000000000001',
       requestId: '30000000-0000-4000-8000-000000000002',
       targetKind: 'story' as const,
@@ -193,20 +193,80 @@ describe('briefing story ranking', () => {
       targetKind: 'story' as const,
       targetId: base.story.id,
       action: 'undo' as const,
-      undoesFeedbackId: more.id,
+      undoesFeedbackId: less.id,
       createdAt: '2026-10-28T10:01:00.000Z',
     };
     const baseline = await rankBriefingStory(base, { now: '2026-10-28T10:00:00.000Z' });
     const reduced = await rankBriefingStory(
-      { ...base, feedback: [more] },
+      { ...base, feedback: [less] },
       { now: '2026-10-28T10:00:00.000Z' },
     );
     const restored = await rankBriefingStory(
-      { ...base, feedback: [more, undone] },
+      { ...base, feedback: [less, undone] },
       { now: '2026-10-28T10:00:00.000Z' },
     );
-    expect(reduced.components.relevance.value).toBe(90);
+    expect(reduced.components.relevance.value).toBe(100);
+    expect(reduced.formula).toBe('briefing-linear-v2');
+    if (reduced.formula !== 'briefing-linear-v2') throw new Error('missing manual preference');
+    expect(reduced.manualPreference).toMatchObject({ points: -10, refs: [less.id] });
     expect(reduced.total).toBeLessThan(baseline.total);
     expect(restored.total).toBe(baseline.total);
+    expect(isRankingExplanation(reduced)).toBe(true);
+  });
+
+  it('lets explicit story feedback change order without claiming a term match', async () => {
+    const unmatched: BriefingRankInput = {
+      ...base,
+      items: [
+        {
+          ...base.items[0]!,
+          item: { ...base.items[0]!.item, title: 'M 2.8 - Puerto Rico', excerpt: 'Earthquake' },
+          interests: [{ ...base.items[0]!.interests[0]!, includeTerms: ['recent earthquakes'] }],
+        },
+      ],
+    };
+    const feedback = {
+      id: '30000000-0000-4000-8000-000000000005',
+      requestId: '30000000-0000-4000-8000-000000000006',
+      targetKind: 'story' as const,
+      targetId: unmatched.story.id,
+      action: 'more' as const,
+      createdAt: '2026-10-28T10:00:00.000Z',
+    };
+    const undo = {
+      id: '30000000-0000-4000-8000-000000000007',
+      requestId: '30000000-0000-4000-8000-000000000008',
+      targetKind: 'story' as const,
+      targetId: unmatched.story.id,
+      action: 'undo' as const,
+      undoesFeedbackId: feedback.id,
+      createdAt: '2026-10-28T10:01:00.000Z',
+    };
+    const now = '2026-10-28T10:00:00.000Z';
+    const before = await rankBriefingStory(unmatched, { now });
+    const more = await rankBriefingStory({ ...unmatched, feedback: [feedback] }, { now });
+    const less = await rankBriefingStory(
+      { ...unmatched, feedback: [{ ...feedback, action: 'less' }] },
+      { now },
+    );
+    const restored = await rankBriefingStory({ ...unmatched, feedback: [feedback, undo] }, { now });
+    expect(before.components.relevance).toMatchObject({ status: 'unknown', value: null });
+    expect(more.components.relevance).toEqual(before.components.relevance);
+    expect(less.components.relevance).toEqual(before.components.relevance);
+    expect(more.total).toBeGreaterThan(before.total);
+    expect(less.total).toBeLessThan(before.total);
+    expect(restored.total).toBe(before.total);
+    expect(more.completeness).toBe('partial');
+    expect(more.formula).toBe('briefing-linear-v2');
+    expect(isRankingExplanation(more)).toBe(true);
+    expect(isRankingExplanation(less)).toBe(true);
+    if (more.formula !== 'briefing-linear-v2') throw new Error('missing manual preference');
+    expect(isRankingExplanation({ ...more, total: before.total })).toBe(false);
+    expect(
+      isRankingExplanation({
+        ...more,
+        manualPreference: { ...more.manualPreference, points: -10 },
+      }),
+    ).toBe(false);
   });
 });

@@ -738,6 +738,19 @@ export default function BriefingPage({ api, onFollowThrough }: Props) {
                           </b>
                         </li>
                       ))}
+                      {selected.explanation.formula === 'briefing-linear-v2' ? (
+                        <li>
+                          <span>
+                            <b>Manual preference</b> ·{' '}
+                            {selected.explanation.manualPreference.reason}
+                          </span>
+                          <b>
+                            {selected.explanation.manualPreference.points > 0 ? '+' : ''}
+                            {selected.explanation.manualPreference.points} ×{' '}
+                            {selected.explanation.weights.relevance.toFixed(2)}
+                          </b>
+                        </li>
+                      ) : null}
                     </ul>
                   </>
                 ) : (

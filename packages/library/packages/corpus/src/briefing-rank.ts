@@ -76,33 +76,35 @@ function relevance(input: BriefingRankInput): RankingExplanation['components']['
       reason: 'No enabled configured interest terms matched this story.',
       refs: [],
     };
+  const base = entries.reduce((sum, entry) => sum + entry.points * entry.weight, 0) / weight;
+  return {
+    value: Math.round(clamp(base)),
+    status: 'available',
+    reason:
+      'Share of configured include terms matched across enabled, source-scoped interests; excluded terms remove a match.',
+    refs: entries.map((entry) => entry.interestId),
+  };
+}
+
+function manualPreference(input: BriefingRankInput) {
   const undone = new Set(
     input.feedback
       .filter((entry) => entry.action === 'undo')
       .map((entry) => entry.undoesFeedbackId),
   );
-  const adjustments = input.feedback.filter(
+  const active = input.feedback.filter(
     (entry) =>
       entry.targetKind === 'story' &&
       entry.targetId === input.story.id &&
       !undone.has(entry.id) &&
       (entry.action === 'more' || entry.action === 'less'),
   );
-  const base = entries.reduce((sum, entry) => sum + entry.points * entry.weight, 0) / weight;
-  const adjustment = adjustments.reduce(
-    (sum, entry) => sum + (entry.action === 'more' ? 10 : -10),
-    0,
-  );
+  const points = active.reduce((sum, entry) => sum + (entry.action === 'more' ? 10 : -10), 0);
   return {
-    value: Math.round(clamp(base + adjustment)),
-    status: 'available',
-    reason: `Share of configured include terms matched across enabled, source-scoped interests; excluded terms remove a match${adjustment ? `; active explicit feedback adjusts by ${adjustment > 0 ? '+' : ''}${adjustment}` : ''}.`,
-    refs: [
-      ...new Set([
-        ...entries.map((entry) => entry.interestId),
-        ...adjustments.map((entry) => entry.id),
-      ]),
-    ],
+    points: clamp(points, -100, 100),
+    reason:
+      'Each active exact-story More/Less choice adds/subtracts 10 relevance-scale ranking points, capped at 100 in either direction. This is a manual preference, not a content match or evidence of factual quality.',
+    refs: active.map((entry) => entry.id),
   };
 }
 
@@ -265,16 +267,27 @@ export async function rankBriefingStory(
     velocity: velocity(input),
   };
   const weights = effectiveRankingWeights(velocityWeight);
-  return {
+  const base = {
     storyId: input.story.id,
-    formula: 'briefing-linear-v1',
     components,
     weights,
     completeness: Object.values(components).every((component) => component.status === 'available')
-      ? 'complete'
-      : 'partial',
-    total: rankingTotal(components, weights),
+      ? ('complete' as const)
+      : ('partial' as const),
     computedAt: new Date(now).toISOString(),
     inputDigest: await inputDigest(input),
+  };
+  const preference = manualPreference(input);
+  if (!preference.refs.length)
+    return {
+      ...base,
+      formula: 'briefing-linear-v1',
+      total: rankingTotal(components, weights),
+    };
+  return {
+    ...base,
+    formula: 'briefing-linear-v2',
+    manualPreference: preference,
+    total: rankingTotal(components, weights, preference.points),
   };
 }
