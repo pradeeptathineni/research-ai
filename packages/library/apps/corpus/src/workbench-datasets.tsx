@@ -983,18 +983,23 @@ function DatasetAnalysisPanel({
         Reload analyses and readiness
       </button>
       {!parsed && (
-        <div className="dataset-analysis-actions">
-          <button type="button" disabled={busy} onClick={() => void openSavedTable()}>
-            Reopen saved parsed table
-          </button>
-          <button
-            type="button"
-            disabled={busy || !capabilities?.csvParser.available}
-            onClick={() => void parseSelectedDataset()}
-          >
-            Parse and inspect this exact version
-          </button>
-        </div>
+        <>
+          <div className="dataset-analysis-actions">
+            <button type="button" disabled={busy} onClick={() => void openSavedTable()}>
+              Reopen saved parsed table
+            </button>
+            <button
+              type="button"
+              disabled={busy || !capabilities?.csvParser.available}
+              onClick={() => void parseSelectedDataset()}
+            >
+              Parse and inspect this exact version
+            </button>
+          </div>
+          <p>
+            Analysis accepts up to 16 columns and 1,000 rows. Saved source bytes remain available.
+          </p>
+        </>
       )}
       {!parsed ? (
         <p>

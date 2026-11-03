@@ -647,7 +647,10 @@ export async function importDatasetTable(
         'CSV headers do not meet Methods import rules.',
       );
     if (code === 'limit_exceeded')
-      throw new DatasetStoreError('limit_exceeded', 'CSV exceeds Methods import limits.');
+      throw new DatasetStoreError(
+        'limit_exceeded',
+        'CSV analysis supports at most 16 columns, 1,000 data rows and 1 MB. The saved source version remains available.',
+      );
     if (code === 'invalid_csv_utf8')
       throw new DatasetStoreError('invalid_csv_utf8', 'CSV is not valid UTF-8.');
     throw new DatasetStoreError('invalid_csv', 'CSV syntax or record shape is invalid.');
