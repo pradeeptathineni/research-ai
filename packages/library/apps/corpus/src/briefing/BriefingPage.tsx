@@ -525,7 +525,8 @@ export default function BriefingPage({ api, onFollowThrough }: Props) {
         <section className="briefing-page__tuning" aria-label="Ranking preferences">
           <h2>Ranking preferences</h2>
           <p>
-            Updates affect the next ranking pass. They do not change the underlying interests or sources.
+            Updates affect the next ranking pass. They do not change the underlying interests or
+            sources.
           </p>
           <label>
             Velocity weight · {velocityWeight.toFixed(2)}

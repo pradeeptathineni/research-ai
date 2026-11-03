@@ -12,8 +12,7 @@ export interface PublicSiteArtifact {
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
 const viteShellFile = (path: string) =>
-  path === 'index.html' ||
-  /^assets\/[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,32}\.(?:js|css)$/.test(path);
+  path === 'index.html' || /^assets\/[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,32}\.(?:js|css)$/.test(path);
 
 /** Checks the whole Vite tree; only reviewed data files and the app's hashed shell are allowed. */
 export async function verifyPublicSiteArtifactBytes(

@@ -590,7 +590,8 @@ export function ProjectDesk({
         <details>
           <summary>Inspect a reported Context result</summary>
           <p>
-            Open a Context JSON result for this project. This private preview sends no file and installs nothing. A reported plan does not prove activation.
+            Open a Context JSON result for this project. This private preview sends no file and
+            installs nothing. A reported plan does not prove activation.
           </p>
           <label>
             Context result JSON

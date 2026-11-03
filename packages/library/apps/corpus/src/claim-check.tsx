@@ -60,7 +60,8 @@ export function ClaimCheck({ receipt }: { receipt: ClaimReceipt }) {
               (source) => source.state === 'denied' || source.state === 'cancelled',
             ) && (
               <p>
-                Do not bypass denied access. Cancellation does not resubmit the check. Start a new check explicitly if needed.
+                Do not bypass denied access. Cancellation does not resubmit the check. Start a new
+                check explicitly if needed.
               </p>
             )}
             {receipt.selectedMaterial.some(
@@ -193,7 +194,8 @@ export function ClaimCheck({ receipt }: { receipt: ClaimReceipt }) {
         </p>
       )}
       <p>
-        Matching primary text shows where a quote occurs. Support, completeness and independence remain fallible judgments.
+        Matching primary text shows where a quote occurs. Support, completeness and independence
+        remain fallible judgments.
       </p>
     </section>
   );

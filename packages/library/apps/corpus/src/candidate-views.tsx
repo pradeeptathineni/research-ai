@@ -73,7 +73,8 @@ export function AssessmentDerivation({ entity }: { entity: Entity }) {
         {entity.assessment.disposition ?? entity.assessment.state}
       </p>
       <p>
-        The score adds evidence-policy contributions, then rounds the total. The points below are approximate policy credit. They do not measure assessment accuracy.
+        The score adds evidence-policy contributions, then rounds the total. The points below are
+        approximate policy credit. They do not measure assessment accuracy.
       </p>
       {Object.entries(entity.assessment.features).map(([dimension, feature]) => (
         <details key={dimension}>
