@@ -17,7 +17,15 @@ The parser uses fixed options: UTF-8, BOM-aware parsing, first row as headers,
 no casting, no skipped empty lines or malformed records, strict quote/column
 counts, and a 64 KiB maximum record size. Options are not request-controlled.
 Header values must be unique, nonempty, plain text and no longer than 120
-characters. There may be at most 16 columns and 1,000 data rows. CSV input is
+characters. The existing import without a selection accepts at most 16 columns.
+For a CSV with up to 64 source columns, `inspectCsvColumns(csv, { parserRoot })`
+returns exact ordered headers, row count, source digest, and header digest.
+The caller may then use `importTableCsv(csv, { parserRoot, label, selectedColumns })`
+with 1–16 unique exact header names in the desired table order. This explicit
+projection returns a v2 receipt with source header count/digest and selected
+source indexes/names; the original CSV digest still covers every byte. No
+columns are selected or discarded automatically. There may be at most 1,000
+data rows. CSV input is
 capped at exactly 1,000,000 UTF-8 bytes; input which exceeds a limit is refused,
 never truncated. Header validation happens on the first parser record and the
 row cap rejects from the parser record callback before an over-limit row is

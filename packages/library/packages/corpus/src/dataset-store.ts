@@ -16,6 +16,7 @@ import {
   chartSeries,
   createAnalysis,
   importTableCsv,
+  inspectCsvColumns,
   prepareAnalysisQuery,
   registerTable,
   runAnalysisTarget,
@@ -27,6 +28,8 @@ import {
   type ResearchTableAnalysis,
   type ResearchTableAnalysisInput,
   type ResearchTableCsvImport,
+  type ResearchTableCsvProjectedImport,
+  type ResearchTableCsvColumns,
   type TableQueryComplete,
   type TableQueryResult,
 } from '@pradeeptathineni/research-ai';
@@ -79,6 +82,7 @@ export class DatasetStoreError extends Error {
       | 'csv_parser_unavailable'
       | 'invalid_csv'
       | 'invalid_csv_headers'
+      | 'invalid_column_selection'
       | 'invalid_csv_utf8'
       | 'limit_exceeded'
       | 'analysis_not_found'
@@ -534,7 +538,7 @@ export async function listDatasets(
 export interface ParsedDatasetTable {
   datasetRef: DatasetVersionRef;
   table: ResearchTable;
-  import: ResearchTableCsvImport;
+  import: ResearchTableCsvImport | ResearchTableCsvProjectedImport;
   metadata: DatasetMetadata;
 }
 
@@ -542,7 +546,7 @@ interface ParsedTableRecord {
   schemaVersion: 1;
   datasetRef: DatasetVersionRef;
   table: ResearchTable;
-  import: ResearchTableCsvImport;
+  import: ResearchTableCsvImport | ResearchTableCsvProjectedImport;
 }
 
 function tableRecordPath(ref: DatasetVersionRef, root: string) {
@@ -578,7 +582,8 @@ function validateParsedRecord(value: unknown, ref: DatasetVersionRef): ParsedTab
     value.datasetRef.sha256 !== ref.sha256 ||
     value.datasetRef.name !== ref.name ||
     !plain(value.import) ||
-    value.import.version !== 'research-table-csv-v1' ||
+    (value.import.version !== 'research-table-csv-v1' &&
+      value.import.version !== 'research-table-csv-v2') ||
     value.import.csv_sha256 !== ref.sha256 ||
     !plain(value.import.parser) ||
     value.import.parser.name !== 'csv-parse' ||
@@ -591,6 +596,36 @@ function validateParsedRecord(value: unknown, ref: DatasetVersionRef): ParsedTab
       'Saved table no longer binds to these exact CSV bytes.',
     );
   const table = verifyRegisteredTable(value.table);
+  if (value.import.version === 'research-table-csv-v2') {
+    const source = value.import.source_headers as { count?: unknown; sha256?: unknown } | undefined;
+    const selected = value.import.selected_columns;
+    const count = source?.count;
+    if (
+      !plain(source) ||
+      !Number.isInteger(count) ||
+      (count as number) < 1 ||
+      (count as number) > 64 ||
+      typeof source.sha256 !== 'string' ||
+      !digestPattern.test(source.sha256) ||
+      !Array.isArray(selected) ||
+      selected.length < 1 ||
+      selected.length > 16 ||
+      selected.length !== table.columns.length ||
+      selected.some((entry: unknown, position: number) => {
+        if (!plain(entry)) return true;
+        const index = entry.index;
+        return (
+          !Number.isInteger(index) ||
+          (index as number) < 0 ||
+          (index as number) >= (count as number) ||
+          typeof entry.label !== 'string' ||
+          entry.label !== table.columns[position]?.label
+        );
+      }) ||
+      new Set(selected.map((entry: { index: number }) => entry.index)).size !== selected.length
+    )
+      throw new DatasetStoreError('dataset_table_changed', 'Saved CSV column selection changed.');
+  }
   if (value.import.table_sha256 !== table.sha256)
     throw new DatasetStoreError(
       'dataset_table_changed',
@@ -600,8 +635,62 @@ function validateParsedRecord(value: unknown, ref: DatasetVersionRef): ParsedTab
     schemaVersion: 1,
     datasetRef: ref,
     table,
-    import: value.import as unknown as ResearchTableCsvImport,
+    import: value.import as unknown as ResearchTableCsvImport | ResearchTableCsvProjectedImport,
   };
+}
+
+/** Inspect exact saved source bytes before the user selects columns; no table is written. */
+export async function inspectDatasetColumns(
+  ref: DatasetVersionRef,
+  parserRoot: string | undefined,
+  root = resolve('.signals/datasets'),
+): Promise<ResearchTableCsvColumns> {
+  if (!parserRoot || !isAbsolute(parserRoot))
+    throw new DatasetStoreError(
+      'csv_parser_unavailable',
+      'The host has not configured the qualified CSV parser.',
+    );
+  const source = await readDataset(ref, root);
+  try {
+    const columns = await inspectCsvColumns(source.bytes, { parserRoot });
+    if (columns.csv_sha256 !== source.ref.sha256)
+      throw new DatasetStoreError(
+        'dataset_table_changed',
+        'Inspected columns do not match saved bytes.',
+      );
+    return columns;
+  } catch (failure) {
+    throw csvImportFailure(failure);
+  }
+}
+
+function csvImportFailure(failure: unknown): DatasetStoreError {
+  if (failure instanceof DatasetStoreError) return failure;
+  const code =
+    failure && typeof failure === 'object' && 'code' in failure ? String(failure.code) : '';
+  if (code === 'parser_unavailable' || code === 'parser_version_mismatch')
+    return new DatasetStoreError(
+      'csv_parser_unavailable',
+      'The configured CSV parser is unavailable or not qualified.',
+    );
+  if (code === 'invalid_csv_headers')
+    return new DatasetStoreError(
+      'invalid_csv_headers',
+      'CSV headers do not meet Methods import rules.',
+    );
+  if (code === 'invalid_column_selection')
+    return new DatasetStoreError(
+      'invalid_column_selection',
+      'Select 1 through 16 exact source column names.',
+    );
+  if (code === 'limit_exceeded')
+    return new DatasetStoreError(
+      'limit_exceeded',
+      'CSV analysis supports up to 64 source columns when 1 through 16 are selected, 1,000 data rows and 1 MB. Saved bytes remain available.',
+    );
+  if (code === 'invalid_csv_utf8')
+    return new DatasetStoreError('invalid_csv_utf8', 'CSV is not valid UTF-8.');
+  return new DatasetStoreError('invalid_csv', 'CSV syntax or record shape is invalid.');
 }
 
 /** Parse exact retained CSV bytes through the pinned Methods parser and keep its typed-table receipt. */
@@ -609,13 +698,26 @@ export async function importDatasetTable(
   ref: DatasetVersionRef,
   parserRoot: string | undefined,
   root = resolve('.signals/datasets'),
+  selectedColumns?: readonly string[],
 ): Promise<ParsedDatasetTable> {
   const existing = await readDatasetTable(ref, root).catch((failure: unknown) => {
     if (failure instanceof DatasetStoreError && failure.code === 'dataset_table_not_parsed')
       return null;
     throw failure;
   });
-  if (existing) return existing;
+  if (existing) {
+    if (
+      selectedColumns &&
+      (existing.import.version !== 'research-table-csv-v2' ||
+        JSON.stringify(existing.import.selected_columns.map((entry) => entry.label)) !==
+          JSON.stringify(selectedColumns))
+    )
+      throw new DatasetStoreError(
+        'dataset_table_changed',
+        'This source version already has a table with a different column selection. Save a new dataset version to choose again.',
+      );
+    return existing;
+  }
   if (!parserRoot || !isAbsolute(parserRoot))
     throw new DatasetStoreError(
       'csv_parser_unavailable',
@@ -630,30 +732,17 @@ export async function importDatasetTable(
     .join('')
     .slice(0, 120)
     .trim();
-  let parsed: Awaited<ReturnType<typeof importTableCsv>>;
+  let parsed: {
+    table: ResearchTable;
+    import: ResearchTableCsvImport | ResearchTableCsvProjectedImport;
+  };
   try {
-    parsed = await importTableCsv(source.bytes, { parserRoot, label });
+    parsed =
+      selectedColumns === undefined
+        ? await importTableCsv(source.bytes, { parserRoot, label })
+        : await importTableCsv(source.bytes, { parserRoot, label, selectedColumns });
   } catch (failure) {
-    const code =
-      failure && typeof failure === 'object' && 'code' in failure ? String(failure.code) : '';
-    if (code === 'parser_unavailable' || code === 'parser_version_mismatch')
-      throw new DatasetStoreError(
-        'csv_parser_unavailable',
-        'The configured CSV parser is unavailable or not qualified.',
-      );
-    if (code === 'invalid_csv_headers')
-      throw new DatasetStoreError(
-        'invalid_csv_headers',
-        'CSV headers do not meet Methods import rules.',
-      );
-    if (code === 'limit_exceeded')
-      throw new DatasetStoreError(
-        'limit_exceeded',
-        'CSV analysis supports at most 16 columns, 1,000 data rows and 1 MB. The saved source version remains available.',
-      );
-    if (code === 'invalid_csv_utf8')
-      throw new DatasetStoreError('invalid_csv_utf8', 'CSV is not valid UTF-8.');
-    throw new DatasetStoreError('invalid_csv', 'CSV syntax or record shape is invalid.');
+    throw csvImportFailure(failure);
   }
   if (
     parsed.import.csv_sha256 !== source.ref.sha256 ||
@@ -675,7 +764,7 @@ export async function importDatasetTable(
     await immutableWrite(dirname(path), basename(path), JSON.stringify(record, null, 2) + '\n');
   } catch (failure) {
     if (failure instanceof DatasetStoreError && failure.code === 'dataset_head_changed')
-      return readDatasetTable(ref, root);
+      return importDatasetTable(ref, parserRoot, root, selectedColumns);
     throw failure;
   }
   return {

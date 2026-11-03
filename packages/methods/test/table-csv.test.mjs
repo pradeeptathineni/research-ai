@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { importTableCsv } from '../src/table-csv.mjs';
+import { importTableCsv, inspectCsvColumns } from '../src/table-csv.mjs';
 import { registerTable } from '../src/table-analysis.mjs';
 
 const parserRoot = process.env.RESEARCH_TABLE_TEST_PARSER_ROOT;
@@ -82,4 +82,91 @@ test('CSV CLI consumes stdin bytes, emits the same receipt, and never reads a fi
   assert.equal(invalid.status, 1);
   assert.equal(invalid.stdout, '');
   assert.doesNotMatch(invalid.stderr, /\/Users\/|research\/|runtime\//u);
+});
+
+const usgsHeaders = ['time', 'latitude', 'longitude', 'depth', 'mag', 'magType', 'nst', 'gap', 'dmin', 'rms', 'net', 'id',
+  'updated', 'place', 'type', 'horizontalError', 'depthError', 'magError', 'magNst', 'status', 'locationSource', 'magSource'];
+const selectedColumns = ['time', 'mag', 'net', 'type', 'status', 'id'];
+const wideRow = (row) => usgsHeaders.map((header) => (header === 'place' ? `"${row} km N of Example, CA"` : `${header}-${row}`)).join(',');
+const wideCsv = `${usgsHeaders.join(',')}\r\n${Array.from({ length: 48 }, (_, row) => wideRow(row)).join('\r\n')}\r\n`;
+const missingParser = '/private/missing-csv-package';
+
+test('wide CSV inspection and explicit projection retain the exact source identity', { skip: !parserRoot }, async () => {
+  const bytes = Buffer.from(wideCsv, 'utf8');
+  const columns = await inspectCsvColumns(bytes, { parserRoot });
+  assert.deepEqual(columns, {
+    version: 'research-table-csv-columns-v1',
+    csv_sha256: csvHash(bytes),
+    headers: usgsHeaders,
+    headers_sha256: csvHash(JSON.stringify(usgsHeaders)),
+    row_count: 48,
+    parser: { name: 'csv-parse', version: '7.0.3' },
+  });
+  await assert.rejects(importTableCsv(bytes, { parserRoot, label }), { code: 'limit_exceeded', message: /1 through 16/u });
+  const result = await importTableCsv(bytes, { parserRoot, label, selectedColumns });
+  assert.deepEqual(result.import, {
+    version: 'research-table-csv-v2',
+    csv_sha256: columns.csv_sha256,
+    table_sha256: result.table.sha256,
+    parser: { name: 'csv-parse', version: '7.0.3' },
+    headers: 'first-row',
+    values: 'text',
+    source_headers: { count: 22, sha256: columns.headers_sha256 },
+    selected_columns: [
+      { index: 0, label: 'time' }, { index: 4, label: 'mag' }, { index: 10, label: 'net' },
+      { index: 14, label: 'type' }, { index: 19, label: 'status' }, { index: 11, label: 'id' },
+    ],
+  });
+  assert.deepEqual(result.table.columns, selectedColumns.map((name, index) => ({ id: `c${index}`, label: name, type: 'text' })));
+  assert.deepEqual(result.table.rows, Array.from({ length: 48 }, (_, row) => selectedColumns.map((name) => `${name}-${row}`)));
+  assert.deepEqual(result.table.origin, { type: 'caller-supplied', label });
+  const { sha256, ...rawTable } = result.table;
+  assert.equal(registerTable(rawTable).sha256, sha256);
+  const again = await importTableCsv(wideCsv, { parserRoot, label, selectedColumns });
+  assert.equal(again.import.csv_sha256, columns.csv_sha256);
+  assert.deepEqual([again.table.columns, again.table.rows, again.import.selected_columns],
+    [result.table.columns, result.table.rows, result.import.selected_columns]);
+});
+
+test('omitting selectedColumns keeps the v1 receipt; any explicit selection is v2', { skip: !parserRoot }, async () => {
+  const csv = 'kind,value,note\nalpha,1,"x, y"\n';
+  const v1 = await importTableCsv(csv, { parserRoot, label });
+  assert.deepEqual(Object.keys(v1.import), ['version', 'csv_sha256', 'table_sha256', 'parser', 'headers', 'values']);
+  assert.equal(v1.import.version, 'research-table-csv-v1');
+  const v2 = await importTableCsv(csv, { parserRoot, label, selectedColumns: ['note', 'kind'] });
+  assert.equal(v2.import.version, 'research-table-csv-v2');
+  assert.equal(v2.import.csv_sha256, v1.import.csv_sha256);
+  assert.deepEqual(v2.import.selected_columns, [{ index: 2, label: 'note' }, { index: 0, label: 'kind' }]);
+  assert.deepEqual(v2.table.rows, [['x, y', 'alpha']]);
+});
+
+test('malformed selections and options refuse with stable codes before the parser loads', async () => {
+  const sparse = ['time'];
+  sparse.length = 2;
+  const accessor = ['time'];
+  Object.defineProperty(accessor, 0, { get: () => 'time', enumerable: true });
+  const tooMany = Array.from({ length: 17 }, (_, index) => `h${index}`);
+  for (const selection of [undefined, null, 'time', {}, [], tooMany, ['time', 'time'], ['time', 7], [''], ['x'.repeat(121)], sparse, accessor])
+    await assert.rejects(importTableCsv('h\nv\n', { parserRoot: missingParser, label, selectedColumns: selection }), { code: 'invalid_column_selection' });
+  await assert.rejects(importTableCsv('h\nv\n', { parserRoot: missingParser, label, selected: ['h'] }), { code: 'invalid_options' });
+  await assert.rejects(inspectCsvColumns('h\nv\n', { parserRoot: missingParser, label }), { code: 'invalid_options' });
+  await assert.rejects(inspectCsvColumns('h\nv\n', { parserRoot: 'relative/csv-parse' }), { code: 'invalid_options' });
+  await assert.rejects(inspectCsvColumns('h\nv\n', { parserRoot: missingParser }), { code: 'parser_unavailable' });
+});
+
+test('selections match exact headers and wide sources stay bounded at 64 columns', { skip: !parserRoot }, async () => {
+  for (const selection of [['Time'], ['time '], ['missing']])
+    await assert.rejects(importTableCsv(wideCsv, { parserRoot, label, selectedColumns: selection }), { code: 'invalid_column_selection' });
+  const header = (count) => Array.from({ length: count }, (_, index) => `h${index}`).join(',');
+  const columns = await inspectCsvColumns(`${header(64)}\n${header(64)}\n`, { parserRoot });
+  assert.equal(columns.headers.length, 64);
+  assert.equal(columns.row_count, 1);
+  const projected = await importTableCsv(`${header(64)}\n${header(64)}\n`, { parserRoot, label, selectedColumns: ['h63'] });
+  assert.deepEqual(projected.import.selected_columns, [{ index: 63, label: 'h63' }]);
+  assert.deepEqual(projected.table.rows, [['h63']]);
+  await assert.rejects(inspectCsvColumns(`${header(65)}\n`, { parserRoot }), { code: 'limit_exceeded', message: /1 through 64/u });
+  await assert.rejects(importTableCsv(`${header(65)}\n`, { parserRoot, label, selectedColumns: ['h0'] }), { code: 'limit_exceeded' });
+  await assert.rejects(inspectCsvColumns('a,b\n1\n', { parserRoot }), { code: 'invalid_csv' });
+  await assert.rejects(inspectCsvColumns(`value\n${Array.from({ length: 1001 }, () => 'x').join('\n')}\n`, { parserRoot }), { code: 'limit_exceeded' });
+  await assert.rejects(inspectCsvColumns(Buffer.from([0x61, 0x0a, 0xff]), { parserRoot }), { code: 'invalid_csv_utf8' });
 });

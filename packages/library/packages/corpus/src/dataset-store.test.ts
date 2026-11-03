@@ -23,6 +23,7 @@ import {
   createDatasetAnalysis,
   datasetStoreLimits,
   importDatasetTable,
+  inspectDatasetColumns,
   importDataset,
   listDatasets,
   readDatasetAnalysis,
@@ -176,6 +177,37 @@ it('keeps caller-supplied source bytes reopenable when the optional parser is un
     code: 'dataset_table_not_parsed',
   });
 });
+
+it.skipIf(!parserRoot)(
+  'selects wide source columns explicitly and cold-opens the exact projection',
+  async () => {
+    const root = await temp();
+    const headers = Array.from({ length: 22 }, (_, index) => `field${index}`);
+    const bytes = Buffer.from(
+      `${headers.join(',')}\n${Array.from({ length: 48 }, (_, row) =>
+        headers.map((_, index) => `value${row}-${index}`).join(','),
+      ).join('\n')}\n`,
+    );
+    const ref = await importDataset(bytes, { name: 'Wide source.csv', metadata }, root);
+  await expect(importDatasetTable(ref, parserRoot, root)).rejects.toMatchObject({
+      code: 'limit_exceeded',
+    });
+  const preview = await inspectDatasetColumns(ref, parserRoot, root);
+    expect(preview.csv_sha256).toBe(ref.sha256);
+    expect(preview.headers).toEqual(headers);
+    expect(preview.row_count).toBe(48);
+    const selected = ['field19', 'field0', 'field11'];
+  const parsed = await importDatasetTable(ref, parserRoot, root, selected);
+    expect(parsed.import.version).toBe('research-table-csv-v2');
+    expect(parsed.table.columns.map((column) => column.label)).toEqual(selected);
+    expect(parsed.table.rows[0]).toEqual(['value0-19', 'value0-0', 'value0-11']);
+    expect((await readDatasetTable(ref, root)).table.sha256).toBe(parsed.table.sha256);
+    expect(Buffer.from((await readDataset(ref, root)).bytes)).toEqual(bytes);
+  await expect(importDatasetTable(ref, parserRoot, root, ['field0'])).rejects.toMatchObject({
+      code: 'dataset_table_changed',
+    });
+  },
+);
 
 it.skipIf(!parserRoot || !engineRoot)(
   'uses immutable revision CAS after stale-lock recovery and validates cold run identity',

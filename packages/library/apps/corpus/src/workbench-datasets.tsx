@@ -28,12 +28,21 @@ type RegisteredTable = {
   sha256: string;
 };
 type CsvImportReceipt = {
-  version: 'research-table-csv-v1';
+  version: 'research-table-csv-v1' | 'research-table-csv-v2';
   csv_sha256: string;
   table_sha256: string;
   parser: { name: 'csv-parse'; version: '7.0.3' };
   headers: 'first-row';
   values: 'text';
+  source_headers?: { count: number; sha256: string };
+  selected_columns?: { index: number; label: string }[];
+};
+type CsvColumns = {
+  version: 'research-table-csv-columns-v1';
+  csv_sha256: string;
+  headers: string[];
+  headers_sha256: string;
+  row_count: number;
 };
 type ParsedDataset = {
   datasetRef: DatasetVersionRef;
@@ -525,6 +534,8 @@ function DatasetAnalysisPanel({
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [analysisRefs, setAnalysisRefs] = useState<AnalysisRef[]>([]);
   const [parsed, setParsed] = useState<ParsedDataset | null>(null);
+  const [csvColumns, setCsvColumns] = useState<CsvColumns | null>(null);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [analysisRef, setAnalysisRef] = useState<AnalysisRef | null>(null);
   const [selectedAnalysisKey, setSelectedAnalysisKey] = useState('');
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -601,6 +612,8 @@ function DatasetAnalysisPanel({
 
   useEffect(() => {
     let current = true;
+    setCsvColumns(null);
+    setSelectedColumns([]);
     void reloadLists().catch((failure: unknown) => {
       if (current) setError(failure instanceof Error ? failure.message : String(failure));
     });
@@ -618,6 +631,7 @@ function DatasetAnalysisPanel({
       throw new Error('The parsed table does not match the selected source version.');
     }
     setParsed(response);
+    setCsvColumns(null);
     setTableName('sample');
     setChartX(response.table.columns.length ? 'q1' : '');
     setMessage(
@@ -674,6 +688,7 @@ function DatasetAnalysisPanel({
     try {
       const response = await api<ParsedDataset>(`datasets/${datasetRef.datasetId}/parse`, {
         ref: datasetRef,
+        ...(csvColumns ? { selectedColumns } : {}),
       });
       acceptParsedTable(response);
     } catch (failure) {
@@ -683,6 +698,26 @@ function DatasetAnalysisPanel({
           ? 'The host CSV parser is unavailable or does not match the required csv-parse 7.0.3 package.'
           : reason,
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function inspectSavedColumns() {
+    setBusy(true);
+    setError('');
+    try {
+      const query = new URLSearchParams({ ref: JSON.stringify(datasetRef) });
+      const columns = await api<CsvColumns>(`datasets/${datasetRef.datasetId}/columns?${query}`);
+      if (columns.csv_sha256 !== datasetRef.sha256)
+        throw new Error('The CSV headers no longer match this source version.');
+      setCsvColumns(columns);
+      setSelectedColumns(columns.headers.length <= 16 ? columns.headers : []);
+      setMessage(
+        `${columns.row_count} rows · ${columns.headers.length} source columns. Select up to 16 for analysis.`,
+      );
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setBusy(false);
     }
@@ -991,11 +1026,56 @@ function DatasetAnalysisPanel({
             <button
               type="button"
               disabled={busy || !capabilities?.csvParser.available}
+              onClick={() => void inspectSavedColumns()}
+            >
+              Inspect source columns
+            </button>
+            <button
+              type="button"
+              disabled={
+                busy ||
+                !capabilities?.csvParser.available ||
+                Boolean(csvColumns && (selectedColumns.length < 1 || selectedColumns.length > 16))
+              }
               onClick={() => void parseSelectedDataset()}
             >
-              Parse and inspect this exact version
+              {csvColumns
+                ? `Parse ${selectedColumns.length} selected columns`
+                : 'Parse and inspect this exact version'}
             </button>
           </div>
+          {csvColumns && (
+            <fieldset disabled={busy}>
+              <legend>Select 1–16 columns from this exact source version</legend>
+              <p>
+                {csvColumns.row_count} rows · {csvColumns.headers.length} source columns ·{' '}
+                {selectedColumns.length} selected.
+              </p>
+              <div className="dataset-table-scroll">
+                {csvColumns.headers.map((header) => (
+                  <label key={header}>
+                    <input
+                      type="checkbox"
+                      checked={selectedColumns.includes(header)}
+                      disabled={!selectedColumns.includes(header) && selectedColumns.length >= 16}
+                      onChange={(event) =>
+                        setSelectedColumns((current) =>
+                          event.target.checked
+                            ? [...current, header]
+                            : current.filter((name) => name !== header),
+                        )
+                      }
+                    />
+                    {header}
+                  </label>
+                ))}
+              </div>
+              <p>
+                The saved CSV keeps all columns. This table uses only the selected columns in
+                selection order. A different selection needs a new dataset version.
+              </p>
+            </fieldset>
+          )}
           <p>
             Analysis accepts up to 16 columns and 1,000 rows. Saved source bytes remain available.
           </p>
@@ -1019,6 +1099,12 @@ function DatasetAnalysisPanel({
               {parsed.import.parser.name} {parsed.import.parser.version} · first-row headers · all
               values retained as text.
             </p>
+            {parsed.import.version === 'research-table-csv-v2' && parsed.import.source_headers && (
+              <p>
+                Selected {parsed.import.selected_columns?.length} of{' '}
+                {parsed.import.source_headers.count} source columns. The original CSV remains saved.
+              </p>
+            )}
             <div className="dataset-table-scroll">
               <table>
                 <thead>

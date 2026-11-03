@@ -1089,8 +1089,21 @@ export interface ResearchTableCsvImport {
   parser: { name: "csv-parse"; version: "7.0.3" }; headers: "first-row"; values: "text";
 }
 export interface ResearchTableCsvResult { table: ResearchTable; import: ResearchTableCsvImport }
+export interface ResearchTableCsvSelectedColumn { index: number; label: string }
+export interface ResearchTableCsvProjectedImport {
+  version: "research-table-csv-v2"; csv_sha256: string; table_sha256: string;
+  parser: { name: "csv-parse"; version: "7.0.3" }; headers: "first-row"; values: "text";
+  source_headers: { count: number; sha256: string }; selected_columns: ResearchTableCsvSelectedColumn[];
+}
+export interface ResearchTableCsvProjectedResult { table: ResearchTable; import: ResearchTableCsvProjectedImport }
+export interface ResearchTableCsvColumns {
+  version: "research-table-csv-columns-v1"; csv_sha256: string; headers: string[]; headers_sha256: string;
+  row_count: number; parser: { name: "csv-parse"; version: "7.0.3" };
+}
 /** Parses bounded UTF-8 CSV in memory through the host-configured optional csv-parse package. */
 export function importTableCsv(csv: string | Uint8Array, options: { parserRoot: string; label: string }): Promise<ResearchTableCsvResult>;
+export function importTableCsv(csv: string | Uint8Array, options: { parserRoot: string; label: string; selectedColumns: readonly string[] }): Promise<ResearchTableCsvProjectedResult>;
+export function inspectCsvColumns(csv: string | Uint8Array, options: { parserRoot: string }): Promise<ResearchTableCsvColumns>;
 
 export interface ResearchDocumentPage { number: number; text: string; sha256: string }
 /** Caller-frozen extracted document pages; sha256 identifies raw source bytes but is not checked here. */

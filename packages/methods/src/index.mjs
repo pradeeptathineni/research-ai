@@ -15,7 +15,7 @@ export { createInvestigationReportBasis, validateInvestigationReportBasis } from
 export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';
-export { importTableCsv } from './table-csv.mjs';
+export { importTableCsv, inspectCsvColumns } from './table-csv.mjs';
 export { documentResearchLimits, prepareDocumentResearch, researchDocuments, validateDocumentResearch, renderDocumentResearch } from './document-research.mjs';
 export { documentCoverageLimits, prepareDocumentCoverage, researchDocumentCoverage, validateDocumentCoverage, renderDocumentCoverage } from './document-coverage.mjs';
 

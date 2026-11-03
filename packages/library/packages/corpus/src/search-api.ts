@@ -66,6 +66,7 @@ import {
   createDatasetAnalysis,
   DatasetStoreError,
   importDatasetTable,
+  inspectDatasetColumns,
   importDataset,
   listDatasetAnalyses,
   listDatasetAnalysisRuns,
@@ -645,6 +646,7 @@ export function searchApi(
           json(200, { datasets: await listDatasets(resolve(root, '.signals/datasets')) });
         } else {
           const parseMatch = /^datasets\/([a-f0-9-]{36})\/parse$/.exec(route);
+          const columnsMatch = /^datasets\/([a-f0-9-]{36})\/columns$/.exec(route);
           const tableMatch = /^datasets\/([a-f0-9-]{36})\/table$/.exec(route);
           const versionMatch = /^datasets\/([a-f0-9-]{36})\/versions$/.exec(route);
           const datasetMatch = /^datasets\/([a-f0-9-]{36})$/.exec(route);
@@ -775,21 +777,37 @@ export function searchApi(
           } else if (mutation && parseMatch) {
             if (params.size) throw new Error('invalid_dataset_request');
             const payload = body as Record<string, unknown>;
-            if (!isRecord(payload) || Object.keys(payload).sort().join(',') !== 'ref')
+            if (
+              !isRecord(payload) ||
+              !['ref', 'ref,selectedColumns'].includes(Object.keys(payload).sort().join(','))
+            )
               throw new Error('invalid_dataset_request');
             if (!isRecord(payload.ref)) throw new Error('invalid_dataset_ref');
+            if (
+              'selectedColumns' in payload &&
+              (!Array.isArray(payload.selectedColumns) ||
+                payload.selectedColumns.length < 1 ||
+                payload.selectedColumns.length > 16 ||
+                payload.selectedColumns.some((value: unknown) => typeof value !== 'string'))
+            )
+              throw new Error('invalid_column_selection');
             const ref = payload.ref as unknown as DatasetVersionRef;
             if (ref.datasetId !== parseMatch[1]) throw new Error('invalid_dataset_ref');
             const parsed = await importDatasetTable(
               ref,
               datasetRuntime.csvParserRoot,
               analysisRoot,
+              payload.selectedColumns as string[] | undefined,
             );
             json(201, {
               datasetRef: parsed.datasetRef,
               table: parsed.table,
               import: parsed.import,
             });
+          } else if (!mutation && columnsMatch) {
+            const ref = refFromQuery<DatasetVersionRef>('ref');
+            if (ref.datasetId !== columnsMatch[1]) throw new Error('invalid_dataset_ref');
+            json(200, await inspectDatasetColumns(ref, datasetRuntime.csvParserRoot, analysisRoot));
           } else if (!mutation && tableMatch) {
             const ref = refFromQuery<DatasetVersionRef>('ref');
             if (ref.datasetId !== tableMatch[1]) throw new Error('invalid_dataset_ref');
