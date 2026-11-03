@@ -18,6 +18,17 @@ npm run start
 
 Open [the workbench](http://127.0.0.1:5178/signals-ai/). Browsing saved knowledge starts no research or source scan. For development, use `npm run dev`.
 
+The Datasets view saves caller-supplied CSV bytes with an exact digest and immutable versions. Select a saved version to inspect a parsed table, save an analysis revision, review its compiled queries, run it and reopen the result. Parsing and execution use the existing Research Methods package. They require host-configured absolute paths to `csv-parse@7.0.3` and `@duckdb/node-api@2.0.0-r.1`; the default install does not include these optional runtimes. For a local private runtime directory:
+
+```sh
+npm install --prefix /absolute/private/runtime --no-save --package-lock=false csv-parse@7.0.3 @duckdb/node-api@2.0.0-r.1
+SIGNALS_CSV_PARSER_ROOT=/absolute/private/runtime/node_modules/csv-parse \
+SIGNALS_TABLE_ENGINE_ROOT=/absolute/private/runtime/node_modules/@duckdb/node-api \
+npm run start
+```
+
+The roots are host settings, never browser inputs. If either package is missing or does not match its pin, the affected operation refuses while saved source bytes and earlier analyses remain readable. The source and license fields are user assertions, not independently verified provenance. No analysis starts when a dataset is saved or reopened. The current editor creates one SELECT-all step and a category-count bar chart; the underlying Methods owner supports other reviewed analysis shapes. Local results are not public exports.
+
 Other installed applications can use the [local provider interface](docs/provider-interface.md) to negotiate owner capabilities and read exact retained records over loopback HTTP, without sibling source imports. Native readiness and permission to start research remain separate.
 
 [Connected knowledge](docs/connected-knowledge.md) adds explicit Planning/Principles export readers and private named topics. Search across retained owners, select exact records, keep links and open questions, then reopen after restart with visible changed, missing or unavailable source status. [Project-topic relevance](docs/project-topic-relevance.md) records a human judgment against exact topic and project versions. These deterministic operations require no model service.
