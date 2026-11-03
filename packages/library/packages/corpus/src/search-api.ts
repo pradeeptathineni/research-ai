@@ -61,6 +61,15 @@ import {
   readPrivatePdfBytes,
 } from './private-documents.js';
 import {
+  appendDatasetVersion,
+  DatasetStoreError,
+  importDataset,
+  listDatasets,
+  readDataset,
+  type DatasetMetadata,
+  type DatasetVersionRef,
+} from './dataset-store.js';
+import {
   listPrivateCollection,
   openPrivateCollection,
   previewPrivateCollection,
@@ -409,14 +418,100 @@ export function searchApi(
         if (!request.headers['content-type']?.startsWith('application/json'))
           throw new Error('json_required');
         let raw = '';
-        const limit = route === 'private-documents' ? 6 * 1024 * 1024 : 128000;
+        const limit = route === 'private-documents' ? 6 * 1024 * 1024 :
+          route === 'datasets' || route.startsWith('datasets/') ? 1_500_000 : 128000;
         for await (const chunk of request) {
           raw += String(chunk);
           if (Buffer.byteLength(raw) > limit) throw new Error('request_too_large');
         }
         body = JSON.parse(raw);
       }
-      if (route === 'briefing' || route.startsWith('briefing/')) {
+      if (route === 'datasets' || route.startsWith('datasets/')) {
+        await validateProcessObserver(
+          root,
+          request.headers['x-signals-provider-version'],
+          request.headers['x-signals-instance-id'],
+          request.headers['x-signals-owner-epoch'],
+        );
+        const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        const refFromQuery = (): DatasetVersionRef => {
+          if (params.size !== 1 || params.getAll('ref').length !== 1)
+            throw new Error('invalid_dataset_ref');
+          try {
+            return JSON.parse(params.get('ref')!) as DatasetVersionRef;
+          } catch {
+            throw new Error('invalid_dataset_ref');
+          }
+        };
+        const metadataFrom = (payload: Record<string, unknown>): DatasetMetadata => ({
+          assertions: 'caller-provided',
+          source: payload.source as DatasetMetadata['source'],
+          license: payload.license as DatasetMetadata['license'],
+          authorization: payload.authorization as DatasetMetadata['authorization'],
+        });
+        const bytesFrom = (payload: Record<string, unknown>): Buffer => {
+          const encoded = payload.bytesBase64;
+          if (
+            typeof encoded !== 'string' ||
+            encoded.length > 1_333_336 ||
+            !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded)
+          )
+            throw new Error('invalid_dataset_bytes');
+          const bytes = Buffer.from(encoded, 'base64');
+          if (bytes.toString('base64') !== encoded) throw new Error('invalid_dataset_bytes');
+          return bytes;
+        };
+        if (route === 'datasets' && mutation) {
+          if (params.size) throw new Error('invalid_dataset_request');
+          const payload = body as Record<string, unknown>;
+          if (
+            !payload ||
+            Object.keys(payload).sort().join(',') !== 'authorization,bytesBase64,license,name,source'
+          )
+            throw new Error('invalid_dataset_request');
+          const metadata = metadataFrom(payload);
+          const ref = await importDataset(
+            bytesFrom(payload),
+            { name: payload.name as string, metadata },
+            resolve(root, '.signals/datasets'),
+          );
+          json(201, { ref, metadata });
+        } else if (route === 'datasets' && !mutation) {
+          if (params.size) throw new Error('invalid_dataset_request');
+          json(200, { datasets: await listDatasets(resolve(root, '.signals/datasets')) });
+        } else {
+          const versionMatch = /^datasets\/([a-f0-9-]{36})\/versions$/.exec(route);
+          const datasetMatch = /^datasets\/([a-f0-9-]{36})$/.exec(route);
+          if (mutation && versionMatch) {
+            if (params.size) throw new Error('invalid_dataset_request');
+            const payload = body as Record<string, unknown>;
+            if (
+              !payload ||
+              Object.keys(payload).sort().join(',') !==
+                'authorization,bytesBase64,expectedHead,license,name,source' ||
+              !payload.expectedHead ||
+              typeof payload.expectedHead !== 'object' ||
+              Array.isArray(payload.expectedHead)
+            )
+              throw new Error('invalid_dataset_request');
+            const expectedHead = payload.expectedHead as DatasetVersionRef;
+            if (expectedHead.datasetId !== versionMatch[1]) throw new Error('invalid_dataset_ref');
+            const metadata = metadataFrom(payload);
+            const ref = await appendDatasetVersion(
+              expectedHead,
+              bytesFrom(payload),
+              { name: payload.name as string, metadata },
+              resolve(root, '.signals/datasets'),
+            );
+            json(201, { ref, metadata });
+          } else if (!mutation && datasetMatch) {
+            const ref = refFromQuery();
+            if (ref.datasetId !== datasetMatch[1]) throw new Error('invalid_dataset_ref');
+            const opened = await readDataset(ref, resolve(root, '.signals/datasets'));
+            json(200, { ref: opened.ref, bytesBase64: Buffer.from(opened.bytes).toString('base64'), metadata: opened.metadata });
+          } else json(404, { code: 'unknown_operation' });
+        }
+      } else if (route === 'briefing' || route.startsWith('briefing/')) {
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
         const result = await briefingRoute(root, route, mutation, body, params.size, params);
         if (result) json(result.status, result.body);
@@ -2155,6 +2250,15 @@ export function searchApi(
         json(200, { cleaned: true, retainedHistory: 'preserved' });
       } else json(404, { code: 'unknown_operation' });
     } catch (failure) {
+      if (failure instanceof DatasetStoreError) {
+        const status =
+          failure.code === 'dataset_not_found' ? 404 :
+          failure.code === 'dataset_head_changed' ? 409 :
+          failure.code === 'dataset_limit' || failure.code === 'dataset_version_limit' ? 413 :
+          failure.code === 'dataset_corrupt' ? 500 : 400;
+        json(status, { code: failure.code, reason: failure.message });
+        return true;
+      }
       if (failure instanceof ProjectTopicRelevanceError) {
         json(failure.status, { code: failure.code, reason: failure.reason });
         return true;
@@ -2202,7 +2306,9 @@ export function searchApi(
           'request_identity_version_requires_reconciliation',
         ].includes(code)
           ? 409
-          : code.startsWith('request_store_') || code === 'process_snapshot_too_large'
+          : code === 'request_too_large'
+            ? 413
+            : code.startsWith('request_store_') || code === 'process_snapshot_too_large'
             ? 503
             : 400,
         { code },
