@@ -62,13 +62,27 @@ import {
 } from './private-documents.js';
 import {
   appendDatasetVersion,
+  appendDatasetAnalysisRevision,
+  createDatasetAnalysis,
   DatasetStoreError,
+  importDatasetTable,
   importDataset,
+  listDatasetAnalyses,
+  listDatasetAnalysisRuns,
   listDatasets,
+  readDatasetAnalysis,
+  readDatasetAnalysisRun,
+  readDatasetTable,
   readDataset,
+  runDatasetAnalysis,
   type DatasetMetadata,
+  type DatasetAnalysisRef,
+  type DatasetAnalysisRunRef,
   type DatasetVersionRef,
 } from './dataset-store.js';
+import { prepareAnalysisQuery } from '@pradeeptathineni/research-ai';
+import type { AnalysisTarget } from '@pradeeptathineni/research-ai';
+import type { DatasetAnalysisInput } from './dataset-store.js';
 import {
   listPrivateCollection,
   openPrivateCollection,
@@ -104,7 +118,7 @@ import {
 import { processObservation, type ObservedRun } from './process-observation.js';
 import { ResearchActivityBuffer, activityRead, activityLimits } from './research-activity.js';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import {
@@ -254,6 +268,10 @@ export function searchApi(
   discussionRunner?: (task: string, schema: unknown) => Pick<SearchRunner, 'discover'>,
   sourceRenderRuntime: SourceRenderRuntime = {},
   sourceCaptureFetcher?: SourceCaptureOptions['fetcher'],
+  datasetRuntime = {
+    csvParserRoot: process.env.SIGNALS_CSV_PARSER_ROOT,
+    tableEngineRoot: process.env.SIGNALS_TABLE_ENGINE_ROOT,
+  },
 ) {
   const token = randomBytes(32).toString('hex');
   const runs = new Map<string, ActiveRun>();
@@ -418,15 +436,24 @@ export function searchApi(
         if (!request.headers['content-type']?.startsWith('application/json'))
           throw new Error('json_required');
         let raw = '';
-        const limit = route === 'private-documents' ? 6 * 1024 * 1024 :
-          route === 'datasets' || route.startsWith('datasets/') ? 1_500_000 : 128000;
+        const limit =
+          route === 'private-documents'
+            ? 6 * 1024 * 1024
+            : route === 'datasets' || route.startsWith('datasets/')
+              ? 1_500_000
+              : 128000;
         for await (const chunk of request) {
           raw += String(chunk);
           if (Buffer.byteLength(raw) > limit) throw new Error('request_too_large');
         }
         body = JSON.parse(raw);
       }
-      if (route === 'datasets' || route.startsWith('datasets/')) {
+      if (
+        route === 'datasets' ||
+        route.startsWith('datasets/') ||
+        route === 'analyses' ||
+        route.startsWith('analyses/')
+      ) {
         await validateProcessObserver(
           root,
           request.headers['x-signals-provider-version'],
@@ -434,15 +461,6 @@ export function searchApi(
           request.headers['x-signals-owner-epoch'],
         );
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
-        const refFromQuery = (): DatasetVersionRef => {
-          if (params.size !== 1 || params.getAll('ref').length !== 1)
-            throw new Error('invalid_dataset_ref');
-          try {
-            return JSON.parse(params.get('ref')!) as DatasetVersionRef;
-          } catch {
-            throw new Error('invalid_dataset_ref');
-          }
-        };
         const metadataFrom = (payload: Record<string, unknown>): DatasetMetadata => ({
           assertions: 'caller-provided',
           source: payload.source as DatasetMetadata['source'],
@@ -461,12 +479,40 @@ export function searchApi(
           if (bytes.toString('base64') !== encoded) throw new Error('invalid_dataset_bytes');
           return bytes;
         };
-        if (route === 'datasets' && mutation) {
+        const refFromQuery = <T>(key: string): T => {
+          if (params.size !== 1 || params.getAll(key).length !== 1)
+            throw new Error('invalid_dataset_ref');
+          try {
+            return JSON.parse(params.get(key)!) as T;
+          } catch {
+            throw new Error('invalid_dataset_ref');
+          }
+        };
+        if (route === 'datasets/capabilities' && !mutation) {
+          if (params.size) throw new Error('invalid_dataset_request');
+          const parserConfigured =
+            typeof datasetRuntime.csvParserRoot === 'string' &&
+            isAbsolute(datasetRuntime.csvParserRoot);
+          const engineConfigured =
+            typeof datasetRuntime.tableEngineRoot === 'string' &&
+            isAbsolute(datasetRuntime.tableEngineRoot);
+          json(200, {
+            csvParser: {
+              available: parserConfigured,
+              reason: parserConfigured ? 'configured_unverified' : 'not_configured',
+            },
+            tableEngine: {
+              available: engineConfigured,
+              reason: engineConfigured ? 'configured_unverified' : 'not_configured',
+            },
+          });
+        } else if (route === 'datasets' && mutation) {
           if (params.size) throw new Error('invalid_dataset_request');
           const payload = body as Record<string, unknown>;
           if (
             !payload ||
-            Object.keys(payload).sort().join(',') !== 'authorization,bytesBase64,license,name,source'
+            Object.keys(payload).sort().join(',') !==
+              'authorization,bytesBase64,license,name,source'
           )
             throw new Error('invalid_dataset_request');
           const metadata = metadataFrom(payload);
@@ -480,9 +526,148 @@ export function searchApi(
           if (params.size) throw new Error('invalid_dataset_request');
           json(200, { datasets: await listDatasets(resolve(root, '.signals/datasets')) });
         } else {
+          const parseMatch = /^datasets\/([a-f0-9-]{36})\/parse$/.exec(route);
+          const tableMatch = /^datasets\/([a-f0-9-]{36})\/table$/.exec(route);
           const versionMatch = /^datasets\/([a-f0-9-]{36})\/versions$/.exec(route);
           const datasetMatch = /^datasets\/([a-f0-9-]{36})$/.exec(route);
-          if (mutation && versionMatch) {
+          const analysisRevisionMatch = /^analyses\/(analysis-[A-Za-z0-9-]{1,60})\/revisions$/.exec(
+            route,
+          );
+          const analysisPreviewMatch = /^analyses\/(analysis-[A-Za-z0-9-]{1,60})\/preview$/.exec(
+            route,
+          );
+          const analysisRunMatch = /^analyses\/(analysis-[A-Za-z0-9-]{1,60})\/run$/.exec(route);
+          const analysisRunsMatch = /^analyses\/(analysis-[A-Za-z0-9-]{1,60})\/runs$/.exec(route);
+          const analysisRunReadMatch =
+            /^analyses\/(analysis-[A-Za-z0-9-]{1,60})\/runs\/([0-9a-f-]{36})$/.exec(route);
+          const analysisReadMatch = /^analyses\/(analysis-[A-Za-z0-9-]{1,60})$/.exec(route);
+          const analysisRoot = resolve(root, '.signals/datasets');
+          if (route === 'analyses' && mutation) {
+            if (params.size) throw new Error('invalid_analysis_request');
+            const payload = body as Record<string, unknown>;
+            const allowed = ['chart', 'datasetRef', 'steps', 'tableName', 'tableSha256', 'title'];
+            if (
+              !payload ||
+              Object.keys(payload).some((key) => !allowed.includes(key)) ||
+              (Object.keys(payload).sort().join(',') !==
+                'datasetRef,steps,tableName,tableSha256,title' &&
+                Object.keys(payload).sort().join(',') !==
+                  'chart,datasetRef,steps,tableName,tableSha256,title')
+            )
+              throw new Error('invalid_analysis_request');
+            const saved = await createDatasetAnalysis(
+              payload as unknown as DatasetAnalysisInput,
+              analysisRoot,
+            );
+            json(201, saved);
+          } else if (route === 'analyses' && !mutation) {
+            if (params.size) throw new Error('invalid_analysis_request');
+            json(200, { analyses: await listDatasetAnalyses(analysisRoot) });
+          } else if (analysisRevisionMatch && mutation) {
+            if (params.size) throw new Error('invalid_analysis_request');
+            const payload = body as Record<string, unknown>;
+            if (
+              !payload ||
+              Object.keys(payload).some(
+                (key) => !['chart', 'expectedHead', 'steps', 'tableName', 'title'].includes(key),
+              ) ||
+              ![
+                'expectedHead,steps,tableName,title',
+                'chart,expectedHead,steps,tableName,title',
+              ].includes(Object.keys(payload).sort().join(',')) ||
+              !payload.expectedHead ||
+              typeof payload.expectedHead !== 'object'
+            )
+              throw new Error('invalid_analysis_request');
+            const expectedHead = payload.expectedHead as DatasetAnalysisRef;
+            if (expectedHead.analysisId !== analysisRevisionMatch[1])
+              throw new Error('invalid_analysis_ref');
+            const { tableName, title, steps, chart } = payload as unknown as Omit<
+              DatasetAnalysisInput,
+              'datasetRef' | 'tableSha256'
+            >;
+            const saved = await appendDatasetAnalysisRevision(
+              expectedHead,
+              { tableName, title, steps, ...(chart !== undefined ? { chart } : {}) },
+              analysisRoot,
+            );
+            json(201, saved);
+          } else if (analysisPreviewMatch && mutation) {
+            if (params.size) throw new Error('invalid_analysis_request');
+            const payload = body as Record<string, unknown>;
+            if (!payload || Object.keys(payload).sort().join(',') !== 'ref,target')
+              throw new Error('invalid_analysis_request');
+            const ref = payload.ref as DatasetAnalysisRef;
+            if (ref.analysisId !== analysisPreviewMatch[1]) throw new Error('invalid_analysis_ref');
+            const opened = await readDatasetAnalysis(ref, analysisRoot);
+            const preview = prepareAnalysisQuery(
+              opened.analysis,
+              [{ name: opened.analysis.tables[0]!.name, table: opened.dataset.table }],
+              payload.target as AnalysisTarget,
+            );
+            json(200, { ref: opened.ref, preview });
+          } else if (analysisRunMatch && mutation) {
+            if (params.size) throw new Error('invalid_analysis_request');
+            const payload = body as Record<string, unknown>;
+            if (!payload || Object.keys(payload).sort().join(',') !== 'ref')
+              throw new Error('invalid_analysis_request');
+            const ref = payload.ref as DatasetAnalysisRef;
+            if (ref.analysisId !== analysisRunMatch[1]) throw new Error('invalid_analysis_ref');
+            json(201, await runDatasetAnalysis(ref, datasetRuntime.tableEngineRoot, analysisRoot));
+          } else if (analysisRunsMatch && !mutation) {
+            const ref = refFromQuery<DatasetAnalysisRef>('ref');
+            if (ref.analysisId !== analysisRunsMatch[1]) throw new Error('invalid_analysis_ref');
+            json(200, { analysisRef: ref, runs: await listDatasetAnalysisRuns(ref, analysisRoot) });
+          } else if (analysisRunReadMatch && !mutation) {
+            const ref = refFromQuery<DatasetAnalysisRunRef>('ref');
+            if (
+              ref.runId !== analysisRunReadMatch[2] ||
+              ref.analysisRef.analysisId !== analysisRunReadMatch[1]
+            )
+              throw new Error('invalid_analysis_ref');
+            json(200, await readDatasetAnalysisRun(ref, analysisRoot));
+          } else if (analysisReadMatch && !mutation) {
+            const ref = refFromQuery<DatasetAnalysisRef>('ref');
+            if (ref.analysisId !== analysisReadMatch[1]) throw new Error('invalid_analysis_ref');
+            const opened = await readDatasetAnalysis(ref, analysisRoot);
+            json(200, {
+              ref: opened.ref,
+              analysis: opened.analysis,
+              dataset: {
+                ref: opened.dataset.datasetRef,
+                table: opened.dataset.table,
+                import: opened.dataset.import,
+                metadata: opened.dataset.metadata,
+              },
+            });
+          } else if (mutation && parseMatch) {
+            if (params.size) throw new Error('invalid_dataset_request');
+            const payload = body as Record<string, unknown>;
+            if (!payload || Object.keys(payload).sort().join(',') !== 'ref')
+              throw new Error('invalid_dataset_request');
+            const ref = payload.ref as DatasetVersionRef;
+            if (ref.datasetId !== parseMatch[1]) throw new Error('invalid_dataset_ref');
+            const parsed = await importDatasetTable(
+              ref,
+              datasetRuntime.csvParserRoot,
+              analysisRoot,
+            );
+            json(201, {
+              datasetRef: parsed.datasetRef,
+              table: parsed.table,
+              import: parsed.import,
+            });
+          } else if (!mutation && tableMatch) {
+            const ref = refFromQuery<DatasetVersionRef>('ref');
+            if (ref.datasetId !== tableMatch[1]) throw new Error('invalid_dataset_ref');
+            const parsed = await readDatasetTable(ref, analysisRoot);
+            json(200, {
+              datasetRef: parsed.datasetRef,
+              table: parsed.table,
+              import: parsed.import,
+              metadata: parsed.metadata,
+            });
+          } else if (mutation && versionMatch) {
             if (params.size) throw new Error('invalid_dataset_request');
             const payload = body as Record<string, unknown>;
             if (
@@ -505,10 +690,14 @@ export function searchApi(
             );
             json(201, { ref, metadata });
           } else if (!mutation && datasetMatch) {
-            const ref = refFromQuery();
+            const ref = refFromQuery<DatasetVersionRef>('ref');
             if (ref.datasetId !== datasetMatch[1]) throw new Error('invalid_dataset_ref');
             const opened = await readDataset(ref, resolve(root, '.signals/datasets'));
-            json(200, { ref: opened.ref, bytesBase64: Buffer.from(opened.bytes).toString('base64'), metadata: opened.metadata });
+            json(200, {
+              ref: opened.ref,
+              bytesBase64: Buffer.from(opened.bytes).toString('base64'),
+              metadata: opened.metadata,
+            });
           } else json(404, { code: 'unknown_operation' });
         }
       } else if (route === 'briefing' || route.startsWith('briefing/')) {
@@ -2252,10 +2441,23 @@ export function searchApi(
     } catch (failure) {
       if (failure instanceof DatasetStoreError) {
         const status =
-          failure.code === 'dataset_not_found' ? 404 :
-          failure.code === 'dataset_head_changed' ? 409 :
-          failure.code === 'dataset_limit' || failure.code === 'dataset_version_limit' ? 413 :
-          failure.code === 'dataset_corrupt' ? 500 : 400;
+          failure.code === 'dataset_not_found' || failure.code === 'analysis_not_found'
+            ? 404
+            : failure.code === 'dataset_head_changed' ||
+                failure.code === 'analysis_head_changed' ||
+                failure.code === 'dataset_table_not_parsed' ||
+                failure.code === 'dataset_table_changed'
+              ? 409
+              : failure.code === 'dataset_limit' ||
+                  failure.code === 'dataset_version_limit' ||
+                  failure.code === 'limit_exceeded'
+                ? 413
+                : failure.code === 'csv_parser_unavailable' ||
+                    failure.code === 'table_engine_unavailable'
+                  ? 503
+                  : failure.code === 'dataset_corrupt' || failure.code === 'analysis_corrupt'
+                    ? 500
+                    : 400;
         json(status, { code: failure.code, reason: failure.message });
         return true;
       }
@@ -2309,8 +2511,8 @@ export function searchApi(
           : code === 'request_too_large'
             ? 413
             : code.startsWith('request_store_') || code === 'process_snapshot_too_large'
-            ? 503
-            : 400,
+              ? 503
+              : 400,
         { code },
       );
     }

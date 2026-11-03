@@ -107,6 +107,10 @@ it('negotiates a portable owner boundary and reads exact partial answer bytes wi
     expect(metadata.capabilities.contracts).toContainEqual({ id: 'K13', versions: ['1.0'] });
     expect(metadata.capabilities.contracts).toContainEqual({ id: 'K14', versions: ['1.0'] });
     expect(metadata.capabilities.contracts).toContainEqual({
+      id: 'datasets-analysis',
+      versions: ['1.0'],
+    });
+    expect(metadata.capabilities.contracts).toContainEqual({
       id: 'owner-settings',
       versions: ['1.0'],
     });

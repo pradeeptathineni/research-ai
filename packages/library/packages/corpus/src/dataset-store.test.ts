@@ -6,9 +6,11 @@ import { afterEach, expect, it } from 'vitest';
 import {
   appendDatasetVersion,
   datasetStoreLimits,
+  importDatasetTable,
   importDataset,
   listDatasets,
   readDataset,
+  readDatasetTable,
   type DatasetMetadata,
 } from './dataset-store.js';
 
@@ -121,4 +123,19 @@ it('refuses a symlinked storage root on a cold read', async () => {
   const link = join(root, '..', 'linked-datasets');
   await symlink(root, link);
   await expect(readDataset(ref, link)).rejects.toMatchObject({ code: 'dataset_corrupt' });
+});
+
+it('keeps caller-supplied source bytes reopenable when the optional parser is unavailable', async () => {
+  const root = await temp();
+  const bytes = Buffer.from('region,value\nwest,10\n');
+  const ref = await importDataset(bytes, { name: 'Unparsed.csv', metadata }, root);
+  await expect(importDatasetTable(ref, undefined, root)).rejects.toMatchObject({
+    code: 'csv_parser_unavailable',
+  });
+  const reopened = await readDataset(ref, root);
+  expect(Buffer.from(reopened.bytes)).toEqual(bytes);
+  expect(reopened.ref).toEqual(ref);
+  await expect(readDatasetTable(ref, root)).rejects.toMatchObject({
+    code: 'dataset_table_not_parsed',
+  });
 });
