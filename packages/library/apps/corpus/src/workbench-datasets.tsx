@@ -1045,13 +1045,13 @@ function DatasetAnalysisPanel({
             </button>
           </div>
           {csvColumns && (
-            <fieldset disabled={busy}>
+            <fieldset className="dataset-column-fieldset" disabled={busy}>
               <legend>Select 1–16 columns from this exact source version</legend>
               <p>
                 {csvColumns.row_count} rows · {csvColumns.headers.length} source columns ·{' '}
                 {selectedColumns.length} selected.
               </p>
-              <div className="dataset-table-scroll">
+              <div className="dataset-column-picker">
                 {csvColumns.headers.map((header) => (
                   <label key={header}>
                     <input
@@ -1066,7 +1066,7 @@ function DatasetAnalysisPanel({
                         )
                       }
                     />
-                    {header}
+                    <span>{header}</span>
                   </label>
                 ))}
               </div>

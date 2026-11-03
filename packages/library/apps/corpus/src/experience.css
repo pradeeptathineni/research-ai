@@ -460,6 +460,49 @@
   color: var(--desk-muted);
   font-weight: 400;
 }
+.dataset-workbench .dataset-column-fieldset {
+  min-width: 0;
+}
+.dataset-column-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  gap: 2px 12px;
+  max-height: min(20rem, 55vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid var(--desk-line);
+  border-radius: 10px;
+}
+.dataset-workbench .dataset-column-picker label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.dataset-workbench .dataset-column-picker label input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+}
+.dataset-column-picker label span {
+  min-width: 0;
+}
+.dataset-workbench .dataset-column-picker label:has(:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+.dataset-workbench .dataset-column-picker label:has(input:disabled) {
+  cursor: not-allowed;
+  color: var(--desk-muted);
+}
 .dataset-chart-points {
   display: grid;
   gap: 8px;

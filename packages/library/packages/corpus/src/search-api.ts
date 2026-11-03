@@ -573,7 +573,7 @@ export function searchApi(
             json(200, result);
           } else if (workflowMatch || previewMatch || runMatch || addMatch || contributionsMatch) {
             json(405, { code: 'method_not_allowed' });
-          } else {
+          } else if (route.startsWith('perspective-workflows')) {
             json(404, { code: 'unknown_operation' });
           }
         }
