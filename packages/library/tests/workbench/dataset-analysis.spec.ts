@@ -62,7 +62,9 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await page
     .getByRole('button', { name: 'Save analysis and chart definition', exact: true })
     .click();
-  await expect(page.getByText(/Saved analysis revision 1/u)).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Saved analysis revision 1.' }),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Preview compiled SQL', exact: true }).click();
   const review = page.getByRole('region', { name: 'Compiled query review', exact: true });

@@ -607,7 +607,7 @@ function DatasetAnalysisPanel({
     }
     setParsed(response);
     setTableName('sample');
-    setChartX(response.table.columns[0]?.id ?? '');
+    setChartX(response.table.columns.length ? 'q0' : '');
     setMessage(
       `Parsed ${response.table.rows.length} rows. All ${response.table.columns.length} columns and cell values remain text.`,
     );
@@ -690,7 +690,7 @@ function DatasetAnalysisPanel({
       });
       setTitle(response.analysis.title);
       setTableName(response.analysis.tables[0]?.name ?? 'sample');
-      setChartX(response.analysis.chart?.x ?? response.dataset.table.columns[0]?.id ?? '');
+      setChartX(response.analysis.chart?.x ?? (response.dataset.table.columns.length ? 'q0' : ''));
       await reloadRuns(response.ref);
       setMessage(`Reopened analysis revision ${response.ref.revision}.`);
     } catch (failure) {
@@ -771,8 +771,8 @@ function DatasetAnalysisPanel({
       if (response.ref.analysisDigest !== analysisRef.analysisDigest)
         throw new Error('The preview belongs to a different analysis revision.');
       setPreview(response.preview);
-      const chartColumns: TableQueryColumn[] = parsed!.table.columns.map((column) => ({
-        id: column.id,
+      const chartColumns: TableQueryColumn[] = parsed!.table.columns.map((column, index) => ({
+        id: `q${index}`,
         label: column.label,
         sql_type: 'VARCHAR',
         representation: 'text',
@@ -1040,8 +1040,8 @@ function DatasetAnalysisPanel({
                   setReviewedPreview(false);
                 }}
               >
-                {parsed.table.columns.map((column) => (
-                  <option key={column.id} value={column.id}>
+                {parsed.table.columns.map((column, index) => (
+                  <option key={column.id} value={`q${index}`}>
                     {column.label}
                   </option>
                 ))}
