@@ -468,7 +468,7 @@ export default function BriefingPage({ api, onFollowThrough }: Props) {
         <div>
           <p className="briefing-page__eyebrow">Research · Briefing</p>
           <h1>Briefing</h1>
-          <p>Stories and events from your followed interests, with the source trail intact.</p>
+          <p>Stories and events from followed interests, with their sources.</p>
         </div>
         <div>
           <button
@@ -525,8 +525,7 @@ export default function BriefingPage({ api, onFollowThrough }: Props) {
         <section className="briefing-page__tuning" aria-label="Ranking preferences">
           <h2>Ranking preferences</h2>
           <p>
-            Updates affect the next ranking pass; they never rewrite the underlying interests or
-            sources.
+            Updates affect the next ranking pass. They do not change the underlying interests or sources.
           </p>
           <label>
             Velocity weight · {velocityWeight.toFixed(2)}
@@ -627,7 +626,7 @@ export default function BriefingPage({ api, onFollowThrough }: Props) {
       )}
       {!api ? (
         <p className="briefing-page__status" role="status">
-          Briefing owner is not connected in this view.
+          Briefing is not connected in this view.
         </p>
       ) : !snapshot || snapshot.status === 'loading' ? (
         <p className="briefing-page__status" role="status">

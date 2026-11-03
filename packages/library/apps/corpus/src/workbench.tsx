@@ -551,7 +551,7 @@ export function Workbench({
     ) : null;
   return (
     <>
-      <section id="workbench-content" className="workbench" aria-label="Native Signals entities">
+      <section id="workbench-content" className="workbench" aria-label="Research records">
         <dialog ref={evidenceDialog} aria-label="Evidence preview" onClose={() => setPreview(null)}>
           {preview && (
             <>
@@ -561,7 +561,7 @@ export function Workbench({
               <a href={preview.uri} target="_blank" rel="noreferrer">
                 {preview.title}
               </a>
-              <p>A matched passage records text occurrence; the semantic judgment may be wrong.</p>
+              <p>A matched passage shows where text occurs. The support judgment may be wrong.</p>
               <button onClick={() => evidenceDialog.current?.close()}>
                 Close evidence preview
               </button>
@@ -770,8 +770,7 @@ export function Workbench({
               <details>
                 <summary>Configured acquisition and extraction providers</summary>
                 <p>
-                  Optional providers are selected in private .signals/providers.json. Configuration
-                  is separate from a successful runtime probe; failures appear as research gaps.
+                  Select optional providers in private .signals/providers.json. Configuration does not prove a successful connection. Failed checks appear as research gaps.
                 </p>
                 <ul>
                   {providers.map((provider) => (
@@ -1775,8 +1774,7 @@ export function Workbench({
               <section aria-label="Leads with metadata gaps">
                 <h2>Leads with metadata gaps</h2>
                 <p>
-                  These leads remain unassessed. Save a link privately now; inspect its evidence
-                  when useful.
+                  These leads remain unassessed. You can save a link privately and inspect its evidence later.
                 </p>
                 <ul>
                   {result.answerReceipt && (
@@ -2414,8 +2412,7 @@ export function Workbench({
             </section>
             {!items.length && (
               <p>
-                No entities in this view. Start a search or reset filters; unknown scores are
-                retained.
+                No records match this view. Start a search or reset filters. Records with unknown scores are kept.
               </p>
             )}
             {!answerFirstVisible && narrative}

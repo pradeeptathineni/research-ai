@@ -60,8 +60,7 @@ export function ClaimCheck({ receipt }: { receipt: ClaimReceipt }) {
               (source) => source.state === 'denied' || source.state === 'cancelled',
             ) && (
               <p>
-                Denied access is not a prompt to work around it; cancellation does not resubmit
-                itself. Start a new check deliberately if you want one.
+                Do not bypass denied access. Cancellation does not resubmit the check. Start a new check explicitly if needed.
               </p>
             )}
             {receipt.selectedMaterial.some(
@@ -194,8 +193,7 @@ export function ClaimCheck({ receipt }: { receipt: ClaimReceipt }) {
         </p>
       )}
       <p>
-        Matching primary text establishes occurrence; entailment, completeness and independence
-        remain fallible judgments.
+        Matching primary text shows where a quote occurs. Support, completeness and independence remain fallible judgments.
       </p>
     </section>
   );

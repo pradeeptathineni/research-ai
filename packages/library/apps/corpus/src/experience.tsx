@@ -498,9 +498,9 @@ export function Experience() {
       </a>
       <aside className="desk-rail">
         <a className="desk-brand" href={base}>
-          Signals<span>Find. Understand. Keep.</span>
+          Research<span>Library</span>
         </a>
-        <nav aria-label="Signals destinations">
+        <nav aria-label="Research destinations">
           {(local ? primaryViews : (['Search', 'Library'] as const)).map((view) => (
             <button
               key={view}
@@ -591,14 +591,14 @@ export function Experience() {
                 }}
               >
                 <label className="desk-query-label" htmlFor="desk-query">
-                  Find something useful
+                  Search records and sources
                 </label>
                 <input
                   id="desk-query"
                   type="search"
                   value={state.query}
                   onChange={(event) => navigate({ query: event.target.value }, true)}
-                  placeholder="What do you want to find?"
+                  placeholder="Search by question, name or topic"
                 />
                 <div className="desk-search-options">
                   <nav className="desk-tabs" aria-label="Search scope">
@@ -1143,8 +1143,7 @@ export function Experience() {
           <>
             <h1>Following</h1>
             <p>
-              Keep interests and productive sources together. Recurrence follows your explicit
-              settings.
+              Manage followed interests and sources. Repeated research uses only your configured schedule.
             </p>
             <nav className="desk-tabs" aria-label="Following views">
               <button

@@ -519,7 +519,7 @@ export function ProjectDesk({
                     Preview research context
                   </button>
                   {researchPreview && (
-                    <section aria-label="Project research egress">
+                    <section aria-label="Data for online research">
                       <h3>Inspect before online research</h3>
                       <p>{researchPreview.warning}</p>
                       <pre>{researchPreview.context}</pre>
@@ -590,8 +590,7 @@ export function ProjectDesk({
         <details>
           <summary>Inspect a reported Context result</summary>
           <p>
-            Open an actual Context JSON result for this project. This private browser preview sends
-            no file, installs nothing and does not treat a reported plan as activation evidence.
+            Open a Context JSON result for this project. This private preview sends no file and installs nothing. A reported plan does not prove activation.
           </p>
           <label>
             Context result JSON
@@ -632,7 +631,7 @@ export function ProjectDesk({
                 {typeof contextResult.status === 'string' ? contextResult.status : 'not reported'} ·
                 plan{' '}
                 {typeof contextResult.plan_id === 'string' ? contextResult.plan_id : 'not reported'}
-                . No commands have been run by Signals.
+                . Research has run no commands.
               </p>
               <pre>{JSON.stringify(contextResult, null, 2)}</pre>
             </section>
@@ -679,7 +678,7 @@ function OpportunityRow({
       </p>
       {opportunity.needsReview && (
         <p className="desk-error">
-          The project source changed or disconnected; recheck this fit before acting.
+          The project source changed or disconnected. Recheck this fit before acting.
         </p>
       )}
       {opportunity.importedSource && (

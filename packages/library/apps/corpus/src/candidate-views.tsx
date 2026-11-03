@@ -73,8 +73,7 @@ export function AssessmentDerivation({ entity }: { entity: Entity }) {
         {entity.assessment.disposition ?? entity.assessment.state}
       </p>
       <p>
-        Evidence-policy contributions are summed before the final score is rounded. Points below are
-        approximate policy credit; they do not measure assessment accuracy.
+        The score adds evidence-policy contributions, then rounds the total. The points below are approximate policy credit. They do not measure assessment accuracy.
       </p>
       {Object.entries(entity.assessment.features).map(([dimension, feature]) => (
         <details key={dimension}>
@@ -84,7 +83,7 @@ export function AssessmentDerivation({ entity }: { entity: Entity }) {
           {entity.signalBasis && dimension in entity.signalBasis.dimensions && (
             <p>{entity.signalBasis.dimensions[dimension as 'basis'].reason}</p>
           )}
-          <p>Bound support and limitations:</p>
+          <p>Linked support and limits:</p>
           <ul>
             {feature.observations.map((id) => {
               const observation = entity.observations.find((item) => item.id === id);
@@ -94,12 +93,12 @@ export function AssessmentDerivation({ entity }: { entity: Entity }) {
                   {observation.feature}/{observation.indicator} · {observation.status}
                 </li>
               ) : (
-                <li key={id}>Bound observation unavailable.</li>
+                <li key={id}>Linked observation unavailable.</li>
               );
             })}
           </ul>
           {!feature.observations.length && (
-            <p>No supporting observation bound. Unknown is not a verdict of poor quality.</p>
+            <p>No supporting observation is linked. Unknown does not mean poor quality.</p>
           )}
         </details>
       ))}
@@ -304,7 +303,7 @@ export function SavedEntityReview({
         <p>Open this record from the local Library to inspect its exact save receipt.</p>
       )}
       {finding.native?.assessment.state === 'unassessed' && (
-        <p>Saving retains this lead only; it does not create an assessment or evidence.</p>
+        <p>Saving keeps this lead only. It does not create an assessment or evidence.</p>
       )}
     </section>
   );
