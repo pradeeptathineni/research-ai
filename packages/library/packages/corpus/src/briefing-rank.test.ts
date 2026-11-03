@@ -132,6 +132,35 @@ describe('briefing story ranking', () => {
     expect(result.completeness).toBe('partial');
   });
 
+  it('uses a plausible source date for freshness and falls back to host observation for future dates', async () => {
+    const now = '2026-10-28T10:00:00.000Z';
+    const withPublishedAt = (publishedAt: string | null): BriefingRankInput => ({
+      ...base,
+      items: [
+        {
+          ...base.items[0]!,
+          item: { ...base.items[0]!.item, publishedAt },
+        },
+      ],
+    });
+    const observedOnly = await rankBriefingStory(withPublishedAt(null), { now });
+    const olderSourceDate = await rankBriefingStory(withPublishedAt('2026-10-28T04:00:00.000Z'), {
+      now,
+    });
+    const futureSourceDate = await rankBriefingStory(withPublishedAt('2026-10-28T11:00:00.000Z'), {
+      now,
+    });
+    expect(olderSourceDate.components.freshness.value).toBeLessThan(
+      observedOnly.components.freshness.value!,
+    );
+    expect(olderSourceDate.total).toBeLessThan(observedOnly.total);
+    expect(olderSourceDate.components.freshness.reason).toContain('not independently verified');
+    expect(futureSourceDate.components.freshness).toEqual(observedOnly.components.freshness);
+    expect(futureSourceDate.total).toBe(observedOnly.total);
+    expect(olderSourceDate.inputDigest).not.toBe(observedOnly.inputDigest);
+    expect(isRankingExplanation(olderSourceDate)).toBe(true);
+  });
+
   it('preserves explicit seen uncertainty and rejects a velocity weight outside policy', async () => {
     const input = {
       ...base,

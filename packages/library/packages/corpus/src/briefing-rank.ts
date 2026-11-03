@@ -133,14 +133,24 @@ function freshness(
       refs: [],
     };
   const scores = values.map(({ interest, item }) => {
-    const age = Math.max(0, now - Date.parse(item.observedAt));
-    return { score: 100 * 2 ** (-age / (interest.halfLifeDays * DAY)), interestId: interest.id };
+    const observedAt = Date.parse(item.observedAt);
+    const publishedAt = item.publishedAt === null ? NaN : Date.parse(item.publishedAt);
+    // A feed's date is source-reported. Reject dates after the host observation so a
+    // future-dated entry cannot gain freshness it has not established.
+    const usePublishedAt = Number.isFinite(publishedAt) && publishedAt <= observedAt;
+    const age = Math.max(0, now - (usePublishedAt ? publishedAt : observedAt));
+    return {
+      score: 100 * 2 ** (-age / (interest.halfLifeDays * DAY)),
+      interestId: interest.id,
+      usePublishedAt,
+    };
   });
   return {
     value: Math.round(Math.max(...scores.map((entry) => entry.score))),
     status: 'available',
-    reason:
-      'Exponential decay from host observedAt using the matching interest half-life (default 18 hours).',
+    reason: scores.some((entry) => entry.usePublishedAt)
+      ? 'Exponential decay from source-reported publishedAt when no later than host observedAt, otherwise from host observedAt; source dates are not independently verified. Uses the configured interest half-life (default 18 hours).'
+      : 'Exponential decay from host observedAt because no usable source-reported publishedAt is available. Uses the configured interest half-life (default 18 hours).',
     refs: [...new Set(scores.map((entry) => entry.interestId))],
   };
 }
