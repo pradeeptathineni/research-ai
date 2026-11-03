@@ -37,13 +37,7 @@ import {
 
 const settingsTabs = ['Settings', 'Interests', 'Sources', 'Jobs'];
 type WorkbenchPanel =
-  | 'Search'
-  | 'Inbox'
-  | 'Interests'
-  | 'Sources'
-  | 'Jobs'
-  | 'Settings'
-  | 'Datasets';
+  'Search' | 'Inbox' | 'Interests' | 'Sources' | 'Jobs' | 'Settings' | 'Datasets';
 /** The parent's loopback transport: one session token, checked session failures, optional abort. */
 type LocalApi = <T>(route: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
 export function Workbench({
@@ -780,7 +774,8 @@ export function Workbench({
               <details>
                 <summary>Configured acquisition and extraction providers</summary>
                 <p>
-                  Select optional providers in private .signals/providers.json. Configuration does not prove a successful connection. Failed checks appear as research gaps.
+                  Select optional providers in private .signals/providers.json. Configuration does
+                  not prove a successful connection. Failed checks appear as research gaps.
                 </p>
                 <ul>
                   {providers.map((provider) => (
@@ -1784,7 +1779,8 @@ export function Workbench({
               <section aria-label="Leads with metadata gaps">
                 <h2>Leads with metadata gaps</h2>
                 <p>
-                  These leads remain unassessed. You can save a link privately and inspect its evidence later.
+                  These leads remain unassessed. You can save a link privately and inspect its
+                  evidence later.
                 </p>
                 <ul>
                   {result.answerReceipt && (
@@ -2422,7 +2418,8 @@ export function Workbench({
             </section>
             {!items.length && (
               <p>
-                No records match this view. Start a search or reset filters. Records with unknown scores are kept.
+                No records match this view. Start a search or reset filters. Records with unknown
+                scores are kept.
               </p>
             )}
             {!answerFirstVisible && narrative}

@@ -119,7 +119,10 @@ function validateName(name: unknown): asserts name is string {
     !shortText(name, 120) ||
     name === '.' ||
     name === '..' ||
-    /[\u0000-\u001f\u007f/\\]/u.test(name)
+    [...name].some((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 || character === '/' || character === '\\';
+    })
   )
     invalid('Dataset name must be short plain text without path characters.');
 }
@@ -619,8 +622,12 @@ export async function importDatasetTable(
       'The host has not configured the qualified CSV parser.',
     );
   const source = await readDataset(ref, root);
-  const label = source.ref.name
-    .replace(/[\u0000-\u001f\u007f/:\\]/gu, '_')
+  const label = [...source.ref.name]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 || '/:\\'.includes(character) ? '_' : character;
+    })
+    .join('')
     .slice(0, 120)
     .trim();
   let parsed: Awaited<ReturnType<typeof importTableCsv>>;
@@ -628,9 +635,7 @@ export async function importDatasetTable(
     parsed = await importTableCsv(source.bytes, { parserRoot, label });
   } catch (failure) {
     const code =
-      failure && typeof failure === 'object' && 'code' in failure
-        ? String((failure as { code: unknown }).code)
-        : '';
+      failure && typeof failure === 'object' && 'code' in failure ? String(failure.code) : '';
     if (code === 'parser_unavailable' || code === 'parser_version_mismatch')
       throw new DatasetStoreError(
         'csv_parser_unavailable',
@@ -916,9 +921,8 @@ function validateAnalysisRecord(value: unknown): AnalysisRecord {
   } catch {
     throw new DatasetStoreError('analysis_corrupt', 'Saved analysis failed Methods validation.');
   }
-  let datasetRef: DatasetVersionRef;
   try {
-    datasetRef = validateDatasetVersionRef(value.ref.datasetRef);
+    validateDatasetVersionRef(value.ref.datasetRef);
   } catch {
     throw new DatasetStoreError(
       'analysis_corrupt',
@@ -1125,12 +1129,6 @@ export interface ReviewedAnalysisQueryDigests {
   chart: string | null;
 }
 
-interface AnalysisRunRecord {
-  schemaVersion: 1;
-  runRef: DatasetAnalysisRunRef;
-  run: ResearchAnalysisRun;
-}
-
 function runFolder(ref: DatasetAnalysisRef, root: string) {
   return join(analysisFolder(ref, root), 'runs');
 }
@@ -1141,7 +1139,7 @@ function chartForRun(analysis: ResearchTableAnalysis, run: ResearchAnalysisRun) 
     (entry) => entry.target.kind === 'chart' && entry.state === 'complete',
   );
   if (!chartEntry?.artifact) return null;
-  return chartSeries(chartEntry.artifact as TableQueryComplete, analysis.chart);
+  return chartSeries(chartEntry.artifact, analysis.chart);
 }
 
 export async function runDatasetAnalysis(

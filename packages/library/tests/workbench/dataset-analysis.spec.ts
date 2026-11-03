@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('imports, analyzes and cold-reopens an exact synthetic CSV version', async ({ page }, testInfo) => {
+test('imports, analyzes and cold-reopens an exact synthetic CSV version', async ({
+  page,
+}, testInfo) => {
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   let analysisRuns = 0;
@@ -111,7 +113,7 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
     'alpha',
   );
   const savedRunDigest = await savedResult.locator('code').first().innerText();
-  await expect(savedRunDigest).toMatch(/^[a-f0-9]{64}$/u);
+  expect(savedRunDigest).toMatch(/^[a-f0-9]{64}$/u);
   expect(analysisRuns).toBe(1);
 
   await page.getByLabel('Analysis title').fill('Synthetic category counts revision two');
@@ -148,7 +150,9 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   const analysisPicker = page.getByLabel('Reopen saved analysis revision for this source version');
   await expect(analysisPicker.locator('option')).toHaveCount(3);
   const revisionOne = analysisPicker.locator('option').filter({ hasText: 'Revision 1 ·' });
-  await analysisPicker.selectOption((await revisionOne.getAttribute('value'))!);
+  const revisionOneValue = await revisionOne.getAttribute('value');
+  expect(revisionOneValue).not.toBeNull();
+  await analysisPicker.selectOption(revisionOneValue ?? '');
   await expect(page.getByText('Reopened analysis revision 1.', { exact: true })).toBeVisible();
   const runPicker = page.getByLabel('Reopen saved result');
   await expect(runPicker.locator('option')).toHaveCount(2);
