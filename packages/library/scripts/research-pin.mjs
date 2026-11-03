@@ -108,11 +108,31 @@ async function workspaceContext(libraryRoot, layout) {
   const commit = manifest.frozenSource?.integrationCommit;
   requireValue(/^[a-f0-9]{40}$/.test(commit ?? ''), 'frozen source revision required');
   await execute('git', ['-C', root, 'merge-base', '--is-ancestor', commit, 'HEAD']);
+  const sourceSubpath = manifest.frozenSource?.sourceSubpath;
+  requireValue(
+    sourceSubpath === undefined || sourceSubpath === 'packages/methods',
+    'unsupported frozen source subpath',
+  );
+  if (sourceSubpath) {
+    const treeHash = (
+      await execute('git', ['-C', root, 'rev-parse', `${commit}:${sourceSubpath}`])
+    ).stdout.trim();
+    requireValue(
+      /^[a-f0-9]{40}$/.test(manifest.frozenSource?.integrationTree ?? '') &&
+        treeHash === manifest.frozenSource.integrationTree,
+      'frozen Methods subtree mismatch',
+    );
+  }
   const tree = (
-    await execute('git', ['-C', root, 'ls-tree', '-r', '-z', commit], {
-      maxBuffer: 8 * 1024 * 1024,
-    })
+    await execute(
+      'git',
+      ['-C', root, 'ls-tree', '-r', '-z', commit, ...(sourceSubpath ? ['--', sourceSubpath] : [])],
+      {
+        maxBuffer: 8 * 1024 * 1024,
+      },
+    )
   ).stdout;
+  const sourcePrefix = sourceSubpath ? `${sourceSubpath}/` : '';
   const blobs = new Map(
     tree
       .split('\0')
@@ -120,7 +140,9 @@ async function workspaceContext(libraryRoot, layout) {
       .map((row) => {
         const tab = row.indexOf('\t');
         const [mode, kind, hash] = row.slice(0, tab).split(' ');
-        return [row.slice(tab + 1), { mode, kind, hash }];
+        const name = row.slice(tab + 1);
+        requireValue(name.startsWith(sourcePrefix), 'frozen Methods path substitution');
+        return [name.slice(sourcePrefix.length), { mode, kind, hash }];
       }),
   );
   requireValue(

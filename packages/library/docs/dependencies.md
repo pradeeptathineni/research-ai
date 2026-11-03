@@ -29,6 +29,14 @@ SHA-256 values in `SIGNALS_RESEARCH_WORKSPACE_MANIFEST_SHA256` and
 source commit and covered package bytes. The commit must remain an ancestor of
 the workspace; package metadata and every covered file must match its Git blobs
 and the manifest. The root lock must bind the Methods workspace link and identity.
+For the published unified Research source at `1434a14bfb50b4d1c695545bdedf7693e0402142`, use
+`packages/methods/docs/convergence/methods-component-manifest-1434a14.json`.
+It pins the exact `packages/methods` subtree at that commit; the earlier
+`methods-component-manifest.json` remains the historical native-root pin.
+Workspace-subtree mode is accepted only when the manifest explicitly names
+`packages/methods` and its Git tree, and every packaged file still matches the
+declared commit. Do not substitute a current tree hash or package version for
+this content check.
 The existing archive declaration can remain when the private workspace root
 explicitly overrides it with the exact local Methods path. Dependency metadata
 is then read only from that verified root's `node_modules`, without searching

@@ -217,6 +217,61 @@ test('one explicit workspace workflow binds source, component, lock and installe
     );
     await writeFile(manifestPath, manifestBytes);
     assert.deepEqual(await check(), []);
+
+    // A later accepted workspace commit may be the exact frozen Methods source.
+    // The earlier native-root manifest and standalone archive checks still work.
+    await exec('git', ['-C', root, 'add', 'package.json', 'package-lock.json', 'packages/methods']);
+    await exec('git', [
+      '-C',
+      root,
+      '-c',
+      'user.name=Compatibility fixture',
+      '-c',
+      'user.email=fixture@example.invalid',
+      'commit',
+      '-qm',
+      'Frozen workspace Methods fixture',
+    ]);
+    const workspaceCommit = (await exec('git', ['-C', root, 'rev-parse', 'HEAD'])).stdout.trim();
+    const integrationTree = (
+      await exec('git', ['-C', root, 'rev-parse', `${workspaceCommit}:packages/methods`])
+    ).stdout.trim();
+    const successor = JSON.stringify({
+      ...manifest,
+      frozenSource: {
+        integrationCommit: workspaceCommit,
+        sourceSubpath: 'packages/methods',
+        integrationTree,
+      },
+    });
+    await writeFile(manifestPath, successor);
+    const successorLayout = { ...layout, manifestSha256: digest(successor) };
+    assert.deepEqual(await check(successorLayout), []);
+    assert.equal(
+      await researchDependencyRoot(library, successorLayout),
+      join(root, 'node_modules'),
+    );
+    await writeFile(join(methods, 'src/index.mjs'), 'export const fixture = false;\n');
+    assert.match((await check(successorLayout)).join(' '), /payload differs from frozen source/);
+    await writeFile(join(methods, 'src/index.mjs'), contents.get('src/index.mjs'));
+    const wrongTree = JSON.stringify({
+      ...JSON.parse(successor),
+      frozenSource: { ...JSON.parse(successor).frozenSource, integrationTree: '0'.repeat(40) },
+    });
+    await writeFile(manifestPath, wrongTree);
+    assert.match(
+      (await check({ ...successorLayout, manifestSha256: digest(wrongTree) })).join(' '),
+      /frozen Methods subtree mismatch/,
+    );
+    const wrongPath = JSON.stringify({
+      ...JSON.parse(successor),
+      frozenSource: { ...JSON.parse(successor).frozenSource, sourceSubpath: 'packages/library' },
+    });
+    await writeFile(manifestPath, wrongPath);
+    assert.match(
+      (await check({ ...successorLayout, manifestSha256: digest(wrongPath) })).join(' '),
+      /unsupported frozen source subpath/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
