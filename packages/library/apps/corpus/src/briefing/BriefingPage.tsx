@@ -709,6 +709,13 @@ export default function BriefingPage({ api, onFollowThrough }: Props) {
                 {observationTime(selected.item.observedAt, timeZone)} ·{' '}
                 {selected.item.author ?? 'Author unknown'}
               </p>
+              <p className="briefing-page__meta">
+                Source-reported date:{' '}
+                {selected.item.publishedAt
+                  ? observationTime(selected.item.publishedAt, timeZone)
+                  : 'unavailable'}
+                . This date has not been independently verified.
+              </p>
               <section aria-label="Why this story">
                 <h3>Why this</h3>
                 {selected.explanation ? (
