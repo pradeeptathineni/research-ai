@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { searchApi } from '../../packages/corpus/src/search-api.js';
+import { requestStore } from '../../packages/corpus/src/search-request-store.js';
 import { digest } from '../../packages/corpus/src/search-fetch.js';
 import { signalSearch } from '../../packages/corpus/src/signal-search.js';
 import { RunnerFailure } from '../../packages/corpus/src/search-runner.js';
@@ -51,6 +52,8 @@ const example = await reviewSelectedExample(fixtureRoot, 'private');
 if (example.proof.scriptedReviews !== 1 || example.proof.actualNativeCalls !== 0)
   throw new Error('selected_example_fixture_failed');
 const root = join(fixtureRoot, 'history');
+// This disposable Workbench history is the only scope initialized by the browser fixture.
+await requestStore(root).initialize();
 const approved = (await loadEntities(resolve('signals/entities'))).slice(0, 2);
 if (approved.length !== 2) throw new Error('public_replay_fixture_missing');
 await mkdir(join(root, 'signals/entities'), { recursive: true });
