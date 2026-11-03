@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import process from 'node:process';
 import { createServer } from 'vite';
 import { searchApi } from '../../packages/corpus/src/search-api.js';
 import { requestStore } from '../../packages/corpus/src/search-request-store.js';
 import { createSourceCapture } from '../../packages/corpus/src/source-captures.js';
 import { fakeCodex, message } from '../../../methods/test/fake-codex.mjs';
 
-const sourceText =
-  'A small study reported a short-term reduction. Follow-up lasted six months.';
+const sourceText = 'A small study reported a short-term reduction. Follow-up lasted six months.';
 const sharedQuote = 'short-term reduction';
 const uniqueQuote = 'Follow-up lasted six months.';
 const citation = (quote) => {

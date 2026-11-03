@@ -44,18 +44,20 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
   const fixturePath: string = fileURLToPath(
     new URL('../../../../methods/test/fake-codex.mjs', import.meta.url),
   );
-  const { fakeCodex, message } = (await import(fixturePath)) as FixtureModule;
-  const fixture = await fakeCodex({
+  const fixtureModule = (await import(fixturePath)) as FixtureModule;
+  const fixture = await fixtureModule.fakeCodex({
     sessions: [
       {
         events: [
-          message(JSON.stringify(reply(sourceText, '12 percent', 'Synthetic baseline answer.'))),
+          fixtureModule.message(
+            JSON.stringify(reply(sourceText, '12 percent', 'Synthetic baseline answer.')),
+          ),
           { type: 'turn.completed' },
         ],
       },
       {
         events: [
-          message(
+          fixtureModule.message(
             JSON.stringify(
               reply(sourceText, '12 percent', 'Neutral facts repeated without sibling answers.'),
             ),
@@ -65,7 +67,7 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
       },
       {
         events: [
-          message(
+          fixtureModule.message(
             JSON.stringify(
               reply(
                 sourceText,
@@ -81,7 +83,11 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
   });
   try {
     const api = searchApi(root);
-    async function request(route: string, body?: unknown, headers: Record<string, string> = {}) {
+    async function request<T extends object = Record<string, unknown>>(
+      route: string,
+      body?: unknown,
+      headers: Record<string, string> = {},
+    ) {
       const incoming = Object.assign(
         Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]),
         {
@@ -101,7 +107,7 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
         },
       } as unknown as ServerResponse;
       expect(await api(incoming, outgoing)).toBe(true);
-      return { status, body: text ? (JSON.parse(text) as Record<string, any>) : {} };
+      return { status, body: text ? (JSON.parse(text) as T) : ({} as T) };
     }
     const session = await request('session');
     const token = String(session.body.token);
@@ -159,14 +165,18 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
     expect(createResponse.status, JSON.stringify(createResponse.body)).toBe(201);
     const created = createResponse.body as unknown as {
       ref: WorkflowRef;
-      workflow: any;
+      workflow: { perspectiveResult: unknown };
       sourceRefs: RecordRef[];
     };
     expect(created.workflow.perspectiveResult).toBeNull();
     expect(created.sourceRefs).toEqual([capture.ref]);
-    const listed = await request('perspective-workflows', undefined, headers);
+    const listed = await request<{ workflows: Array<{ ref: WorkflowRef }> }>(
+      'perspective-workflows',
+      undefined,
+      headers,
+    );
     expect(listed.body.workflows).toHaveLength(1);
-    expect(listed.body.workflows[0].ref).toEqual(created.ref);
+    expect(listed.body.workflows[0]?.ref).toEqual(created.ref);
 
     const runRequestId = randomUUID();
     const mismatchedPath = await request(
@@ -189,8 +199,7 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
     expect(baselineResponse.status).toBe(200);
     const baseline = baselineResponse.body as unknown as {
       ref: WorkflowRef;
-      workflow: any;
-      operation: any;
+      operation: { requestId: string; state: string; replayed: boolean };
       contributions: Contribution[];
     };
     expect(baseline.ref.revision).toBe(1);
@@ -208,7 +217,10 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
       headers,
     );
     expect(replayResponse.status).toBe(200);
-    const replay = replayResponse.body as unknown as { ref: WorkflowRef; operation: any };
+    const replay = replayResponse.body as unknown as {
+      ref: WorkflowRef;
+      operation: { replayed: boolean };
+    };
     expect(replay.operation.replayed).toBe(true);
     expect(replay.ref).toEqual(baseline.ref);
     const staleBaseline = await request(
@@ -232,7 +244,10 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
       headers,
     );
     expect(previewResponse.status).toBe(200);
-    const preview = previewResponse.body as unknown as { preview: any; previewDigest: string };
+    const preview = previewResponse.body as unknown as {
+      preview: { staleComparisonIndexes: number[]; staleOutlineRevisions: number[] };
+      previewDigest: string;
+    };
     expect(preview.preview.staleComparisonIndexes).toEqual([]);
     expect(preview.preview.staleOutlineRevisions).toEqual([]);
     const addRequestId = randomUUID();
@@ -259,14 +274,17 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
     expect(appendedResponse.status).toBe(200);
     const appended = appendedResponse.body as unknown as {
       ref: WorkflowRef;
-      workflow: any;
+      workflow: unknown;
       contributions: Contribution[];
     };
     expect(appended.ref.revision).toBe(2);
     expect(
       appended.contributions.map((row) => row.uniqueCitedSpans.map((span) => span.quote)),
     ).toEqual([['12 percent'], ['installation cost is high']]);
-    const replayAfterAppend = await request(
+    const replayAfterAppend = await request<{
+      ref: WorkflowRef;
+      operation: { replayed: boolean };
+    }>(
       `perspective-workflows/${created.ref.workflowId}/run`,
       { expectedRef: created.ref, requestId: runRequestId },
       headers,
@@ -308,8 +326,12 @@ it('retains an exact owner-bound perspective workflow, dispatches once, appends 
     expect(coldResponse.body.workflow).toEqual(appended.workflow);
     expect(coldResponse.body.contributions).toEqual(appended.contributions);
     expect(coldResponse.body.sourceRefs).toEqual([capture.ref]);
-    const finalList = await request('perspective-workflows', undefined, headers);
-    expect(finalList.body.workflows[0].ref).toEqual(appended.ref);
+    const finalList = await request<{ workflows: Array<{ ref: WorkflowRef }> }>(
+      'perspective-workflows',
+      undefined,
+      headers,
+    );
+    expect(finalList.body.workflows[0]?.ref).toEqual(appended.ref);
   } finally {
     await fixture.cleanup();
     await rm(root, { recursive: true, force: true });

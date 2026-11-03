@@ -4,7 +4,9 @@
     ".": {
       "entry": [
         "tests/workbench/server.ts",
+        "tests/workbench/perspective-server.mjs",
         "tests/built/server.ts",
+        "playwright.perspective.config.ts",
         "scripts/examples/source-capture-consumer.mjs"
       ]
     }
