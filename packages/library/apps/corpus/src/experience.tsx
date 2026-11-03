@@ -220,7 +220,8 @@ export function Experience() {
         authorization = ((await response.json()) as { token: string }).token;
         setToken(authorization);
       }
-      const providerRoute = /^(?:datasets|analyses)(?:\/|$)/u.test(route);
+      const providerRoute =
+        /^(?:datasets|analyses|source-captures|perspective-workflows)(?:\/|$)/u.test(route);
       let providerHeaders: Record<string, string> = {};
       if (providerRoute) {
         if (!datasetProviderScope.current) {

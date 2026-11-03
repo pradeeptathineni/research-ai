@@ -22,6 +22,7 @@ import type { DirectSearchResult } from '../../../packages/corpus/src/search-dir
 import { PersonalEditor } from './workbench-personal.js';
 import { SourceManager } from './workbench-sources.js';
 import { DatasetWorkbench } from './workbench-datasets.js';
+import { PerspectiveWorkbench } from './workbench-perspectives.js';
 import type { PersonalState } from '../../../packages/domain/src/search-priority.js';
 import type { InboxEntry } from '../../../packages/corpus/src/search-inbox.js';
 import type { runDueOnce } from '../../../packages/corpus/src/search-scheduler.js';
@@ -37,7 +38,7 @@ import {
 
 const settingsTabs = ['Settings', 'Interests', 'Sources', 'Jobs'];
 type WorkbenchPanel =
-  'Search' | 'Inbox' | 'Interests' | 'Sources' | 'Jobs' | 'Settings' | 'Datasets';
+  'Search' | 'Inbox' | 'Interests' | 'Sources' | 'Jobs' | 'Settings' | 'Datasets' | 'Perspectives';
 /** The parent's loopback transport: one session token, checked session failures, optional abort. */
 type LocalApi = <T>(route: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
 export function Workbench({
@@ -572,7 +573,9 @@ export function Workbench({
         </dialog>
         {error && <p role="alert">{error}</p>}
         {message && <p role="status">{message}</p>}
-        {tab === 'Datasets' ? (
+        {tab === 'Perspectives' ? (
+          <PerspectiveWorkbench api={api} onBack={() => setTab('Search')} />
+        ) : tab === 'Datasets' ? (
           <DatasetWorkbench api={api} />
         ) : settingsTabs.includes(tab) && settings ? (
           <section aria-labelledby="settings-title">
@@ -1374,6 +1377,9 @@ export function Workbench({
           <>
             {tab === 'Search' && (
               <>
+                <button type="button" onClick={() => setTab('Perspectives')}>
+                  Independent perspectives from retained captures
+                </button>
                 {inbox.length > 0 && (
                   <button onClick={() => setTab('Inbox')}>Promising inbox ({inbox.length})</button>
                 )}

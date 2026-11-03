@@ -1,0 +1,131 @@
+.perspective-workbench {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 100%;
+  color: var(--desk-ink, #172027);
+}
+
+.perspective-workbench > section,
+.perspective-active,
+.perspective-addition-preview,
+.perspective-contribution {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--desk-line, #c9d2d4);
+  border-radius: 0.9rem;
+  background: var(--desk-panel, #fff);
+}
+
+.perspective-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.perspective-heading h1,
+.perspective-workbench h2,
+.perspective-workbench h3,
+.perspective-workbench h4,
+.perspective-workbench h5 {
+  margin-block: 0 0.5rem;
+}
+
+.perspective-workbench p {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.perspective-workbench label {
+  display: grid;
+  gap: 0.4rem;
+  margin-block: 0.75rem;
+}
+
+.perspective-workbench input,
+.perspective-workbench textarea,
+.perspective-workbench select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.75rem;
+}
+
+.perspective-workbench textarea {
+  min-height: 6rem;
+}
+
+.perspective-workbench button {
+  min-height: 2.75rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+}
+
+.perspective-workflow-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.perspective-workflow-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--desk-line, #c9d2d4);
+  border-radius: 0.75rem;
+}
+
+.perspective-workflow-list code,
+.perspective-workbench code {
+  overflow-wrap: anywhere;
+}
+
+.perspective-span-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.perspective-span-group {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--desk-line, #c9d2d4);
+  border-radius: 0.75rem;
+}
+
+.perspective-span-group ul {
+  padding-left: 1.1rem;
+}
+
+.perspective-span-group blockquote,
+.perspective-lens-result blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--desk-accent, #148c91);
+  overflow-wrap: anywhere;
+}
+
+.perspective-review-confirmation {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.perspective-review-confirmation input {
+  width: auto;
+  min-height: 1.2rem;
+}
+
+@media (max-width: 760px) {
+  .perspective-span-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .perspective-heading,
+  .perspective-workflow-list > li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
