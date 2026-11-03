@@ -344,12 +344,12 @@ export function requestStore(root: string) {
       );
     },
     async admit(
-      input: { request_id: string; idempotency_key: string },
+      input: { request_id: string; idempotency_key: string; payload?: unknown },
       epoch: string,
       configurationDigest?: string,
       expectedConfigurationDigest?: string,
       // Distinct closed operations share one identity scope; the action keeps their digests apart.
-      action: 'search' | 'frozen-followup' = 'search',
+      action: 'search' | 'frozen-followup' | 'perspective-run' | 'perspective-add' = 'search',
     ) {
       for (const digest of [configurationDigest, expectedConfigurationDigest]) {
         if (digest !== undefined && !/^[a-f0-9]{64}$/.test(digest))

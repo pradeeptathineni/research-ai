@@ -210,6 +210,16 @@ import {
 import { briefingRoute } from './briefing/http.js';
 import { readBriefingCaptureContext } from './briefing/store.js';
 import { parseJsonRequestBody } from './json-request-body.js';
+import {
+  addPerspectiveWorkflowLens,
+  createPerspectiveWorkflowRecord,
+  listPerspectiveWorkflows,
+  PerspectiveWorkflowError,
+  previewPerspectiveAddition,
+  readPerspectiveWorkflow,
+  runPerspectiveWorkflow,
+  type WorkflowRef,
+} from './perspective-workflows.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return (
@@ -455,6 +465,8 @@ export function searchApi(
         body = await parseJsonRequestBody(request, limit);
       }
       if (
+        route === 'perspective-workflows' ||
+        route.startsWith('perspective-workflows/') ||
         route === 'datasets' ||
         route.startsWith('datasets/') ||
         route === 'analyses' ||
@@ -467,6 +479,104 @@ export function searchApi(
           request.headers['x-signals-owner-epoch'],
         );
         const params = new URL(request.url!, 'http://127.0.0.1').searchParams;
+        if (route === 'perspective-workflows' && !mutation) {
+          if (params.size) throw new Error('invalid_perspective_workflow');
+          json(200, await listPerspectiveWorkflows(root));
+        } else if (route === 'perspective-workflows' && mutation) {
+          if (params.size) throw new Error('invalid_perspective_workflow');
+          json(201, await createPerspectiveWorkflowRecord(root, body));
+        } else {
+          const workflowMatch = /^perspective-workflows\/([a-f0-9-]{36})$/.exec(route);
+          const previewMatch = /^perspective-workflows\/([a-f0-9-]{36})\/preview$/.exec(route);
+          const runMatch = /^perspective-workflows\/([a-f0-9-]{36})\/run$/.exec(route);
+          const addMatch = /^perspective-workflows\/([a-f0-9-]{36})\/perspectives$/.exec(route);
+          const contributionsMatch = /^perspective-workflows\/([a-f0-9-]{36})\/contributions$/.exec(
+            route,
+          );
+          const queryRef = (): WorkflowRef => {
+            if (params.size !== 1 || params.getAll('ref').length !== 1)
+              throw new Error('invalid_perspective_workflow');
+            try {
+              const value: unknown = JSON.parse(params.get('ref')!);
+              if (!isRecord(value)) throw new Error('invalid');
+              return value as unknown as WorkflowRef;
+            } catch {
+              throw new Error('invalid_perspective_workflow');
+            }
+          };
+          const owner = {
+            version: request.headers['x-signals-provider-version'],
+            instance: request.headers['x-signals-instance-id'],
+            epoch: request.headers['x-signals-owner-epoch'],
+          };
+          if (workflowMatch && !mutation) {
+            const ref = queryRef();
+            if (ref.workflowId !== workflowMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            json(200, await readPerspectiveWorkflow(root, ref));
+          } else if (contributionsMatch && !mutation) {
+            const ref = queryRef();
+            if (ref.workflowId !== contributionsMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            const opened = await readPerspectiveWorkflow(root, ref);
+            if (opened.ref.workflowId !== contributionsMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            if (!opened.contributions) throw new Error('perspective_not_run');
+            json(200, {
+              ref: opened.ref,
+              contributions: opened.contributions,
+              qualification: [...new Set(opened.contributions.map((item) => item.qualification))],
+            });
+          } else if (previewMatch && mutation) {
+            if (params.size) throw new Error('invalid_perspective_workflow');
+            const payload = body as Record<string, unknown>;
+            if (
+              !isRecord(payload) ||
+              Object.keys(payload).sort().join(',') !== 'choice,ref' ||
+              !isRecord(payload.ref)
+            )
+              throw new Error('invalid_perspective_workflow');
+            if (payload.ref.workflowId !== previewMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            const result = await previewPerspectiveAddition(
+              root,
+              payload.ref as unknown as WorkflowRef,
+              payload.choice as { label: string; focus: string },
+            );
+            if (result.ref.workflowId !== previewMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            json(200, result);
+          } else if (runMatch && mutation) {
+            if (params.size) throw new Error('invalid_perspective_workflow');
+            if (
+              !isRecord(body) ||
+              !isRecord(body.expectedRef) ||
+              body.expectedRef.workflowId !== runMatch[1]
+            )
+              throw new Error('invalid_perspective_workflow');
+            const result = await runPerspectiveWorkflow(root, body, owner);
+            if (result.ref.workflowId !== runMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            json(200, result);
+          } else if (addMatch && mutation) {
+            if (params.size) throw new Error('invalid_perspective_workflow');
+            if (
+              !isRecord(body) ||
+              !isRecord(body.expectedRef) ||
+              body.expectedRef.workflowId !== addMatch[1]
+            )
+              throw new Error('invalid_perspective_workflow');
+            const result = await addPerspectiveWorkflowLens(root, body, owner);
+            if (result.ref.workflowId !== addMatch[1])
+              throw new Error('invalid_perspective_workflow');
+            json(200, result);
+          } else if (workflowMatch || previewMatch || runMatch || addMatch || contributionsMatch) {
+            json(405, { code: 'method_not_allowed' });
+          } else {
+            json(404, { code: 'unknown_operation' });
+          }
+        }
+        if (route.startsWith('perspective-workflows')) return true;
         const metadataFrom = (payload: Record<string, unknown>): DatasetMetadata => ({
           assertions: 'caller-provided',
           source: payload.source as DatasetMetadata['source'],
@@ -2460,6 +2570,10 @@ export function searchApi(
         json(200, { cleaned: true, retainedHistory: 'preserved' });
       } else json(404, { code: 'unknown_operation' });
     } catch (failure) {
+      if (failure instanceof PerspectiveWorkflowError) {
+        json(failure.status, { code: failure.code, reason: failure.reason });
+        return true;
+      }
       if (failure instanceof DatasetStoreError) {
         const status =
           failure.code === 'dataset_not_found' || failure.code === 'analysis_not_found'
@@ -2523,6 +2637,10 @@ export function searchApi(
       json(
         [
           'request_conflict',
+          'perspective_request_conflict',
+          'perspective_outcome_unknown',
+          'perspective_workflow_changed',
+          'perspective_preview_changed',
           'settings_changed',
           'owner_epoch_mismatch',
           'request_configuration_changed',

@@ -210,6 +210,7 @@ export async function providerCapabilities(
       { id: 'private-pdf-reader', versions: ['1.0'] },
       { id: 'private-document-intake', versions: ['1.0'] },
       { id: 'datasets-analysis', versions: ['1.0'] },
+      { id: 'perspective-workflow', versions: ['1.0'] },
       { id: 'saved-entity-inspection', versions: ['1.0'] },
       { id: 'briefing-sources-and-workbench', versions: ['1.1', '1.2', '1.3', '1.4'] },
       { id: 'smart-collections', versions: ['1.0'] },
