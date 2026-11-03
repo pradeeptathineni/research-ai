@@ -2,6 +2,10 @@
 
 Research Methods answers bounded questions without owning a store. Research Library retains sources, assessed findings, interests, Briefing stories and saved corpus records. The Workbench runs that Library from this workspace; it does not require a separate Signals source checkout.
 
+Contributors can start with [project instructions](AGENTS.md), which route to
+the existing Methods and Library guidance. Personal global instructions and
+hooks are optional host configuration, not workspace setup requirements.
+
 Use Node 24.19 and npm 12.1. From this directory:
 
 ```sh
