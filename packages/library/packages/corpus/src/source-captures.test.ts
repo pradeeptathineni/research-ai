@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
+import { Buffer } from 'node:buffer';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { expect, it } from 'vitest';
 import { defaultSettings, saveSettings } from './search-settings.js';
@@ -40,7 +41,7 @@ it('captures a selected Briefing rank item through the existing owner and cold-r
   );
   async function request(route: string, body?: unknown, headers: Record<string, string> = {}) {
     const incoming = Object.assign(
-      Readable.from(body === undefined ? [] : [JSON.stringify(body)]),
+      Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]),
       {
         url: `/signals-ai/__signals/api/${route}`,
         method: body === undefined ? 'GET' : 'POST',

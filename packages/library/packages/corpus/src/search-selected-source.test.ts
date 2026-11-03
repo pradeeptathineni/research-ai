@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
+import { Buffer } from 'node:buffer';
 import { searchApi } from './search-api.js';
 import { ClaimCheck } from '../../../apps/corpus/src/claim-check.js';
 import { parseRequest, type SearchResult } from '../../domain/src/search-contract.js';
@@ -173,7 +174,7 @@ it('default API handler cannot turn a caller digest into registered evidence or 
   const api = searchApi(root);
   async function request(route: string, body?: unknown, token?: string) {
     const incoming = Object.assign(
-      Readable.from(body === undefined ? [] : [JSON.stringify(body)]),
+      Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]),
       {
         url: '/signals-ai/__signals/api/' + route,
         method: body === undefined ? 'GET' : 'POST',
