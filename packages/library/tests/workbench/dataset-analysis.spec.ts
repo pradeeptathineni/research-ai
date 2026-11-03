@@ -67,9 +67,7 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await expect(page.getByText(/parser csv-parse 7\.0\.3/u)).toBeVisible();
 
   await page.getByLabel('Analysis title').fill('Synthetic category counts');
-  await page
-    .getByLabel('Bar chart category (counts rows per category)')
-    .selectOption({ label: 'category' });
+  await page.getByLabel('Bar chart category (group rows)').selectOption({ label: 'category' });
   await page
     .getByRole('button', { name: 'Save analysis and chart definition', exact: true })
     .click();
@@ -118,6 +116,8 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
 
   await page.getByLabel('Analysis title').fill('Synthetic category counts revision two');
   await page.getByLabel('SQL table name').fill('sample_v2');
+  await page.getByLabel('Bar chart calculation').selectOption('sum');
+  await page.getByLabel('Numeric column').selectOption({ label: 'value' });
   const saveRevision = page.getByRole('button', {
     name: 'Save a new analysis revision',
     exact: true,
@@ -137,7 +137,15 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await page.getByRole('button', { name: 'Preview compiled SQL', exact: true }).click();
   await expect(
     page.getByRole('region', { name: 'Compiled query review', exact: true }),
-  ).toContainText('SELECT * FROM sample_v2');
+  ).toContainText('CAST(c1 AS DOUBLE) AS numeric_value FROM sample_v2');
+  await expect(review.locator('pre').nth(1)).toContainText(/sum\s*\("numeric_value"\)/iu);
+  await review
+    .getByLabel('I reviewed both compiled queries and their exact input digests.')
+    .check();
+  await page.getByRole('button', { name: 'Run and save result', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Saved chart data', exact: true })).toContainText(
+    '40',
+  );
 
   await page.reload();
   await navigation.getByRole('button', { name: 'Data', exact: true }).click();

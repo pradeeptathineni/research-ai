@@ -518,6 +518,30 @@ function analysisRefUrl(ref: AnalysisRef): string {
   return `analyses/${ref.analysisId}?${new URLSearchParams({ ref: JSON.stringify(ref) })}`;
 }
 
+type BarAggregate = 'count' | 'sum' | 'avg' | 'min' | 'max';
+
+function numericColumn(table: RegisteredTable, columnId: string): boolean {
+  const index = table.columns.findIndex((column) => column.id === columnId);
+  return (
+    index >= 0 &&
+    table.rows.length > 0 &&
+    table.rows.every((row) => {
+      const value = row[index];
+      return (
+        typeof value === 'string' &&
+        /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u.test(value.trim()) &&
+        Number.isFinite(Number(value))
+      );
+    })
+  );
+}
+
+function analysisSql(tableName: string, aggregate: BarAggregate, measure: string): string {
+  if (aggregate === 'count') return `SELECT * FROM ${tableName}`;
+  const index = Number(/^c(\d+)$/u.exec(measure)?.[1]);
+  return `SELECT *, CAST(c${index} AS DOUBLE) AS numeric_value FROM ${tableName}`;
+}
+
 function runRefUrl(ref: RunRef): string {
   return `analyses/${ref.analysisRef.analysisId}/runs/${ref.runId}?${new URLSearchParams({ ref: JSON.stringify(ref) })}`;
 }
@@ -545,6 +569,8 @@ function DatasetAnalysisPanel({
   const [title, setTitle] = useState(`${datasetRef.name} analysis`);
   const [tableName, setTableName] = useState('sample');
   const [chartX, setChartX] = useState('');
+  const [chartAggregate, setChartAggregate] = useState<BarAggregate>('count');
+  const [chartMeasure, setChartMeasure] = useState('');
   const [preview, setPreview] = useState<TableQueryPreview | null>(null);
   const [chartPreview, setChartPreview] = useState<TableQueryPreview | null>(null);
   const [reviewedPreview, setReviewedPreview] = useState(false);
@@ -557,25 +583,64 @@ function DatasetAnalysisPanel({
     [analysisRefs, datasetRef],
   );
   const savedTableName = analysis?.tables[0]?.name;
+  const savedSql = analysis?.steps[0]?.sql ?? '';
+  const savedNumericMeasure =
+    /^SELECT \*, CAST\((c\d+) AS DOUBLE\) AS numeric_value FROM [a-z][a-z0-9_]{0,31}$/u.exec(
+      savedSql,
+    )?.[1];
+  const savedNumericChart =
+    savedNumericMeasure !== undefined &&
+    parsed !== null &&
+    ['sum', 'avg', 'min', 'max'].includes(analysis?.chart?.aggregate ?? '') &&
+    analysis?.chart?.y === `q${parsed.table.columns.length + 1}` &&
+    numericColumn(parsed.table, savedNumericMeasure);
+  const savedStep =
+    savedTableName &&
+    analysis?.chart &&
+    ['count', 'sum', 'avg', 'min', 'max'].includes(analysis.chart.aggregate)
+      ? analysisSql(
+          savedTableName,
+          analysis.chart.aggregate as BarAggregate,
+          chartMeasure || savedNumericMeasure || '',
+        )
+      : null;
   const supportsSingleStepEditor =
     analysis === null ||
     (analysis.tables.length === 1 &&
       Boolean(savedTableName) &&
       analysis.steps.length === 1 &&
-      analysis.steps[0]?.sql === `SELECT * FROM ${savedTableName}`);
+      (savedSql === `SELECT * FROM ${savedTableName}` ||
+        (savedNumericChart &&
+          savedNumericMeasure !== undefined &&
+          savedSql ===
+            analysisSql(
+              savedTableName!,
+              analysis.chart?.aggregate as BarAggregate,
+              savedNumericMeasure,
+            ))));
   const editorMatchesSaved =
     analysis === null ||
-    (tableName === savedTableName && title === analysis.title && chartX === analysis.chart?.x);
+    (tableName === savedTableName &&
+      title === analysis.title &&
+      chartX === analysis.chart?.x &&
+      chartAggregate === analysis.chart?.aggregate &&
+      analysis.steps[0]?.sql === savedStep);
   const supportsRunPreview =
     analysis === null ||
     (supportsSingleStepEditor &&
       analysis.chart?.mark === 'bar' &&
       analysis.chart.step === 's1' &&
-      analysis.chart.aggregate === 'count' &&
-      analysis.chart.y === null &&
+      ['count', 'sum', 'avg', 'min', 'max'].includes(analysis.chart.aggregate) &&
+      (analysis.chart.aggregate === 'count'
+        ? analysis.chart.y === null
+        : analysis.chart.y === `q${(parsed?.table.columns.length ?? 0) + 1}`) &&
       analysis.chart.series === null);
   const canSaveAnalysis = Boolean(
-    parsed && title.trim() && /^[a-z][a-z0-9_]{0,31}$/u.test(tableName) && chartX,
+    parsed &&
+    title.trim() &&
+    /^[a-z][a-z0-9_]{0,31}$/u.test(tableName) &&
+    chartX &&
+    (chartAggregate === 'count' || numericColumn(parsed.table, chartMeasure)),
   );
   const canRun = Boolean(
     analysisRef &&
@@ -634,6 +699,8 @@ function DatasetAnalysisPanel({
     setCsvColumns(null);
     setTableName('sample');
     setChartX(response.table.columns.length ? 'q1' : '');
+    setChartAggregate('count');
+    setChartMeasure('');
     setMessage(
       `Parsed ${response.table.rows.length} rows. All ${response.table.columns.length} columns and cell values remain text.`,
     );
@@ -753,6 +820,11 @@ function DatasetAnalysisPanel({
       setTitle(response.analysis.title);
       setTableName(response.analysis.tables[0]?.name ?? 'sample');
       setChartX(response.analysis.chart?.x ?? (response.dataset.table.columns.length ? 'q1' : ''));
+      setChartAggregate((response.analysis.chart?.aggregate ?? 'count') as BarAggregate);
+      const numericMatch = /^SELECT \*, CAST\((c\d+) AS DOUBLE\) AS numeric_value FROM /u.exec(
+        response.analysis.steps[0]?.sql ?? '',
+      );
+      setChartMeasure(numericMatch?.[1] ?? '');
       await reloadRuns(response.ref);
       setMessage(`Reopened analysis revision ${response.ref.revision}.`);
     } catch (failure) {
@@ -776,8 +848,8 @@ function DatasetAnalysisPanel({
         mark: 'bar',
         step: 's1',
         x: chartX,
-        y: null,
-        aggregate: 'count',
+        y: chartAggregate === 'count' ? null : `q${parsed.table.columns.length + 1}`,
+        aggregate: chartAggregate,
         series: null,
         order: 'x',
       };
@@ -786,7 +858,9 @@ function DatasetAnalysisPanel({
         tableSha256: parsed.table.sha256,
         tableName: tableName.trim(),
         title: title.trim(),
-        steps: [{ name: 's1' as const, sql: `SELECT * FROM ${tableName.trim()}` }],
+        steps: [
+          { name: 's1' as const, sql: analysisSql(tableName.trim(), chartAggregate, chartMeasure) },
+        ],
         chart,
       };
       const response = analysisRef
@@ -846,6 +920,16 @@ function DatasetAnalysisPanel({
           sql_type: 'VARCHAR',
           representation: 'text' as const,
         })),
+        ...(analysis?.chart?.aggregate !== 'count'
+          ? [
+              {
+                id: `q${parsed.table.columns.length + 1}`,
+                label: 'numeric_value',
+                sql_type: 'DOUBLE',
+                representation: 'number' as const,
+              },
+            ]
+          : []),
       ];
       const chartResponse = await api<{ ref: AnalysisRef; preview: TableQueryPreview }>(
         `analyses/${analysisRef.analysisId}/preview`,
@@ -1177,7 +1261,7 @@ function DatasetAnalysisPanel({
               The alias is validated before Methods compiles the query.
             </p>
             <label>
-              Bar chart category (counts rows per category)
+              Bar chart category (group rows)
               <select
                 disabled={!supportsSingleStepEditor || busy}
                 value={chartX}
@@ -1195,9 +1279,53 @@ function DatasetAnalysisPanel({
                 ))}
               </select>
             </label>
+            <label>
+              Bar chart calculation
+              <select
+                disabled={!supportsSingleStepEditor || busy}
+                value={chartAggregate}
+                onChange={(event) => {
+                  setChartAggregate(event.target.value as BarAggregate);
+                  setPreview(null);
+                  setChartPreview(null);
+                  setReviewedPreview(false);
+                }}
+              >
+                <option value="count">Count rows</option>
+                <option value="sum">Sum a numeric column</option>
+                <option value="avg">Average a numeric column</option>
+                <option value="min">Minimum of a numeric column</option>
+                <option value="max">Maximum of a numeric column</option>
+              </select>
+            </label>
+            {chartAggregate !== 'count' && (
+              <label>
+                Numeric column
+                <select
+                  disabled={!supportsSingleStepEditor || busy}
+                  value={chartMeasure}
+                  onChange={(event) => {
+                    setChartMeasure(event.target.value);
+                    setPreview(null);
+                    setChartPreview(null);
+                    setReviewedPreview(false);
+                  }}
+                >
+                  <option value="">Choose a numeric column</option>
+                  {parsed.table.columns
+                    .filter((column) => numericColumn(parsed.table, column.id))
+                    .map((column) => (
+                      <option key={column.id} value={column.id}>
+                        {column.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
             <p>
-              The chart uses the saved s1 results and counts each category. No source values are
-              converted into numbers.
+              Count keeps source values as text. A numeric calculation requires every retained value
+              in the chosen column to be a finite number; its explicit conversion appears in the
+              saved query review. Source bytes stay unchanged.
             </p>
             <button
               type="button"
@@ -1227,7 +1355,7 @@ function DatasetAnalysisPanel({
                 {!supportsRunPreview && (
                   <p role="status">
                     Preview and run are available here only for a single-step SELECT-all analysis
-                    with a bar count chart.
+                    with a supported bar chart.
                   </p>
                 )}
               </>
