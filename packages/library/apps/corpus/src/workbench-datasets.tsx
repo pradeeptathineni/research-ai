@@ -526,8 +526,10 @@ function DatasetAnalysisPanel({
   const [analysisRefs, setAnalysisRefs] = useState<AnalysisRef[]>([]);
   const [parsed, setParsed] = useState<ParsedDataset | null>(null);
   const [analysisRef, setAnalysisRef] = useState<AnalysisRef | null>(null);
+  const [selectedAnalysisKey, setSelectedAnalysisKey] = useState('');
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [runRefs, setRunRefs] = useState<RunRef[]>([]);
+  const [recoveredRunRef, setRecoveredRunRef] = useState<RunRef | null>(null);
   const [runResult, setRunResult] = useState<RunResponse | null>(null);
   const [title, setTitle] = useState(`${datasetRef.name} analysis`);
   const [tableName, setTableName] = useState('sample');
@@ -543,9 +545,16 @@ function DatasetAnalysisPanel({
     () => analysisRefs.filter((ref) => sameDataset(ref.datasetRef, datasetRef)),
     [analysisRefs, datasetRef],
   );
+  const savedTableName = analysis?.tables[0]?.name;
   const supportsSingleStepEditor =
     analysis === null ||
-    (analysis.steps.length === 1 && analysis.steps[0]?.sql === `SELECT * FROM ${tableName}`);
+    (analysis.tables.length === 1 &&
+      Boolean(savedTableName) &&
+      analysis.steps.length === 1 &&
+      analysis.steps[0]?.sql === `SELECT * FROM ${savedTableName}`);
+  const editorMatchesSaved =
+    analysis === null ||
+    (tableName === savedTableName && title === analysis.title && chartX === analysis.chart?.x);
   const supportsRunPreview =
     analysis === null ||
     (supportsSingleStepEditor &&
@@ -564,6 +573,8 @@ function DatasetAnalysisPanel({
     reviewedPreview &&
     capabilities?.tableEngine.available &&
     supportsRunPreview &&
+    editorMatchesSaved &&
+    !recoveredRunRef &&
     !busy,
   );
 
@@ -578,13 +589,14 @@ function DatasetAnalysisPanel({
     if (failure?.status === 'rejected') throw failure.reason;
   }
 
-  async function reloadRuns(ref: AnalysisRef) {
+  async function reloadRuns(ref: AnalysisRef): Promise<RunRef[]> {
     const response = await api<{ analysisRef: AnalysisRef; runs: RunRef[] }>(
       `analyses/${ref.analysisId}/runs?${new URLSearchParams({ ref: JSON.stringify(ref) })}`,
     );
     if (response.analysisRef.analysisDigest !== ref.analysisDigest)
       throw new Error('Saved run references belong to a different analysis revision.');
     setRunRefs(response.runs);
+    return response.runs;
   }
 
   useEffect(() => {
@@ -618,6 +630,16 @@ function DatasetAnalysisPanel({
     setError('');
     setMessage('');
     setParsed(null);
+    setTitle(`${datasetRef.name} analysis`);
+    setAnalysisRef(null);
+    setSelectedAnalysisKey('');
+    setAnalysis(null);
+    setRunRefs([]);
+    setRecoveredRunRef(null);
+    setRunResult(null);
+    setPreview(null);
+    setChartPreview(null);
+    setReviewedPreview(false);
     try {
       const query = new URLSearchParams({ ref: JSON.stringify(datasetRef) });
       const response = await api<ParsedDataset>(`datasets/${datasetRef.datasetId}/table?${query}`);
@@ -639,9 +661,12 @@ function DatasetAnalysisPanel({
     setError('');
     setMessage('');
     setParsed(null);
+    setTitle(`${datasetRef.name} analysis`);
     setAnalysisRef(null);
+    setSelectedAnalysisKey('');
     setAnalysis(null);
     setRunRefs([]);
+    setRecoveredRunRef(null);
     setRunResult(null);
     setPreview(null);
     setChartPreview(null);
@@ -671,6 +696,7 @@ function DatasetAnalysisPanel({
     setChartPreview(null);
     setReviewedPreview(false);
     setRunResult(null);
+    setRecoveredRunRef(null);
     try {
       const response = await api<AnalysisOpenResponse>(analysisRefUrl(ref));
       if (
@@ -682,6 +708,7 @@ function DatasetAnalysisPanel({
         throw new Error('The saved analysis does not match this exact dataset version.');
       }
       setAnalysisRef(response.ref);
+      setSelectedAnalysisKey(`${response.ref.analysisId}:${response.ref.revision}`);
       setAnalysis(response.analysis);
       setParsed({
         datasetRef: response.dataset.ref,
@@ -729,14 +756,19 @@ function DatasetAnalysisPanel({
       };
       const response = analysisRef
         ? await api<AnalysisResponse>(`analyses/${analysisRef.analysisId}/revisions`, {
-            ...body,
             expectedHead: analysisRef,
+            tableName: body.tableName,
+            title: body.title,
+            steps: body.steps,
+            chart: body.chart,
           })
         : await api<AnalysisResponse>('analyses', body);
       setAnalysisRef(response.ref);
+      setSelectedAnalysisKey(`${response.ref.analysisId}:${response.ref.revision}`);
       setAnalysis(response.analysis);
       setAnalysisRefs((current) => [...current, response.ref]);
       setRunRefs([]);
+      setRecoveredRunRef(null);
       setMessage(
         `Saved analysis revision ${response.ref.revision}. Review its compiled query before running.`,
       );
@@ -744,7 +776,7 @@ function DatasetAnalysisPanel({
       const reason = failure instanceof Error ? failure.message : String(failure);
       if (reason.includes('analysis_head_changed')) {
         setError(
-          'A newer analysis revision exists. Reload saved analyses before saving another revision.',
+          'A newer analysis revision exists. Reload saved analyses, then reopen the current revision before saving again.',
         );
       } else {
         setError(reason);
@@ -755,7 +787,7 @@ function DatasetAnalysisPanel({
   }
 
   async function previewAnalysis() {
-    if (!analysisRef || !parsed || !supportsRunPreview) return;
+    if (!analysisRef || !parsed || !supportsRunPreview || !editorMatchesSaved) return;
     setBusy(true);
     setError('');
     setMessage('');
@@ -798,13 +830,18 @@ function DatasetAnalysisPanel({
   }
 
   async function runAnalysis() {
-    if (!analysisRef || !canRun) return;
+    if (!analysisRef || !analysis || !preview || !chartPreview || !canRun) return;
+    const previouslySavedRunIds = new Set(runRefs.map((ref) => ref.runId));
     setBusy(true);
     setError('');
     setMessage('');
     try {
       const response = await api<RunResponse>(`analyses/${analysisRef.analysisId}/run`, {
         ref: analysisRef,
+        reviewedQueryDigests: {
+          steps: [{ step: 's1', queryDigest: preview.query_digest }],
+          chart: analysis.chart ? chartPreview.query_digest : null,
+        },
       });
       if (
         response.analysisRef.analysisDigest !== analysisRef.analysisDigest ||
@@ -813,6 +850,7 @@ function DatasetAnalysisPanel({
         throw new Error('The saved run does not match the selected analysis digest.');
       }
       setRunResult(response);
+      setRecoveredRunRef(null);
       setRunRefs((current) => [
         response.runRef,
         ...current.filter((ref) => ref.runId !== response.runRef.runId),
@@ -820,12 +858,27 @@ function DatasetAnalysisPanel({
       setMessage(`Saved run ${response.runRef.runId} (${response.run.state}).`);
     } catch (failure) {
       const reason = failure instanceof Error ? failure.message : String(failure);
-      await reloadRuns(analysisRef).catch(() => undefined);
-      setError(
-        reason.includes('table_engine_unavailable')
-          ? 'The host DuckDB runtime is unavailable. Running stays disabled until its configured package is available.'
-          : `${reason} Check saved runs before trying again; the previous run may have been saved.`,
-      );
+      const refreshedRuns = await reloadRuns(analysisRef).catch(() => []);
+      const newlySaved = refreshedRuns.filter((ref) => !previouslySavedRunIds.has(ref.runId));
+      if (reason.includes('table_engine_unavailable')) {
+        setError(
+          'The configured DuckDB runtime was unavailable for this run. Check saved results before retrying.',
+        );
+      } else if (reason.includes('analysis_review_changed')) {
+        setError(
+          'The saved query changed after review. Preview the compiled SQL again and review it before running.',
+        );
+      } else if (newlySaved.length > 0) {
+        setRecoveredRunRef(newlySaved[0]!);
+        setMessage(
+          'A new saved run was found after the request failed. Reopen it to inspect the retained result.',
+        );
+        setError(
+          'The run response was not received. The saved run remains available for readback.',
+        );
+      } else {
+        setError(`${reason} No new run appeared in saved history; check the list before retrying.`);
+      }
     } finally {
       setBusy(false);
     }
@@ -845,6 +898,7 @@ function DatasetAnalysisPanel({
         throw new Error('The cold-opened run does not match its saved digest.');
       }
       setRunResult(response);
+      setRecoveredRunRef(null);
       setMessage(`Reopened saved run ${ref.runId}; no query was rerun.`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
@@ -897,7 +951,7 @@ function DatasetAnalysisPanel({
         <label>
           Reopen saved analysis revision for this source version
           <select
-            value=""
+            value={selectedAnalysisKey}
             disabled={busy}
             onChange={(event) => {
               const ref = applicableAnalyses.find(
@@ -1069,11 +1123,16 @@ function DatasetAnalysisPanel({
                 </p>
                 <button
                   type="button"
-                  disabled={busy || !supportsRunPreview}
+                  disabled={busy || !supportsRunPreview || !editorMatchesSaved}
                   onClick={() => void previewAnalysis()}
                 >
                   Preview compiled SQL
                 </button>
+                {!editorMatchesSaved && (
+                  <p role="status">
+                    Save a new analysis revision before previewing edited settings.
+                  </p>
+                )}
                 {!supportsRunPreview && (
                   <p role="status">
                     Preview and run are available here only for a single-step SELECT-all analysis
@@ -1121,6 +1180,11 @@ function DatasetAnalysisPanel({
             </button>
             {!capabilities?.tableEngine.available && (
               <p>Running is unavailable until a host-configured DuckDB package is available.</p>
+            )}
+            {recoveredRunRef && (
+              <button type="button" disabled={busy} onClick={() => void reopenRun(recoveredRunRef)}>
+                Reopen recovered run {recoveredRunRef.runId.slice(0, 12)}
+              </button>
             )}
             {runRefs.length > 0 && (
               <label>

@@ -30,6 +30,7 @@ import { LibrarySavingSettings } from './library-saving-settings.js';
 
 const base = import.meta.env.BASE_URL;
 const local = (window as Window & { __SIGNALS_LOCAL__?: boolean }).__SIGNALS_LOCAL__ === true;
+type DatasetProviderScope = { identity: string; epoch: string };
 const primaryViews = [
   'Home',
   'Search',
@@ -173,6 +174,7 @@ export function Experience() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [token, setToken] = useState('');
+  const datasetProviderScope = useRef<Promise<DatasetProviderScope> | null>(null);
   const selected = state.compare.split(',').filter(Boolean).slice(0, 3);
   const [projects, setProjects] = useState<Project[]>([]);
   const [opportunities, setOpportunities] = useState<DisplayOpportunity[]>([]);
@@ -221,29 +223,37 @@ export function Experience() {
       const providerRoute = /^(?:datasets|analyses)(?:\/|$)/u.test(route);
       let providerHeaders: Record<string, string> = {};
       if (providerRoute) {
-        const scopeResponse = await fetch(`${base}__signals/api/request-scope`, { signal });
-        if (!scopeResponse.ok)
-          throw new Error('Saved dataset scope is unavailable. No scope was initialized.');
-        const scope: unknown = await scopeResponse.json();
-        if (
-          !scope ||
-          typeof scope !== 'object' ||
-          !('owner' in scope) ||
-          scope.owner !== 'signals-ai' ||
-          !('contract' in scope) ||
-          scope.contract !== 'research-request-v1' ||
-          !('identity' in scope) ||
-          typeof scope.identity !== 'string' ||
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
-            scope.identity,
-          ) ||
-          !('epoch' in scope) ||
-          typeof scope.epoch !== 'string' ||
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
-            scope.epoch,
-          )
-        )
-          throw new Error('Saved dataset scope is missing or corrupt. No scope was initialized.');
+        if (!datasetProviderScope.current) {
+          datasetProviderScope.current = (async () => {
+            const scopeResponse = await fetch(`${base}__signals/api/request-scope`);
+            if (!scopeResponse.ok)
+              throw new Error('Saved dataset scope is unavailable. Reload this page to retry.');
+            const scope: unknown = await scopeResponse.json();
+            if (
+              !scope ||
+              typeof scope !== 'object' ||
+              !('owner' in scope) ||
+              scope.owner !== 'signals-ai' ||
+              !('contract' in scope) ||
+              scope.contract !== 'research-request-v1' ||
+              !('identity' in scope) ||
+              typeof scope.identity !== 'string' ||
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+                scope.identity,
+              ) ||
+              !('epoch' in scope) ||
+              typeof scope.epoch !== 'string' ||
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+                scope.epoch,
+              )
+            )
+              throw new Error(
+                'Saved dataset scope is missing or corrupt. Reload this page after repairing the workspace scope.',
+              );
+            return { identity: scope.identity, epoch: scope.epoch };
+          })();
+        }
+        const scope = await datasetProviderScope.current;
         providerHeaders = {
           'x-signals-provider-version': '1.0',
           'x-signals-instance-id': scope.identity,
@@ -266,12 +276,18 @@ export function Experience() {
             },
       );
       const value: unknown = await response.json();
-      if (!response.ok)
-        throw new Error(
-          value && typeof value === 'object' && 'code' in value
-            ? String(value.code)
-            : 'Operation failed. Your input is retained.',
-        );
+      if (!response.ok) {
+        const code =
+          value && typeof value === 'object' && 'code' in value ? String(value.code) : '';
+        if (
+          response.status === 409 &&
+          ['owner_epoch_mismatch', 'provider_instance_mismatch'].includes(code)
+        )
+          throw new Error(
+            'The local workspace scope changed while this page was open. Reload this page and reopen the saved dataset before continuing.',
+          );
+        throw new Error(code || 'Operation failed. Your input is retained.');
+      }
       return value as T;
     },
     [token],
@@ -1189,7 +1205,8 @@ export function Experience() {
           <>
             <h1>Following</h1>
             <p>
-              Manage followed interests and sources. Repeated research uses only your configured schedule.
+              Manage followed interests and sources. Repeated research uses only your configured
+              schedule.
             </p>
             <nav className="desk-tabs" aria-label="Following views">
               <button

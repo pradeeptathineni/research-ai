@@ -4,9 +4,18 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   let analysisRuns = 0;
+  const runBodies: Record<string, unknown>[] = [];
+  let revisionBody: Record<string, unknown> | null = null;
   page.on('request', (request) => {
-    if (request.method() === 'POST' && /\/analyses\/analysis-[^/]+\/run$/u.test(request.url()))
+    if (request.method() === 'POST' && /\/analyses\/analysis-[^/]+\/run$/u.test(request.url())) {
       analysisRuns++;
+      runBodies.push(request.postDataJSON() as Record<string, unknown>);
+    }
+    if (
+      request.method() === 'POST' &&
+      /\/analyses\/analysis-[^/]+\/revisions$/u.test(request.url())
+    )
+      revisionBody = request.postDataJSON() as Record<string, unknown>;
   });
 
   await page.goto('');
@@ -78,7 +87,22 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await expect(
     page.getByRole('button', { name: 'Run and save result', exact: true }),
   ).toBeEnabled();
+  await page.route(/\/analyses\/analysis-[^/]+\/run$/u, async (route) => {
+    await route.fetch();
+    await route.fulfill({
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: 'fixture_lost_response' }),
+    });
+  });
   await page.getByRole('button', { name: 'Run and save result', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Reopen recovered run/u })).toBeVisible();
+  await page.getByRole('button', { name: /Reopen recovered run/u }).click();
+  await page.unroute(/\/analyses\/analysis-[^/]+\/run$/u);
+  expect(runBodies.at(-1)?.reviewedQueryDigests).toMatchObject({
+    steps: [{ step: 's1', queryDigest: expect.stringMatching(/^[a-f0-9]{64}$/u) }],
+    chart: expect.stringMatching(/^[a-f0-9]{64}$/u),
+  });
   const savedResult = page.getByRole('region', { name: 'Saved analysis result', exact: true });
   await expect(savedResult).toBeVisible();
   await expect(savedResult).toContainText('Run state: complete');
@@ -90,6 +114,29 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   await expect(savedRunDigest).toMatch(/^[a-f0-9]{64}$/u);
   expect(analysisRuns).toBe(1);
 
+  await page.getByLabel('Analysis title').fill('Synthetic category counts revision two');
+  await page.getByLabel('SQL table name').fill('sample_v2');
+  const saveRevision = page.getByRole('button', {
+    name: 'Save a new analysis revision',
+    exact: true,
+  });
+  await expect(saveRevision).toBeEnabled();
+  await saveRevision.click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Saved analysis revision 2.' }),
+  ).toBeVisible();
+  expect(Object.keys(revisionBody ?? {}).sort()).toEqual([
+    'chart',
+    'expectedHead',
+    'steps',
+    'tableName',
+    'title',
+  ]);
+  await page.getByRole('button', { name: 'Preview compiled SQL', exact: true }).click();
+  await expect(
+    page.getByRole('region', { name: 'Compiled query review', exact: true }),
+  ).toContainText('SELECT * FROM sample_v2');
+
   await page.reload();
   await navigation.getByRole('button', { name: 'Data', exact: true }).click();
   await page.getByRole('button', { name: 'Reopen exact version', exact: true }).focus();
@@ -99,8 +146,9 @@ test('imports, analyzes and cold-reopens an exact synthetic CSV version', async 
   );
 
   const analysisPicker = page.getByLabel('Reopen saved analysis revision for this source version');
-  await expect(analysisPicker.locator('option')).toHaveCount(2);
-  await analysisPicker.selectOption({ index: 1 });
+  await expect(analysisPicker.locator('option')).toHaveCount(3);
+  const revisionOne = analysisPicker.locator('option').filter({ hasText: 'Revision 1 ·' });
+  await analysisPicker.selectOption((await revisionOne.getAttribute('value'))!);
   await expect(page.getByText('Reopened analysis revision 1.', { exact: true })).toBeVisible();
   const runPicker = page.getByLabel('Reopen saved result');
   await expect(runPicker.locator('option')).toHaveCount(2);
