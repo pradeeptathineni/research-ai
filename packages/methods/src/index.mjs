@@ -11,6 +11,7 @@ export { createEvidenceTable, validateEvidenceTable, reviseEvidenceTable, render
 export { createReport, validateReport, reviseReport, draftReportSection, renderReport, projectReportClaimRegister } from './report.mjs';
 export { exportReportHtml } from './report-export.mjs';
 export { createInvestigation, reviseInvestigation, validateInvestigation, getInvestigationIncompleteCandidate, planInvestigation, projectInvestigationMethodProgress, reviewInvestigationClaim, projectInvestigationClaimReviews, advanceInvestigation, advanceInvestigationPlan, resumeInvestigation, renderInvestigation } from './investigation.mjs';
+export { createInvestigationReportBasis, validateInvestigationReportBasis } from './investigation-report.mjs';
 export { validateReferenceList, formatBibliography, exportReportWithReferences } from './bibliography.mjs';
 export { compareInvestigation, validateComparison, comparisonCurrentness, renderComparison } from './branch-comparison.mjs';
 export { registerTable, analyzeTable, tableAnalysisLimits } from './table-analysis.mjs';
@@ -32,7 +33,6 @@ export { exportResearchAnswerCitationMap } from './answer-citation-map.mjs';
 
 export { createResearchStudy, reviseResearchStudy, validateResearchStudy, checkResearchStudyOrigins, prepareResearchStudyQuestion, recordResearchStudyQuestion, getResearchStudyCitation, exportResearchStudyPlanningSource, validateResearchStudyPlanningSource, saveResearchStudyQuestionAsNotebookNote, renderResearchStudy, researchStudyLimits } from './study.mjs';
 export { createResearchStudyReportBasis, validateResearchStudyReportBasis } from './study-report.mjs';
-export { createInvestigationReportBasis, validateInvestigationReportBasis } from './investigation-report.mjs';
 export { createLiteratureSet, addLiteraturePaper, validateLiteratureSet, deduplicateLiteraturePapers, resolveLiteratureSet, rebindLiteratureSet, prepareLiteratureQuestion, prepareLiteratureStudyQuestion, validateLiteratureStudyQuestion, checkLiteratureStudyQuestionSources, projectLiteratureStudyEvidence, exportLiteratureStudyPlanningSource, validateLiteratureStudyPlanningSource, exportLiteratureSet, formatLiteratureSet, exportLiteratureStudySynthesis } from './literature-set.mjs';
 export { createPerspectiveWorkflow, validatePerspectiveWorkflow, runWorkflowPerspectives, prepareWorkflowPerspectiveAddition, addWorkflowPerspective, perspectiveSpanContribution, startWorkflowInvestigation, runWorkflowBranches, compareWorkflowBranches, draftWorkflowOutline, reviseWorkflowOutline, reviewWorkflowOutlineCitations, workflowComparisonCurrentness, workflowOutlineCurrentness, renderPerspectiveWorkflow } from './perspective-workflow.mjs';
 export { createDocumentRecovery, validateDocumentRecovery, runDocumentRecovery, retryDocumentRecovery, renderDocumentRecovery, renderDocumentRecoverySection } from './document-recovery.mjs';

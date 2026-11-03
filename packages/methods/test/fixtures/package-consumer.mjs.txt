@@ -23,6 +23,7 @@ expectedExports.push('advanceInvestigationPlan', 'createResearchStudyReportBasis
 expectedExports.push('prepareNotebookEvidenceGraph', 'researchNotebookEvidenceGraph',
   'createNotebookEvidenceGraph', 'validateNotebookEvidenceGraph', 'assertNotebookEvidenceGraphEdge',
   'checkNotebookEvidenceGraphSources', 'renderNotebookEvidenceGraph');
+expectedExports.push('createInvestigationReportBasis', 'validateInvestigationReportBasis');
 expectedExports.sort();
 const pageText = 'Retained synthetic page.';
 const pageHash = createHash('sha256').update(pageText).digest('hex');
