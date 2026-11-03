@@ -47,6 +47,11 @@ test('reviews and appends one independent lens over a retained capture, then col
   await expect(
     page.getByRole('region', { name: 'Perspective span contributions', exact: true }),
   ).toContainText('short-term reduction');
+  await page.getByText('Show retained source context', { exact: true }).first().click();
+  const answerContext = page.locator('.perspective-source-context-body').first();
+  await expect(answerContext).toContainText('A small study reported a');
+  await expect(answerContext.locator('mark')).toContainText('short-term reduction');
+  await expect(answerContext).toContainText('Follow-up lasted six months.');
 
   await page.getByLabel('Perspective label').fill('Limitations lens');
   await page
@@ -103,6 +108,17 @@ test('reviews and appends one independent lens over a retained capture, then col
   await expect(page.getByRole('region', { name: 'Perspective span contributions' })).toContainText(
     'Follow-up lasted six months.',
   );
+  await page
+    .getByRole('region', { name: 'Perspective span contributions' })
+    .getByText('Show retained source context', { exact: true })
+    .first()
+    .click();
+  const savedContext = page
+    .getByRole('region', { name: 'Perspective span contributions' })
+    .locator('.perspective-source-context-body')
+    .first();
+  await expect(savedContext).toContainText('A small study reported a');
+  await expect(savedContext.locator('mark')).toContainText('short-term reduction');
   expect(appendRequests).toBe(1);
 
   await page.setViewportSize({ width: 1440, height: 900 });

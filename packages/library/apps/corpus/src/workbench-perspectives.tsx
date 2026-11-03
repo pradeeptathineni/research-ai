@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import './workbench-perspectives.css';
 
 type LocalApi = <T>(route: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
@@ -140,7 +140,149 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function SpanList({ label, spans }: { label: string; spans: ContributionSpan[] }) {
+const SOURCE_CONTEXT_RADIUS = 120;
+
+type SourceContextReference = {
+  source: number;
+  start: number;
+  end: number;
+  quote: string;
+  sourceUri?: string;
+  sourceSha256?: string;
+};
+
+type SourceContextCheck =
+  | {
+      ok: true;
+      source: FrozenSource;
+      contextStart: number;
+      contextEnd: number;
+      before: string;
+      after: string;
+    }
+  | { ok: false; reason: string };
+
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
+
+function checkSourceContext(
+  sources: FrozenSource[],
+  reference: SourceContextReference,
+): SourceContextCheck {
+  const { source: index, start, end, quote } = reference;
+  if (!Number.isInteger(index) || index < 0 || index >= sources.length) {
+    return {
+      ok: false,
+      reason: `Source index ${index} is not a retained source in this workflow.`,
+    };
+  }
+  const source = sources[index];
+  if (!source) {
+    return { ok: false, reason: `Source ${index + 1} is missing from this workflow.` };
+  }
+  const text = source.text;
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end <= start ||
+    end > text.length
+  ) {
+    return {
+      ok: false,
+      reason: `UTF-16 offsets ${start}–${end} are not a valid range in retained source ${index + 1}.`,
+    };
+  }
+  if (reference.sourceUri !== undefined && reference.sourceUri !== source.uri) {
+    return { ok: false, reason: `The cited URI does not match retained source ${index + 1}.` };
+  }
+  if (reference.sourceSha256 !== undefined && reference.sourceSha256 !== source.sha256) {
+    return { ok: false, reason: `The cited SHA-256 does not match retained source ${index + 1}.` };
+  }
+  if (text.slice(start, end) !== quote) {
+    return {
+      ok: false,
+      reason: `The retained text at UTF-16 ${start}–${end} does not exactly match the quotation.`,
+    };
+  }
+  let contextStart = Math.max(0, start - SOURCE_CONTEXT_RADIUS);
+  let contextEnd = Math.min(text.length, end + SOURCE_CONTEXT_RADIUS);
+  // Keep surrogate pairs whole at the passage edges.
+  if (contextStart < start && isLowSurrogate(text.charCodeAt(contextStart))) {
+    contextStart += 1;
+  }
+  if (contextEnd > end && isHighSurrogate(text.charCodeAt(contextEnd - 1))) {
+    contextEnd -= 1;
+  }
+  return {
+    ok: true,
+    source,
+    contextStart,
+    contextEnd,
+    before: text.slice(contextStart, start),
+    after: text.slice(end, contextEnd),
+  };
+}
+
+function SourceContextDisclosure({
+  sources,
+  reference,
+}: {
+  sources: FrozenSource[];
+  reference: SourceContextReference;
+}) {
+  const check = checkSourceContext(sources, reference);
+  return (
+    <details className="perspective-source-context">
+      <summary>{check.ok ? 'Show retained source context' : 'Source context refused'}</summary>
+      {check.ok ? (
+        <div className="perspective-source-context-body">
+          <p>
+            Source {reference.source + 1}: {check.source.uri}
+          </p>
+          <p className="perspective-source-context-passage">
+            {check.contextStart > 0 && <span aria-hidden="true">… </span>}
+            {check.before}
+            <mark>
+              <span className="perspective-visually-hidden">Cited text begins: </span>
+              {reference.quote}
+              <span className="perspective-visually-hidden"> Cited text ends.</span>
+            </mark>
+            {check.after}
+            {check.contextEnd < check.source.text.length && <span aria-hidden="true"> …</span>}
+          </p>
+          <p className="perspective-source-context-note">
+            Retained text from the frozen source capture, up to {SOURCE_CONTEXT_RADIUS} UTF-16 code
+            units either side of the cited span. Showing it in context is not independent
+            verification of the source or of the answer.
+          </p>
+          <details>
+            <summary>Exact context reference</summary>
+            <p>
+              SHA-256 <code>{check.source.sha256}</code> · cited UTF-16 offsets {reference.start}–
+              {reference.end} · passage offsets {check.contextStart}–{check.contextEnd}
+            </p>
+          </details>
+        </div>
+      ) : (
+        <p className="perspective-source-context-error">
+          Context refused: {check.reason} No passage is shown because this reference does not match
+          the retained source exactly.
+        </p>
+      )}
+    </details>
+  );
+}
+
+function SpanList({
+  label,
+  spans,
+  sources,
+}: {
+  label: string;
+  spans: ContributionSpan[];
+  sources: FrozenSource[];
+}) {
   return (
     <section className="perspective-span-group" aria-label={label}>
       <h5>
@@ -156,6 +298,7 @@ function SpanList({ label, spans }: { label: string; spans: ContributionSpan[] }
               <p>
                 Source {span.source + 1}: {span.sourceUri}
               </p>
+              <SourceContextDisclosure sources={sources} reference={span} />
               <details>
                 <summary>Exact source reference</summary>
                 <p>
@@ -171,7 +314,7 @@ function SpanList({ label, spans }: { label: string; spans: ContributionSpan[] }
   );
 }
 
-function ContributionView({ rows }: { rows: Contribution[] }) {
+function ContributionView({ rows, sources }: { rows: Contribution[]; sources: FrozenSource[] }) {
   return (
     <section className="perspective-contributions" aria-label="Perspective span contributions">
       <h3>Cited-span comparison</h3>
@@ -190,9 +333,17 @@ function ContributionView({ rows }: { rows: Contribution[] }) {
             <p>{row.qualification}</p>
           </details>
           <div className="perspective-span-columns">
-            <SpanList label="Only this perspective cited" spans={row.uniqueCitedSpans} />
-            <SpanList label="Shared cited spans" spans={row.sharedCitedSpans} />
-            <SpanList label="Cited in recorded conflicts" spans={row.conflictCitedSpans} />
+            <SpanList
+              label="Only this perspective cited"
+              spans={row.uniqueCitedSpans}
+              sources={sources}
+            />
+            <SpanList label="Shared cited spans" spans={row.sharedCitedSpans} sources={sources} />
+            <SpanList
+              label="Cited in recorded conflicts"
+              spans={row.conflictCitedSpans}
+              sources={sources}
+            />
           </div>
         </article>
       ))}
@@ -708,12 +859,19 @@ export function PerspectiveWorkbench({ api, onBack }: { api: LocalApi; onBack: (
                         </h5>
                         <p>{question.answer}</p>
                         {question.citations.map((citation, citationIndex) => (
-                          <blockquote key={`${citation.source}:${citation.start}:${citationIndex}`}>
-                            {citation.quote}{' '}
-                            <small>
-                              (source {citation.source + 1}, UTF-16 {citation.start}–{citation.end})
-                            </small>
-                          </blockquote>
+                          <Fragment key={`${citation.source}:${citation.start}:${citationIndex}`}>
+                            <blockquote>
+                              {citation.quote}{' '}
+                              <small>
+                                (source {citation.source + 1}, UTF-16 {citation.start}–
+                                {citation.end})
+                              </small>
+                            </blockquote>
+                            <SourceContextDisclosure
+                              sources={active.workflow.sources}
+                              reference={citation}
+                            />
+                          </Fragment>
                         ))}
                       </section>
                     ))}
@@ -835,7 +993,9 @@ export function PerspectiveWorkbench({ api, onBack }: { api: LocalApi; onBack: (
               </section>
             </>
           )}
-          {contributions && <ContributionView rows={contributions} />}
+          {contributions && (
+            <ContributionView rows={contributions} sources={active.workflow.sources} />
+          )}
         </section>
       )}
     </section>

@@ -118,6 +118,67 @@
   min-height: 1.2rem;
 }
 
+.perspective-source-context {
+  min-width: 0;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.perspective-source-context summary {
+  padding-block: 0.6rem;
+  cursor: pointer;
+}
+
+.perspective-source-context-body {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--desk-line, #c9d2d4);
+  border-radius: 0.6rem;
+  background: var(--desk-panel-muted, #f5f8f8);
+}
+
+.perspective-source-context-body p {
+  margin-block: 0.5rem;
+}
+
+.perspective-source-context-passage {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.perspective-source-context-passage mark {
+  padding: 0 0.1em;
+  border-radius: 0.2em;
+  background: var(--desk-highlight, #fde68a);
+  color: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.perspective-source-context-note {
+  font-size: 0.9em;
+  color: var(--desk-muted, #46555b);
+}
+
+.perspective-source-context-error {
+  margin-block: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--desk-danger, #b42318);
+  color: var(--desk-danger, #b42318);
+  overflow-wrap: anywhere;
+}
+
+.perspective-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 760px) {
   .perspective-span-columns {
     grid-template-columns: minmax(0, 1fr);
