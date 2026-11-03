@@ -24,6 +24,7 @@ expectedExports.push('prepareNotebookEvidenceGraph', 'researchNotebookEvidenceGr
   'createNotebookEvidenceGraph', 'validateNotebookEvidenceGraph', 'assertNotebookEvidenceGraphEdge',
   'checkNotebookEvidenceGraphSources', 'renderNotebookEvidenceGraph');
 expectedExports.push('createInvestigationReportBasis', 'validateInvestigationReportBasis');
+expectedExports.push('inspectCsvColumns');
 expectedExports.sort();
 const pageText = 'Retained synthetic page.';
 const pageHash = createHash('sha256').update(pageText).digest('hex');
@@ -77,6 +78,7 @@ if (process.env.RESEARCH_TABLE_TEST_ENGINE_ROOT) {
 }
 
 assert.equal(typeof api.importTableCsv, 'function');
+assert.equal(typeof api.inspectCsvColumns, 'function');
 assert.equal(api.profiles.quick.searches, 8);
 assert.match(api.ordinaryResearchPrompt('Consumer question'), /Consumer question/);
 const grounded = api.groundedAnswer({ sources, judge: { id: 'installed-fixture', kind: 'synthetic' }, claims: [{ text: 'Unresolved claim.', citations: [], joint: { verdict: 'insufficient', reason: 'No cited span.' } }] });
