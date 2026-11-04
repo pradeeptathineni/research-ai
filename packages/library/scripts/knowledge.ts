@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { fetchCrossrefWork } from './crossref-status.js';
 import {
   configureKnowledge,
   createTopic,
@@ -126,6 +127,19 @@ try {
         await parseStatusInput(patch),
       );
       break;
+    case 'reference-status-fetch': {
+      const topicId = value ?? '';
+      const saved = await listTopicReferencePublication(root, topicId);
+      const reference = saved.references.find((row) => row.reference_id === patch);
+      if (!reference) throw new Error('saved_reference_missing');
+      if (!reference.current_doi) throw new Error('saved_reference_doi_missing');
+      result = await observeTopicReferencePublication(root, topicId, {
+        revision: saved.topic.revision,
+        reference_id: reference.reference_id,
+        crossref_response: await fetchCrossrefWork(reference.current_doi),
+      });
+      break;
+    }
     case 'references-status':
       result = await listTopicReferencePublication(root, value ?? '');
       break;
@@ -134,7 +148,7 @@ try {
       break;
     default:
       throw new Error(
-        'Use owners|configure JSON|search TEXT|read JSON|topics|create NAME|open UUID|update UUID JSON|export UUID|graph UUID [--format json|markdown]|reference-set UUID JSON|references UUID|reference-status UUID JSON|- (stdin)|references-status UUID|references-export UUID JSON',
+        'Use owners|configure JSON|search TEXT|read JSON|topics|create NAME|open UUID|update UUID JSON|export UUID|graph UUID [--format json|markdown]|reference-set UUID JSON|references UUID|reference-status UUID JSON|- (stdin)|reference-status-fetch UUID REFERENCE_ID|references-status UUID|references-export UUID JSON',
       );
   }
   if (result === undefined) throw new Error('knowledge_result_missing');

@@ -1135,6 +1135,7 @@ export async function listTopicReferencePublication(root: string, topicId: strin
       const observations = reference.publication_observations ?? [];
       return {
         reference_id: reference.id,
+        current_doi: currentReferenceRow(reference).metadata.doi ?? null,
         current_metadata_sha256: currentMetadataSha,
         observations,
         has_retained_retraction_report: observations.some(

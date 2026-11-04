@@ -4,6 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { fetchCrossrefWork } from '../../../scripts/crossref-status.js';
 import {
   configureKnowledge,
   createTopic,
@@ -117,6 +118,53 @@ async function makeTopic() {
 beforeEach(async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), 'signals-topic-references-')));
   exportPath = join(root, 'planning-export.json');
+});
+
+it('fetches only the selected public DOI with bounded response before saving an observation', async () => {
+  const { topic, selection: selected } = await makeTopic();
+  const saved = await setTopicReference(root, topic.id, {
+    revision: topic.revision,
+    selection: selected,
+    metadata: metadata(),
+  });
+  const requests: Array<{ url: string; options: RequestInit | undefined }> = [];
+  const fakeFetch: typeof fetch = async (input, options) => {
+    requests.push({
+      url: typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+      options,
+    });
+    return new Response(
+      JSON.stringify({ status: 'ok', 'message-type': 'work', message: { DOI: metadata().doi } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  };
+  const status = await listTopicReferencePublication(root, topic.id);
+  const reference = status.references.find((row) => row.reference_id === saved.reference.id)!;
+  const work = await fetchCrossrefWork(reference.current_doi!, fakeFetch);
+  expect(requests).toHaveLength(1);
+  expect(requests[0]!.url).toBe('https://api.crossref.org/works/10.1234%2Fexample.1');
+  expect(requests[0]!.options).toMatchObject({
+    headers: { accept: 'application/json' },
+    redirect: 'error',
+  });
+  const imported = await observeTopicReferencePublication(root, topic.id, {
+    revision: status.topic.revision,
+    reference_id: reference.reference_id,
+    crossref_response: work,
+  });
+  expect(imported.observation.finding).toBe('unknown');
+  expect((await listTopicReferencePublication(root, topic.id)).references[0]!.latest).toMatchObject(
+    {
+      finding: 'unknown',
+      metadata_current: true,
+    },
+  );
+  await expect(
+    fetchCrossrefWork(reference.current_doi!, async () => new Response('x'.repeat(120_001))),
+  ).rejects.toThrow('crossref_response_too_large');
+  expect((await listTopicReferencePublication(root, topic.id)).topic.revision).toBe(
+    imported.topic.revision,
+  );
 });
 afterEach(async () => rm(root, { recursive: true, force: true }));
 

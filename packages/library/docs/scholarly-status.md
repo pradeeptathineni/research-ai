@@ -13,6 +13,14 @@ Prepare a private JSON request containing `revision`, `reference_id` and
 option. `knowledge references-status TOPIC_UUID` and the corresponding local
 GET route cold-read all retained observations for that topic.
 
+For an explicit single-record lookup, run
+`knowledge reference-status-fetch TOPIC_UUID REFERENCE_ID`. This sends only the
+saved DOI to Crossref over HTTPS, reads at most 120,000 response bytes, and
+applies the same saved-reference and topic-revision checks. It never runs in the
+background. A failed fetch leaves the saved topic unchanged. Crossref can be
+unavailable or return incomplete metadata; the result is still an observation,
+not a clearance decision.
+
 Import checks the work DOI against the current saved reference DOI and rejects
 malformed responses or those over 120,000 bytes. It retains a SHA-256 digest of the canonicalized supplied
 response, the import time, Crossref's indexed time when present, and bounded
