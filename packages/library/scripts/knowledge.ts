@@ -5,9 +5,11 @@ import {
   exportTopic,
   exportTopicReferences,
   knowledgeOwners,
+  listTopicReferencePublication,
   listTopicReferences,
   listTopics,
   openTopic,
+  observeTopicReferencePublication,
   readKnowledge,
   searchKnowledge,
   setTopicReference,
@@ -25,6 +27,17 @@ if (args[0] === '--root') {
 }
 const [command, value, patch, ...flags] = args;
 const parse = (text: string | undefined): unknown => JSON.parse(text ?? 'null');
+async function parseStatusInput(text: string | undefined): Promise<unknown> {
+  if (text !== '-') return parse(text);
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of process.stdin as AsyncIterable<Buffer>) {
+    bytes += chunk.length;
+    if (bytes > 128_000) throw new Error('status_input_too_large');
+    chunks.push(chunk);
+  }
+  return parse(Buffer.concat(chunks).toString('utf8'));
+}
 try {
   let result: unknown;
   switch (command) {
@@ -106,12 +119,22 @@ try {
     case 'references':
       result = await listTopicReferences(root, value ?? '');
       break;
+    case 'reference-status':
+      result = await observeTopicReferencePublication(
+        root,
+        value ?? '',
+        await parseStatusInput(patch),
+      );
+      break;
+    case 'references-status':
+      result = await listTopicReferencePublication(root, value ?? '');
+      break;
     case 'references-export':
       result = await exportTopicReferences(root, value ?? '', parse(patch));
       break;
     default:
       throw new Error(
-        'Use owners|configure JSON|search TEXT|read JSON|topics|create NAME|open UUID|update UUID JSON|export UUID|graph UUID [--format json|markdown]|reference-set UUID JSON|references UUID|references-export UUID JSON',
+        'Use owners|configure JSON|search TEXT|read JSON|topics|create NAME|open UUID|update UUID JSON|export UUID|graph UUID [--format json|markdown]|reference-set UUID JSON|references UUID|reference-status UUID JSON|- (stdin)|references-status UUID|references-export UUID JSON',
       );
   }
   if (result === undefined) throw new Error('knowledge_result_missing');

@@ -340,7 +340,12 @@ it('serves guarded HTTP journeys, retains topics across owner restart and reject
     const referenceInput = {
       revision: 2,
       selection: search.records[0]!.selection,
-      metadata: { type: 'report', title: 'Synthetic retained reference', year: 2026 },
+      metadata: {
+        type: 'report',
+        title: 'Synthetic retained reference',
+        year: 2026,
+        doi: '10.1234/example.1',
+      },
     };
     expect(
       (
@@ -362,6 +367,36 @@ it('serves guarded HTTP journeys, retains topics across owner restart and reject
     expect(listed.status).toBe(200);
     const refs = (await listed.json()) as { references: { id: string }[] };
     expect(refs.references.map((row) => row.id)).toEqual([reference.reference.id]);
+    const statusInput = {
+      revision: 3,
+      reference_id: reference.reference.id,
+      crossref_response: {
+        status: 'ok',
+        'message-type': 'work',
+        message: { DOI: '10.1234/example.1', indexed: { 'date-time': '2026-11-04T00:00:00Z' } },
+      },
+    };
+    expect(
+      (
+        await fetch(first.base + `topics/${id}/references/status`, {
+          method: 'POST',
+          headers: { ...headers, 'content-type': 'application/json' },
+          body: JSON.stringify(statusInput),
+        })
+      ).status,
+    ).toBe(403);
+    const observed = await fetch(first.base + `topics/${id}/references/status`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify(statusInput),
+    });
+    expect(observed.status).toBe(200);
+    expect(await observed.json()).toMatchObject({ observation: { finding: 'unknown' } });
+    const statusList = await fetch(first.base + `topics/${id}/references/status`, { headers });
+    expect(statusList.status).toBe(200);
+    expect(await statusList.json()).toMatchObject({
+      references: [{ latest: { finding: 'unknown' } }],
+    });
     expect(
       (
         await fetch(first.base + `topics/${id}/references`, {
@@ -374,7 +409,7 @@ it('serves guarded HTTP journeys, retains topics across owner restart and reject
     const exportedReferences = await fetch(first.base + `topics/${id}/references/export`, {
       method: 'POST',
       headers: auth,
-      body: JSON.stringify({ revision: 3, reference_ids: [reference.reference.id] }),
+      body: JSON.stringify({ revision: 4, reference_ids: [reference.reference.id] }),
     });
     expect(exportedReferences.status).toBe(200);
     const referenceList = (await exportedReferences.json()) as {

@@ -48,12 +48,38 @@ const referenceVersionSchema = Type.Object(
   },
   closed,
 );
+const publicationUpdateSchema = Type.Object(
+  {
+    doi: Type.String({ minLength: 1, maxLength: 200 }),
+    type: Type.String({ minLength: 1, maxLength: 100 }),
+    source: Type.Union([Type.String({ minLength: 1, maxLength: 100 }), Type.Null()]),
+    updated_at: Type.String({ format: 'date-time' }),
+  },
+  closed,
+);
+const publicationObservationSchema = Type.Object(
+  {
+    revision: Type.Integer({ minimum: 1, maximum: 16 }),
+    metadata_sha256: sha,
+    observed_at: Type.String({ format: 'date-time' }),
+    provider: Type.Literal('crossref-rest'),
+    doi: Type.String({ minLength: 1, maxLength: 200 }),
+    indexed_at: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
+    snapshot_sha256: sha,
+    finding: Type.Enum(['retraction-reported', 'other-update-reported', 'unknown']),
+    updates: Type.Array(publicationUpdateSchema, { maxItems: 16 }),
+  },
+  closed,
+);
 const topicReferenceSchema = Type.Object(
   {
     id: Type.String({ pattern: '^ref-[a-f0-9]{64}$' }),
     selection: selectionSchema,
     current_version: Type.Integer({ minimum: 1, maximum: 32 }),
     metadata_versions: Type.Array(referenceVersionSchema, { minItems: 1, maxItems: 32 }),
+    publication_observations: Type.Optional(
+      Type.Array(publicationObservationSchema, { maxItems: 16 }),
+    ),
   },
   closed,
 );
@@ -168,6 +194,14 @@ const setTopicReferenceSchema = Type.Object(
   },
   closed,
 );
+const observePublicationSchema = Type.Object(
+  {
+    revision: Type.Integer({ minimum: 1 }),
+    reference_id: Type.String({ pattern: '^ref-[a-f0-9]{64}$' }),
+    crossref_response: Type.Unknown(),
+  },
+  closed,
+);
 const exportTopicReferencesSchema = Type.Object(
   {
     revision: Type.Integer({ minimum: 1 }),
@@ -194,6 +228,7 @@ export type KnowledgeReferenceRow = {
   metadata: KnowledgeReferenceMetadata;
   qualification: 'User-supplied bibliographic metadata; unverified.';
 };
+export type KnowledgePublicationObservation = Static<typeof publicationObservationSchema>;
 const owners = ['signals-ai', 'planning-ai', 'principles-ai'];
 const kinds: Record<string, string[]> = {
   'planning-ai': ['decision', 'review', 'reflection'],
@@ -243,6 +278,97 @@ function validateReferenceMetadata(value: unknown): KnowledgeReferenceMetadata {
     }
   }
   return metadata;
+}
+const doiPattern = /^10\.[0-9]{4,9}\/\S+$/i;
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+const dateTime = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= 40 &&
+  Value.Check(Type.String({ format: 'date-time' }), value);
+function crossrefPublicationObservation(
+  response: unknown,
+  expectedDoi: string,
+  metadataSha: string,
+) {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(response);
+  } catch {
+    return fail(400, 'invalid_crossref_response', 'Crossref response must be bounded JSON.');
+  }
+  if (!serialized || Buffer.byteLength(serialized) > 120_000)
+    fail(
+      400,
+      'invalid_crossref_response',
+      'Crossref response exceeds the 120,000-byte import limit.',
+    );
+  const snapshot = JSON.parse(serialized) as unknown;
+  if (!isObject(snapshot))
+    return fail(400, 'invalid_crossref_response', 'Crossref response must be a work record.');
+  const message = snapshot.message;
+  if (
+    snapshot.status !== 'ok' ||
+    snapshot['message-type'] !== 'work' ||
+    !isObject(message) ||
+    typeof message.DOI !== 'string' ||
+    message.DOI.length > 200 ||
+    !doiPattern.test(message.DOI) ||
+    message.DOI.toLowerCase() !== expectedDoi.toLowerCase()
+  )
+    return fail(
+      400,
+      'invalid_crossref_response',
+      'Crossref work DOI must match the saved reference DOI.',
+    );
+  const indexed = message.indexed;
+  const indexedAt = indexed === undefined ? null : isObject(indexed) ? indexed['date-time'] : null;
+  if (indexed !== undefined && !dateTime(indexedAt))
+    fail(400, 'invalid_crossref_response', 'Crossref indexed date is invalid.');
+  const reported = message['updated-by'] === undefined ? [] : message['updated-by'];
+  if (!Array.isArray(reported) || reported.length > 16)
+    return fail(400, 'invalid_crossref_response', 'Crossref updates must be a bounded list.');
+  const updates = reported.map((value: unknown) => {
+    if (!isObject(value))
+      return fail(400, 'invalid_crossref_response', 'Crossref update metadata is invalid.');
+    const updated = value.updated;
+    if (
+      typeof value.DOI !== 'string' ||
+      value.DOI.length > 200 ||
+      !doiPattern.test(value.DOI) ||
+      typeof value.type !== 'string' ||
+      !value.type.trim() ||
+      value.type.length > 100 ||
+      (value.source !== undefined &&
+        (typeof value.source !== 'string' || !value.source.trim() || value.source.length > 100)) ||
+      !isObject(updated) ||
+      !dateTime(updated['date-time'])
+    )
+      return fail(400, 'invalid_crossref_response', 'Crossref update metadata is invalid.');
+    return {
+      doi: value.DOI,
+      type: value.type,
+      source: value.source ?? null,
+      updated_at: updated['date-time'],
+    };
+  });
+  const finding: KnowledgePublicationObservation['finding'] = updates.some(
+    (value) => value.type.toLowerCase() === 'retraction',
+  )
+    ? 'retraction-reported'
+    : updates.length
+      ? 'other-update-reported'
+      : 'unknown';
+  return {
+    metadata_sha256: metadataSha,
+    observed_at: new Date().toISOString(),
+    provider: 'crossref-rest' as const,
+    doi: message.DOI,
+    indexed_at: indexedAt as string | null,
+    snapshot_sha256: digest(canonicalJson(snapshot)),
+    finding,
+    updates,
+  };
 }
 function currentReferenceRow(reference: TopicReference): KnowledgeReferenceRow {
   const version = reference.metadata_versions[reference.current_version - 1]!;
@@ -624,6 +750,25 @@ async function topicState(root: string) {
           )
             throw new Error();
         });
+        reference.publication_observations?.forEach((observation, index) => {
+          const metadata = reference.metadata_versions.find(
+            (version) => version.metadata_sha256 === observation.metadata_sha256,
+          )?.metadata;
+          const finding = observation.updates.some(
+            (update) => update.type.toLowerCase() === 'retraction',
+          )
+            ? 'retraction-reported'
+            : observation.updates.length
+              ? 'other-update-reported'
+              : 'unknown';
+          if (
+            observation.revision !== index + 1 ||
+            !metadata?.doi ||
+            metadata.doi.toLowerCase() !== observation.doi.toLowerCase() ||
+            observation.finding !== finding
+          )
+            throw new Error();
+        });
       }
     }
     return state;
@@ -910,6 +1055,104 @@ export async function setTopicReference(root: string, topicId: string, input: un
   });
 }
 
+/** Records a caller-supplied production Crossref work snapshot for one exact DOI reference. */
+export async function observeTopicReferencePublication(
+  root: string,
+  topicId: string,
+  input: unknown,
+) {
+  const parsed = checked<Static<typeof observePublicationSchema>>(observePublicationSchema, input);
+  return writeKnowledge(root, async () => {
+    const state = await topicState(root);
+    const topic = findTopic(state.topics, topicId);
+    if (parsed.revision !== topic.revision)
+      fail(
+        409,
+        'knowledge_topic_changed',
+        'Topic changed since it was opened. Reopen before observing publication status.',
+      );
+    const reference = topic.references?.find((row) => row.id === parsed.reference_id);
+    if (!reference)
+      return fail(
+        404,
+        'knowledge_reference_missing',
+        'The selected reference is not retained by this topic.',
+      );
+    const current = currentReferenceRow(reference);
+    if (!current.metadata.doi)
+      return fail(
+        409,
+        'knowledge_reference_doi_missing',
+        'Add and review a DOI before importing publication status.',
+      );
+    const observation = crossrefPublicationObservation(
+      parsed.crossref_response,
+      current.metadata.doi,
+      current.metadata_sha256,
+    );
+    const history = reference.publication_observations ?? [];
+    const latest = history.at(-1);
+    if (
+      latest?.snapshot_sha256 === observation.snapshot_sha256 &&
+      latest.metadata_sha256 === observation.metadata_sha256
+    )
+      return {
+        topic: { id: topic.id, revision: topic.revision },
+        reference_id: reference.id,
+        observation: latest,
+        changed: false,
+      };
+    if (history.length >= 16)
+      fail(
+        409,
+        'knowledge_publication_history_full',
+        'This reference has 16 status observations. Export its history before adding another.',
+      );
+    const retained: KnowledgePublicationObservation = {
+      ...observation,
+      revision: history.length + 1,
+    };
+    (reference.publication_observations ??= []).push(retained);
+    topic.revision++;
+    topic.updated_at = new Date().toISOString();
+    await saveTopics(root, state);
+    return {
+      topic: { id: topic.id, revision: topic.revision },
+      reference_id: reference.id,
+      observation: retained,
+      changed: true,
+    };
+  });
+}
+
+/** Cold-reads retained observations without claiming that any source has been rechecked. */
+export async function listTopicReferencePublication(root: string, topicId: string) {
+  const topic = findTopic((await topicState(root)).topics, topicId);
+  return {
+    topic: { id: topic.id, revision: topic.revision },
+    references: (topic.references ?? []).map((reference) => {
+      const currentMetadataSha = currentReferenceRow(reference).metadata_sha256;
+      const observations = reference.publication_observations ?? [];
+      return {
+        reference_id: reference.id,
+        current_metadata_sha256: currentMetadataSha,
+        observations,
+        has_retained_retraction_report: observations.some(
+          (observation) => observation.finding === 'retraction-reported',
+        ),
+        latest: observations.length
+          ? {
+              ...observations.at(-1)!,
+              metadata_current: observations.at(-1)!.metadata_sha256 === currentMetadataSha,
+            }
+          : null,
+      };
+    }),
+    qualification:
+      'Caller-supplied Crossref response; no update reported means status unknown, not clear. Earlier retraction reports remain in history. Saved observations do not recheck Crossref or the retained source.',
+  };
+}
+
 /** Lists current descriptions and reports whether each exact selection remains in the topic. */
 export async function listTopicReferences(root: string, topicId: string) {
   return withKnowledgeWriter(root, async () => {
@@ -1186,13 +1429,19 @@ export async function knowledgeRoute(
   }
   if (route === 'topics') return mutation ? createTopic(root, body) : listTopics(root);
   const references =
-    /^topics\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})\/references(\/export)?$/.exec(route);
+    /^topics\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})\/references(\/export|\/status)?$/.exec(
+      route,
+    );
   if (references && !references[2])
     return mutation
       ? setTopicReference(root, references[1]!, body)
       : listTopicReferences(root, references[1]!);
   if (references?.[2] === '/export' && mutation)
     return exportTopicReferences(root, references[1]!, body);
+  if (references?.[2] === '/status')
+    return mutation
+      ? observeTopicReferencePublication(root, references[1]!, body)
+      : listTopicReferencePublication(root, references[1]!);
   const match = /^topics\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})(\/export|\/graph)?$/.exec(
     route,
   );

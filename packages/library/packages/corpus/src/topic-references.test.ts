@@ -8,8 +8,11 @@ import {
   configureKnowledge,
   createTopic,
   exportTopicReferences,
+  knowledgeRoute,
+  listTopicReferencePublication,
   listTopicReferences,
   listTopics,
+  observeTopicReferencePublication,
   setTopicReference,
   updateTopic,
 } from './knowledge.js';
@@ -74,12 +77,13 @@ function metadata(year = 2021) {
     url: 'https://example.org/synthetic-article',
   };
 }
-async function runCli(args: string[]) {
+async function runCli(args: string[], input?: string) {
   const child = spawn(
     process.execPath,
     ['--import', 'tsx', join(process.cwd(), 'scripts/knowledge.ts'), '--root', root, ...args],
-    { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd: process.cwd(), stdio: ['pipe', 'pipe', 'pipe'] },
   );
+  child.stdin.end(input);
   const stdout: Buffer[] = [];
   const stderr: Buffer[] = [];
   child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
@@ -115,6 +119,117 @@ beforeEach(async () => {
   exportPath = join(root, 'planning-export.json');
 });
 afterEach(async () => rm(root, { recursive: true, force: true }));
+
+it('retains dated Crossref update reports without turning no-match into clearance', async () => {
+  const { topic, selection: selected } = await makeTopic();
+  const saved = await setTopicReference(root, topic.id, {
+    revision: topic.revision,
+    selection: selected,
+    metadata: metadata(),
+  });
+  const response = {
+    status: 'ok',
+    'message-type': 'work',
+    message: {
+      DOI: '10.1234/example.1',
+      indexed: { 'date-time': '2026-11-04T00:00:00Z' },
+      'updated-by': [
+        {
+          DOI: '10.1234/retraction.1',
+          type: 'retraction',
+          source: 'retraction-watch',
+          updated: { 'date-time': '2025-01-02T00:00:00Z' },
+        },
+      ],
+    },
+  };
+  const cliImport = await runCli(
+    ['reference-status', topic.id, '-'],
+    JSON.stringify({
+      revision: saved.topic.revision,
+      reference_id: saved.reference.id,
+      crossref_response: response,
+    }),
+  );
+  expect(cliImport.exitCode).toBe(0);
+  const imported = JSON.parse(cliImport.stdout);
+  expect(imported).toMatchObject({
+    changed: true,
+    observation: {
+      revision: 1,
+      metadata_sha256: saved.reference.metadata_sha256,
+      provider: 'crossref-rest',
+      finding: 'retraction-reported',
+      updates: [{ source: 'retraction-watch' }],
+    },
+  });
+  expect(imported.observation.snapshot_sha256).toBe(sha(canonical(response)));
+  const duplicate = await observeTopicReferencePublication(root, topic.id, {
+    revision: imported.topic.revision,
+    reference_id: saved.reference.id,
+    crossref_response: response,
+  });
+  expect(duplicate.changed).toBe(false);
+  expect(duplicate.topic.revision).toBe(imported.topic.revision);
+  const cold = await listTopicReferencePublication(root, topic.id);
+  expect(cold.references[0]!.latest).toMatchObject({
+    finding: 'retraction-reported',
+    metadata_current: true,
+  });
+  expect(cold.references[0]!.observations).toHaveLength(1);
+  expect(JSON.stringify(cold)).not.toContain('message-type');
+  expect(
+    await knowledgeRoute(
+      root,
+      `topics/${topic.id}/references/status`,
+      false,
+      `http://127.0.0.1/topics/${topic.id}/references/status`,
+      undefined,
+    ),
+  ).toMatchObject({ references: [{ latest: { finding: 'retraction-reported' } }] });
+  const cliCold = await runCli(['references-status', topic.id]);
+  expect(cliCold.exitCode).toBe(0);
+  expect(JSON.parse(cliCold.stdout).references[0].latest.finding).toBe('retraction-reported');
+
+  const wrongDoi = structuredClone(response);
+  wrongDoi.message.DOI = '10.1234/other';
+  const beforeInvalid = await listTopics(root);
+  await expect(
+    observeTopicReferencePublication(root, topic.id, {
+      revision: imported.topic.revision,
+      reference_id: saved.reference.id,
+      crossref_response: wrongDoi,
+    }),
+  ).rejects.toMatchObject({ status: 400, code: 'invalid_crossref_response' });
+  expect(await listTopics(root)).toEqual(beforeInvalid);
+
+  const revised = await setTopicReference(root, topic.id, {
+    revision: imported.topic.revision,
+    selection: selected,
+    metadata: metadata(2022),
+  });
+  expect(
+    (await listTopicReferencePublication(root, topic.id)).references[0]!.latest?.metadata_current,
+  ).toBe(false);
+  const noUpdates = {
+    ...response,
+    message: { DOI: '10.1234/example.1', indexed: response.message.indexed },
+  };
+  const unknown = await observeTopicReferencePublication(root, topic.id, {
+    revision: revised.topic.revision,
+    reference_id: saved.reference.id,
+    crossref_response: noUpdates,
+  });
+  expect(unknown.observation.finding).toBe('unknown');
+  const reopened = await listTopicReferencePublication(root, topic.id);
+  expect(reopened.references[0]!.observations).toHaveLength(2);
+  expect(reopened.references[0]!.has_retained_retraction_report).toBe(true);
+  expect(reopened.references[0]!.latest).toMatchObject({
+    finding: 'unknown',
+    metadata_current: true,
+  });
+  expect(reopened.qualification).toMatch(/unknown, not clear/);
+});
 
 it('retains exact metadata versions, CAS, detached history and explicit fresh-process exports', async () => {
   const { topic, selection: selected } = await makeTopic();
