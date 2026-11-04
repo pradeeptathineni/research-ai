@@ -1462,6 +1462,8 @@ export function exportResearchRetrievalStrategy(notebooks: ResearchNotebook[], q
 export function openResearchRetrievalSource(notebooks: ResearchNotebook[], result: ResearchRetrievalStrategyExport, sourceId: string): {
   id: string; notebookId: string; kind: NotebookSearchKind; recordId: string; documentId: string | null; page: number | null;
   version: number | null; title: string; sourceDigest: string; contentSha256: string; text: string;
+  /** One-based final rank for each declared question that surfaced this source. Ordering is not evidence strength. */
+  rankedQuestions: Array<{ questionId: string; rank: number; effectiveStrategy: "lexical" | "dense" | "hybrid"; fallbackReason: string | null }>;
   corpusCurrentness: "current" | "changed"; corpusChanges: { added: number; missing: number; changed: number };
 };
 

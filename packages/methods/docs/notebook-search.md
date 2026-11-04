@@ -127,7 +127,10 @@ the selected page/note-version content digest before returning the text. An
 unrelated notebook addition or edit does not hide unchanged evidence;
 `corpusCurrentness` and `corpusChanges` report added, missing and changed
 records separately. A removed or changed selected record refuses to reopen.
-Reopening does not rerun lexical or dense ranking. The CLI exposes the same bounded
+`rankedQuestions` gives the selected source's one-based position and effective
+strategy for each saved question that surfaced it, including any lexical
+fallback reason. These positions describe retrieval order, not evidence
+strength or source quality; cold reopen does not rerun either ranking. The CLI exposes the same bounded
 journey using `research-notebook-search --action strategy` and
 `--action source`; requests remain explicit JSON over stdin and results go to
 stdout. Existing `search` and `open` actions are unchanged.

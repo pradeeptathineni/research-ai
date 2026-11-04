@@ -54,6 +54,14 @@ test("strategy arms rank exact retained sources, fall back offline, and cold-reo
   assert.equal(reopened.text, "A retained note about distant icy bodies.");
   assert.equal(reopened.version, 1);
   assert.equal(reopened.corpusCurrentness, "current");
+  assert.deepEqual(reopened.rankedQuestions, [{ questionId: "q:orbits", rank: 1,
+    effectiveStrategy: "dense", fallbackReason: null }]);
+  const hybridSource = openResearchRetrievalSource([notebook], JSON.parse(JSON.stringify(hybrid)), pageId);
+  assert.deepEqual(hybridSource.rankedQuestions, [{ questionId: "q:orbits",
+    rank: hybrid.arm.rankings["q:orbits"].indexOf(pageId) + 1, effectiveStrategy: "hybrid", fallbackReason: null }]);
+  const fallbackSource = openResearchRetrievalSource([notebook], JSON.parse(JSON.stringify(fallback)), pageId);
+  assert.equal(fallbackSource.rankedQuestions[0].effectiveStrategy, "lexical");
+  assert.match(fallbackSource.rankedQuestions[0].fallbackReason, /no usable dense/);
   const tampered = JSON.parse(JSON.stringify(cold));
   tampered.corpus.sources.find((source) => source.id === note.id).content_sha256 = "f".repeat(64);
   tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
@@ -85,4 +93,6 @@ test("standalone strategy and source actions round-trip through explicit JSON st
   const reopened = run("source", { notebooks: [notebook], result, sourceId });
   assert.equal(reopened.status, 0, reopened.stderr);
   assert.equal(JSON.parse(reopened.stdout).id, sourceId);
+  assert.deepEqual(JSON.parse(reopened.stdout).rankedQuestions, [{ questionId: "q:orbits",
+    rank: 1, effectiveStrategy: "lexical", fallbackReason: "dense input absent" }]);
 });

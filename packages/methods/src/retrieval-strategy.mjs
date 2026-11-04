@@ -127,6 +127,16 @@ export function openResearchRetrievalSource(notebooks, resultValue, sourceId) {
   if (sourceBinding !== originalById.get(sourceId)) bad("source metadata does not match its sealed per-hit digest");
   if (!Object.values(resultValue.arm?.rankings ?? {}).some((ids) => Array.isArray(ids) && ids.includes(sourceId)))
     bad("source ID is not in a retained question ranking");
+  const rankedQuestions = resultValue.questions.map((question) => {
+    const rank = resultValue.arm.rankings[question.id]?.indexOf(sourceId) ?? -1;
+    if (rank < 0) return null;
+    const diagnostic = resultValue.diagnostics?.[question.id];
+    if (!diagnostic || !["lexical", "dense", "hybrid"].includes(diagnostic.effectiveStrategy))
+      bad("selected ranking has no valid question strategy diagnostic");
+    return { questionId: question.id, rank: rank + 1, effectiveStrategy: diagnostic.effectiveStrategy,
+      fallbackReason: diagnostic.fallbackReason };
+  }).filter(Boolean);
+  if (rankedQuestions.length === 0) bad("source ID is not in a declared question ranking");
   const stableId = `notebook-hit-${hash(canonical({ notebookId: entry.notebook_id, kind: entry.kind,
     recordId: entry.record_id, version: entry.version, page: entry.page })).slice(0, 40)}`;
   if (stableId !== entry.id) bad("source ID does not bind its notebook/page/version reference");
@@ -138,6 +148,7 @@ export function openResearchRetrievalSource(notebooks, resultValue, sourceId) {
     return { id: entry.id, notebookId: notebook.id, kind: entry.kind, recordId: source.id,
       documentId: source.document.id, page: page.number, version: null, title: source.document.title,
       sourceDigest: source.digest, contentSha256: page.sha256, text: page.text,
+      rankedQuestions,
       corpusCurrentness: corpusChanges.added + corpusChanges.missing + corpusChanges.changed === 0 ? "current" : "changed",
       corpusChanges };
   }
@@ -147,6 +158,7 @@ export function openResearchRetrievalSource(notebooks, resultValue, sourceId) {
   return { id: entry.id, notebookId: notebook.id, kind: entry.kind, recordId: note.id,
     documentId: null, page: null, version: version.version, title: version.title,
     sourceDigest: version.sha256, contentSha256: version.sha256, text: version.text,
+    rankedQuestions,
     corpusCurrentness: corpusChanges.added + corpusChanges.missing + corpusChanges.changed === 0 ? "current" : "changed",
     corpusChanges };
 }
