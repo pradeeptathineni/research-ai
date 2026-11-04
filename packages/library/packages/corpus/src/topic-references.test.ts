@@ -228,6 +228,14 @@ it('retains dated Crossref update reports without turning no-match into clearanc
     metadata_current: true,
   });
   expect(cold.references[0]!.observations).toHaveLength(1);
+  expect((await listTopicScreening(root, topic.id)).references[0]).toMatchObject({
+    metadata: { title: 'A sample article' },
+    source: { state: 'current', export_as_of: asOf },
+    publication: {
+      has_retained_retraction_report: true,
+      latest: { finding: 'retraction-reported', metadata_current: true },
+    },
+  });
   expect(JSON.stringify(cold)).not.toContain('message-type');
   expect(
     await knowledgeRoute(
@@ -491,8 +499,20 @@ it('keeps a versioned human screening decision bound to protocol and reference m
   const reviewed = await screenTopicReference(root, topic.id, decisionInput);
   expect(reviewed.changed).toBe(true);
   expect((await listTopicScreening(root, topic.id)).references).toMatchObject([
-    { reference_id: saved.reference.id, state: 'current', latest: { decision: 'include' } },
+    {
+      reference_id: saved.reference.id,
+      metadata: { title: 'A sample article', doi: '10.1234/example.1' },
+      source: { state: 'current', export_as_of: asOf },
+      state: 'current',
+      latest: { decision: 'include' },
+    },
   ]);
+  await writeExport(record('{"choice":"changed source"}'));
+  expect((await listTopicScreening(root, topic.id)).references[0]).toMatchObject({
+    state: 'current',
+    source: { state: 'changed' },
+  });
+  await writeExport();
   const duplicate = await screenTopicReference(root, topic.id, {
     ...decisionInput,
     revision: reviewed.topic.revision,

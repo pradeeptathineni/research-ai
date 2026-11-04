@@ -7,7 +7,10 @@ older version and all earlier decisions. It does not edit the original owner
 record or start research.
 
 Use `knowledge screenings TOPIC_UUID` to read the topic revision, saved
-reference IDs and current metadata digests. Then explicitly save a protocol:
+reference titles, DOI or URL, metadata digests, selected owner snapshot state
+and retained publication-update summary together. A `current` screening decision
+can still have a changed or unavailable owner source. A retained publication
+report is dated and is not a fresh status check. Then explicitly save a protocol:
 
 ```text
 knowledge screening-protocol TOPIC_UUID '{"revision":3,"question":"Which records describe the method?","include_criteria":["Describes the method"],"exclude_criteria":["Does not describe the method"]}'

@@ -1367,16 +1367,20 @@ export async function screenTopicReference(root: string, topicId: string, input:
 
 /** Cold-opens all retained decisions and identifies which bindings need fresh human review. */
 export async function listTopicScreening(root: string, topicId: string) {
-  const topic = findTopic((await topicState(root)).topics, topicId);
+  const { topic, statuses } = await openTopic(root, topicId);
+  const statusBySelection = new Map(
+    statuses.map((status) => [selectionIdentity(status.selection), status]),
+  );
   const protocols = topic.review_protocols ?? [];
   const current = protocols.at(-1) ?? null;
   const decisions = topic.screening_decisions ?? [];
   const references = (topic.references ?? []).map((reference) => {
     const metadata = currentReferenceRow(reference);
     const latest = decisions.findLast((row) => row.reference_id === reference.id) ?? null;
-    const selected = topic.members.some(
-      (member) => selectionIdentity(member.selection) === selectionIdentity(reference.selection),
-    );
+    const source = statusBySelection.get(selectionIdentity(reference.selection));
+    const selected = Boolean(source);
+    const observations = reference.publication_observations ?? [];
+    const latestObservation = observations.at(-1) ?? null;
     const state = !selected
       ? 'detached'
       : !latest
@@ -1392,6 +1396,32 @@ export async function listTopicScreening(root: string, topicId: string) {
       reference_id: reference.id,
       metadata_revision: metadata.metadata_revision,
       metadata_sha256: metadata.metadata_sha256,
+      metadata: metadata.metadata,
+      source: source
+        ? {
+            state: source.state,
+            reason: source.reason,
+            current_ref: source.current_ref,
+            export_as_of: source.export_as_of,
+          }
+        : {
+            state: 'detached' as const,
+            reason: 'This saved reference is no longer selected in the topic.',
+            current_ref: null,
+            export_as_of: null,
+          },
+      publication: {
+        has_retained_retraction_report: observations.some(
+          (observation) => observation.finding === 'retraction-reported',
+        ),
+        latest: latestObservation
+          ? {
+              finding: latestObservation.finding,
+              observed_at: latestObservation.observed_at,
+              metadata_current: latestObservation.metadata_sha256 === metadata.metadata_sha256,
+            }
+          : null,
+      },
       state,
       latest,
     };
@@ -1403,7 +1433,7 @@ export async function listTopicScreening(root: string, topicId: string) {
     references,
     decisions,
     qualification:
-      'Human screening of caller-supplied reference metadata only. Current means the saved bindings match; owner sources were not rechecked. Unscreened material and unknown recall remain visible.',
+      'Human screening of caller-supplied reference metadata only. Current means the saved bindings match. Source state reflects the configured owner snapshot, not underlying source freshness. Publication observations are retained reports, not a live check or clearance. Unscreened material and unknown recall remain visible.',
   };
 }
 
