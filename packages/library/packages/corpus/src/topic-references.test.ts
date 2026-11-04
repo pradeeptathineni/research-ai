@@ -12,8 +12,11 @@ import {
   knowledgeRoute,
   listTopicReferencePublication,
   listTopicReferences,
+  listTopicScreening,
   listTopics,
   observeTopicReferencePublication,
+  screenTopicReference,
+  setTopicReviewProtocol,
   setTopicReference,
   updateTopic,
 } from './knowledge.js';
@@ -460,4 +463,95 @@ it('refuses a 33rd metadata version without truncating retained history', async 
     }),
   ).rejects.toMatchObject({ status: 409, code: 'knowledge_reference_history_full' });
   expect((await listTopics(root)).topics[0]).toEqual(saved);
+});
+
+it('keeps a versioned human screening decision bound to protocol and reference metadata', async () => {
+  const { topic, selection: selected } = await makeTopic();
+  const saved = await setTopicReference(root, topic.id, {
+    revision: topic.revision,
+    selection: selected,
+    metadata: metadata(),
+  });
+  const protocol = await setTopicReviewProtocol(root, topic.id, {
+    revision: saved.topic.revision,
+    question: 'Which papers describe the selected method?',
+    include_criteria: ['Describes the selected method'],
+    exclude_criteria: ['No relevant method described'],
+  });
+  const decisionInput = {
+    revision: protocol.topic.revision,
+    reference_id: saved.reference.id,
+    protocol_revision: protocol.protocol.revision,
+    protocol_sha256: protocol.protocol.sha256,
+    metadata_revision: saved.reference.metadata_revision,
+    metadata_sha256: saved.reference.metadata_sha256,
+    decision: 'include',
+    reason: 'The saved title describes the method; full text was not checked.',
+  };
+  const reviewed = await screenTopicReference(root, topic.id, decisionInput);
+  expect(reviewed.changed).toBe(true);
+  expect((await listTopicScreening(root, topic.id)).references).toMatchObject([
+    { reference_id: saved.reference.id, state: 'current', latest: { decision: 'include' } },
+  ]);
+  const duplicate = await screenTopicReference(root, topic.id, {
+    ...decisionInput,
+    revision: reviewed.topic.revision,
+  });
+  expect(duplicate.changed).toBe(false);
+  await expect(screenTopicReference(root, topic.id, decisionInput)).rejects.toMatchObject({
+    status: 409,
+    code: 'knowledge_topic_changed',
+  });
+  const revised = await setTopicReference(root, topic.id, {
+    revision: reviewed.topic.revision,
+    selection: selected,
+    metadata: metadata(2024),
+  });
+  expect((await listTopicScreening(root, topic.id)).references[0]!.state).toBe('metadata_changed');
+  await expect(
+    screenTopicReference(root, topic.id, {
+      ...decisionInput,
+      revision: revised.topic.revision,
+    }),
+  ).rejects.toMatchObject({ status: 409, code: 'reference_metadata_changed' });
+  const successor = await setTopicReviewProtocol(root, topic.id, {
+    revision: revised.topic.revision,
+    question: 'Which papers report an application of the selected method?',
+    include_criteria: ['Reports a concrete application'],
+    exclude_criteria: ['Only a proposed application'],
+  });
+  await expect(
+    screenTopicReference(root, topic.id, {
+      ...decisionInput,
+      revision: successor.topic.revision,
+      metadata_revision: revised.reference.metadata_revision,
+      metadata_sha256: revised.reference.metadata_sha256,
+    }),
+  ).rejects.toMatchObject({ status: 409, code: 'review_protocol_changed' });
+  const cold = await runCli(['screenings', topic.id]);
+  expect(cold.exitCode).toBe(0);
+  expect(JSON.parse(cold.stdout)).toMatchObject({
+    current_protocol: { sha256: successor.protocol.sha256 },
+    references: [{ state: 'protocol_changed' }],
+    decisions: [{ revision: 1, protocol_sha256: protocol.protocol.sha256 }],
+  });
+  expect(
+    await knowledgeRoute(
+      root,
+      `topics/${topic.id}/screening`,
+      false,
+      `/topics/${topic.id}/screening`,
+      null,
+    ),
+  ).toMatchObject({ references: [{ state: 'protocol_changed' }] });
+  const returned = await setTopicReviewProtocol(root, topic.id, {
+    revision: successor.topic.revision,
+    question: protocol.protocol.question,
+    include_criteria: protocol.protocol.include_criteria,
+    exclude_criteria: protocol.protocol.exclude_criteria,
+  });
+  expect(returned.protocol.sha256).toBe(protocol.protocol.sha256);
+  expect(returned.protocol.revision).toBe(3);
+  expect((await listTopicScreening(root, topic.id)).references[0]!.state).toBe('protocol_changed');
+  expect((await listTopics(root)).topics[0]!.references![0]!.metadata_versions).toHaveLength(2);
 });

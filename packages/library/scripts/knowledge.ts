@@ -8,11 +8,14 @@ import {
   knowledgeOwners,
   listTopicReferencePublication,
   listTopicReferences,
+  listTopicScreening,
   listTopics,
   openTopic,
   observeTopicReferencePublication,
   readKnowledge,
   searchKnowledge,
+  screenTopicReference,
+  setTopicReviewProtocol,
   setTopicReference,
   topicEvidenceGraph,
   updateTopic,
@@ -143,12 +146,21 @@ try {
     case 'references-status':
       result = await listTopicReferencePublication(root, value ?? '');
       break;
+    case 'screening-protocol':
+      result = await setTopicReviewProtocol(root, value ?? '', parse(patch));
+      break;
+    case 'screening-decision':
+      result = await screenTopicReference(root, value ?? '', parse(patch));
+      break;
+    case 'screenings':
+      result = await listTopicScreening(root, value ?? '');
+      break;
     case 'references-export':
       result = await exportTopicReferences(root, value ?? '', parse(patch));
       break;
     default:
       throw new Error(
-        'Use owners|configure JSON|search TEXT|read JSON|topics|create NAME|open UUID|update UUID JSON|export UUID|graph UUID [--format json|markdown]|reference-set UUID JSON|references UUID|reference-status UUID JSON|- (stdin)|reference-status-fetch UUID REFERENCE_ID|references-status UUID|references-export UUID JSON',
+        'Use owners|configure JSON|search TEXT|read JSON|topics|create NAME|open UUID|update UUID JSON|export UUID|graph UUID [--format json|markdown]|reference-set UUID JSON|references UUID|reference-status UUID JSON|- (stdin)|reference-status-fetch UUID REFERENCE_ID|references-status UUID|references-export UUID JSON|screening-protocol UUID JSON|screening-decision UUID JSON|screenings UUID',
       );
   }
   if (result === undefined) throw new Error('knowledge_result_missing');

@@ -35,6 +35,11 @@ Saved topic references can retain explicit, dated [publication update observatio
 from caller-supplied Crossref work responses. A missing update remains unknown;
 observation never changes the underlying source or starts research.
 
+Saved topics also support a [human literature-screening log](docs/literature-screening.md)
+with versioned review criteria, explicit reference decisions and cold reopen.
+Changed reference metadata or criteria require fresh review; this does not
+establish source currentness or review recall.
+
 [Connected knowledge](docs/connected-knowledge.md) adds explicit Planning/Principles export readers and private named topics. Search across retained owners, select exact records, keep links and open questions, then reopen after restart with visible changed, missing or unavailable source status. [Project-topic relevance](docs/project-topic-relevance.md) records a human judgment against exact topic and project versions. These deterministic operations require no model service.
 
 [Opportunity briefs](docs/project-opportunity-brief.md) retain a human-authored opportunity plan inside an existing project opportunity, bound to exact topic, project, relevance and evidence references. Source currentness remains separate from human confidence.

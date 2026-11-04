@@ -83,6 +83,35 @@ const topicReferenceSchema = Type.Object(
   },
   closed,
 );
+const reviewCriterionSchema = Type.String({ minLength: 1, maxLength: 300 });
+const reviewProtocolFields = {
+  question: Type.String({ minLength: 1, maxLength: 2000 }),
+  include_criteria: Type.Array(reviewCriterionSchema, { minItems: 1, maxItems: 12 }),
+  exclude_criteria: Type.Array(reviewCriterionSchema, { minItems: 1, maxItems: 12 }),
+};
+const reviewProtocolSchema = Type.Object(
+  {
+    revision: Type.Integer({ minimum: 1, maximum: 8 }),
+    sha256: sha,
+    recorded_at: Type.String({ format: 'date-time' }),
+    ...reviewProtocolFields,
+  },
+  closed,
+);
+const screeningDecisionSchema = Type.Object(
+  {
+    revision: Type.Integer({ minimum: 1, maximum: 200 }),
+    reference_id: topicReferenceSchema.properties.id,
+    protocol_revision: reviewProtocolSchema.properties.revision,
+    protocol_sha256: sha,
+    metadata_revision: referenceVersionSchema.properties.metadata_revision,
+    metadata_sha256: sha,
+    decision: Type.Enum(['include', 'exclude', 'uncertain']),
+    reason: Type.String({ minLength: 1, maxLength: 1000 }),
+    recorded_at: Type.String({ format: 'date-time' }),
+  },
+  closed,
+);
 const summarySchema = Type.Object(
   {
     selection: selectionSchema,
@@ -169,6 +198,8 @@ const topicSchema = Type.Object(
     updated_at: Type.String(),
     members: Type.Array(summarySchema, { maxItems: 100 }),
     references: Type.Optional(Type.Array(topicReferenceSchema, { maxItems: 100 })),
+    review_protocols: Type.Optional(Type.Array(reviewProtocolSchema, { maxItems: 8 })),
+    screening_decisions: Type.Optional(Type.Array(screeningDecisionSchema, { maxItems: 200 })),
     collection_snapshot: Type.Optional(collectionSnapshotSchema),
     ...editFields,
   },
@@ -199,6 +230,23 @@ const observePublicationSchema = Type.Object(
     revision: Type.Integer({ minimum: 1 }),
     reference_id: Type.String({ pattern: '^ref-[a-f0-9]{64}$' }),
     crossref_response: Type.Unknown(),
+  },
+  closed,
+);
+const setReviewProtocolSchema = Type.Object(
+  { revision: Type.Integer({ minimum: 1 }), ...reviewProtocolFields },
+  closed,
+);
+const screenReferenceSchema = Type.Object(
+  {
+    revision: Type.Integer({ minimum: 1 }),
+    reference_id: topicReferenceSchema.properties.id,
+    protocol_revision: reviewProtocolSchema.properties.revision,
+    protocol_sha256: sha,
+    metadata_revision: referenceVersionSchema.properties.metadata_revision,
+    metadata_sha256: sha,
+    decision: screeningDecisionSchema.properties.decision,
+    reason: screeningDecisionSchema.properties.reason,
   },
   closed,
 );
@@ -248,6 +296,19 @@ function canonicalJson(value: unknown): string {
   const encoded = JSON.stringify(value);
   if (encoded === undefined) throw new Error('non_json_value');
   return encoded;
+}
+function validReviewProtocolText(value: {
+  question: string;
+  include_criteria: string[];
+  exclude_criteria: string[];
+}) {
+  const criteria = [...value.include_criteria, ...value.exclude_criteria];
+  const normalized = criteria.map((criterion) => criterion.trim().toLowerCase());
+  return (
+    Boolean(value.question.trim()) &&
+    criteria.every((criterion) => Boolean(criterion.trim())) &&
+    new Set(normalized).size === normalized.length
+  );
 }
 const selectionIdentity = (selection: Selection) => canonicalJson(selection);
 const topicReferenceId = (selection: Selection) => `ref-${digest(selectionIdentity(selection))}`;
@@ -770,6 +831,37 @@ async function topicState(root: string) {
             throw new Error();
         });
       }
+      topic.review_protocols?.forEach((protocol, index) => {
+        const meaning = {
+          question: protocol.question,
+          include_criteria: protocol.include_criteria,
+          exclude_criteria: protocol.exclude_criteria,
+        };
+        if (
+          protocol.revision !== index + 1 ||
+          protocol.sha256 !== digest(canonicalJson(meaning)) ||
+          !validReviewProtocolText(meaning)
+        )
+          throw new Error();
+      });
+      topic.screening_decisions?.forEach((decision, index) => {
+        const reference = topic.references?.find((row) => row.id === decision.reference_id);
+        if (
+          decision.revision !== index + 1 ||
+          !reference?.metadata_versions.some(
+            (version) =>
+              version.metadata_revision === decision.metadata_revision &&
+              version.metadata_sha256 === decision.metadata_sha256,
+          ) ||
+          !topic.review_protocols?.some(
+            (protocol) =>
+              protocol.revision === decision.protocol_revision &&
+              protocol.sha256 === decision.protocol_sha256,
+          ) ||
+          !decision.reason.trim()
+        )
+          throw new Error();
+      });
     }
     return state;
   } catch {
@@ -1154,6 +1246,167 @@ export async function listTopicReferencePublication(root: string, topicId: strin
   };
 }
 
+/** Keeps each human-authored review protocol version inside the existing topic store. */
+export async function setTopicReviewProtocol(root: string, topicId: string, input: unknown) {
+  const parsed = checked<Static<typeof setReviewProtocolSchema>>(setReviewProtocolSchema, input);
+  if (!validReviewProtocolText(parsed))
+    fail(400, 'invalid_review_protocol', 'Review question and distinct criteria must be nonblank.');
+  return writeKnowledge(root, async () => {
+    const state = await topicState(root);
+    const topic = findTopic(state.topics, topicId);
+    if (parsed.revision !== topic.revision)
+      fail(409, 'knowledge_topic_changed', 'Reopen the topic before changing its review protocol.');
+    const meaning = {
+      question: parsed.question,
+      include_criteria: parsed.include_criteria,
+      exclude_criteria: parsed.exclude_criteria,
+    };
+    const protocolSha = digest(canonicalJson(meaning));
+    const versions = topic.review_protocols ?? [];
+    const latest = versions.at(-1);
+    if (latest?.sha256 === protocolSha)
+      return {
+        topic: { id: topic.id, revision: topic.revision },
+        protocol: latest,
+        changed: false,
+      };
+    if (versions.length >= 8)
+      fail(409, 'review_protocol_history_full', 'This topic retains eight protocol versions.');
+    const protocol = {
+      ...meaning,
+      revision: versions.length + 1,
+      sha256: protocolSha,
+      recorded_at: new Date().toISOString(),
+    };
+    (topic.review_protocols ??= []).push(protocol);
+    topic.revision++;
+    topic.updated_at = protocol.recorded_at;
+    await saveTopics(root, state);
+    return { topic: { id: topic.id, revision: topic.revision }, protocol, changed: true };
+  });
+}
+
+/** Records one explicit human screening decision against exact protocol and metadata versions. */
+export async function screenTopicReference(root: string, topicId: string, input: unknown) {
+  const parsed = checked<Static<typeof screenReferenceSchema>>(screenReferenceSchema, input);
+  if (!parsed.reason.trim()) fail(400, 'invalid_screening_reason', 'Explain the decision.');
+  return writeKnowledge(root, async () => {
+    const state = await topicState(root);
+    const topic = findTopic(state.topics, topicId);
+    if (parsed.revision !== topic.revision)
+      fail(409, 'knowledge_topic_changed', 'Reopen screening before recording a decision.');
+    const protocol = topic.review_protocols?.at(-1);
+    if (
+      !protocol ||
+      protocol.revision !== parsed.protocol_revision ||
+      protocol.sha256 !== parsed.protocol_sha256
+    )
+      fail(409, 'review_protocol_changed', 'Review the current protocol before screening.');
+    const reference = topic.references?.find((row) => row.id === parsed.reference_id);
+    if (!reference)
+      return fail(
+        404,
+        'knowledge_reference_missing',
+        'This reference is not retained in the topic.',
+      );
+    if (
+      !topic.members.some(
+        (member) => selectionIdentity(member.selection) === selectionIdentity(reference.selection),
+      )
+    )
+      fail(
+        409,
+        'knowledge_reference_detached',
+        'Select this reference in the topic before screening it.',
+      );
+    const metadata = currentReferenceRow(reference);
+    if (
+      metadata.metadata_revision !== parsed.metadata_revision ||
+      metadata.metadata_sha256 !== parsed.metadata_sha256
+    )
+      fail(
+        409,
+        'reference_metadata_changed',
+        'Review the current reference metadata before screening.',
+      );
+    const decisions = topic.screening_decisions ?? [];
+    const previous = decisions.findLast((row) => row.reference_id === parsed.reference_id);
+    if (
+      previous?.protocol_revision === parsed.protocol_revision &&
+      previous.protocol_sha256 === parsed.protocol_sha256 &&
+      previous.metadata_revision === parsed.metadata_revision &&
+      previous.metadata_sha256 === parsed.metadata_sha256 &&
+      previous.decision === parsed.decision &&
+      previous.reason === parsed.reason
+    )
+      return {
+        topic: { id: topic.id, revision: topic.revision },
+        decision: previous,
+        changed: false,
+      };
+    if (decisions.length >= 200)
+      fail(409, 'screening_history_full', 'This topic retains 200 screening decisions.');
+    const decision = {
+      revision: decisions.length + 1,
+      reference_id: parsed.reference_id,
+      protocol_revision: parsed.protocol_revision,
+      protocol_sha256: parsed.protocol_sha256,
+      metadata_revision: parsed.metadata_revision,
+      metadata_sha256: parsed.metadata_sha256,
+      decision: parsed.decision,
+      reason: parsed.reason,
+      recorded_at: new Date().toISOString(),
+    };
+    (topic.screening_decisions ??= []).push(decision);
+    topic.revision++;
+    topic.updated_at = decision.recorded_at;
+    await saveTopics(root, state);
+    return { topic: { id: topic.id, revision: topic.revision }, decision, changed: true };
+  });
+}
+
+/** Cold-opens all retained decisions and identifies which bindings need fresh human review. */
+export async function listTopicScreening(root: string, topicId: string) {
+  const topic = findTopic((await topicState(root)).topics, topicId);
+  const protocols = topic.review_protocols ?? [];
+  const current = protocols.at(-1) ?? null;
+  const decisions = topic.screening_decisions ?? [];
+  const references = (topic.references ?? []).map((reference) => {
+    const metadata = currentReferenceRow(reference);
+    const latest = decisions.findLast((row) => row.reference_id === reference.id) ?? null;
+    const selected = topic.members.some(
+      (member) => selectionIdentity(member.selection) === selectionIdentity(reference.selection),
+    );
+    const state = !selected
+      ? 'detached'
+      : !latest
+        ? 'unscreened'
+        : latest.protocol_revision !== current?.revision ||
+            latest.protocol_sha256 !== current?.sha256
+          ? 'protocol_changed'
+          : latest.metadata_revision !== metadata.metadata_revision ||
+              latest.metadata_sha256 !== metadata.metadata_sha256
+            ? 'metadata_changed'
+            : 'current';
+    return {
+      reference_id: reference.id,
+      metadata_revision: metadata.metadata_revision,
+      metadata_sha256: metadata.metadata_sha256,
+      state,
+      latest,
+    };
+  });
+  return {
+    topic: { id: topic.id, revision: topic.revision },
+    current_protocol: current,
+    protocols,
+    references,
+    decisions,
+    qualification:
+      'Human screening of caller-supplied reference metadata only. Current means the saved bindings match; owner sources were not rechecked. Unscreened material and unknown recall remain visible.',
+  };
+}
+
 /** Lists current descriptions and reports whether each exact selection remains in the topic. */
 export async function listTopicReferences(root: string, topicId: string) {
   return withKnowledgeWriter(root, async () => {
@@ -1429,6 +1682,15 @@ export async function knowledgeRoute(
     return readKnowledge(root, input.selection);
   }
   if (route === 'topics') return mutation ? createTopic(root, body) : listTopics(root);
+  const screening =
+    /^topics\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})\/screening(\/protocol|\/decision)?$/.exec(
+      route,
+    );
+  if (screening && !screening[2] && !mutation) return listTopicScreening(root, screening[1]!);
+  if (screening?.[2] === '/protocol' && mutation)
+    return setTopicReviewProtocol(root, screening[1]!, body);
+  if (screening?.[2] === '/decision' && mutation)
+    return screenTopicReference(root, screening[1]!, body);
   const references =
     /^topics\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})\/references(\/export|\/status)?$/.exec(
       route,
