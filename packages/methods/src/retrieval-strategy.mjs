@@ -93,11 +93,12 @@ export function exportResearchRetrievalStrategy(notebooks, questions, options = 
 }
 
 /** Cold-reopens an exact page or note version from a strategy export. */
-export function openResearchRetrievalSource(notebooks, resultValue, sourceId) {
+export function openResearchRetrievalSource(notebooks, resultValue, sourceId, questionId) {
   if (!resultValue || resultValue.format !== "research-retrieval-strategy-1" || !Array.isArray(notebooks)
       || !line(sourceId, 200) || !/^[a-f0-9]{64}$/.test(resultValue.sha256)
       || hash(canonical(Object.fromEntries(Object.entries(resultValue).filter(([k]) => k !== "sha256")))) !== resultValue.sha256)
     bad("invalid retrieval result or source ID");
+  if (questionId !== undefined && !line(questionId, 200)) bad("question ID must be a declared single-line ID");
   const originalHashes = resultValue.corpus?.source_sha256;
   if (!Array.isArray(originalHashes) || !Array.isArray(resultValue.corpus?.sources)
       || originalHashes.length < 1 || originalHashes.length > 8000 || resultValue.corpus.sources.length !== originalHashes.length
@@ -137,6 +138,8 @@ export function openResearchRetrievalSource(notebooks, resultValue, sourceId) {
       fallbackReason: diagnostic.fallbackReason };
   }).filter(Boolean);
   if (rankedQuestions.length === 0) bad("source ID is not in a declared question ranking");
+  if (questionId !== undefined && !rankedQuestions.some((item) => item.questionId === questionId))
+    bad("selected source is not ranked for the requested question");
   const stableId = `notebook-hit-${hash(canonical({ notebookId: entry.notebook_id, kind: entry.kind,
     recordId: entry.record_id, version: entry.version, page: entry.page })).slice(0, 40)}`;
   if (stableId !== entry.id) bad("source ID does not bind its notebook/page/version reference");

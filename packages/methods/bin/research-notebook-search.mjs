@@ -31,7 +31,7 @@ Read one UTF-8 JSON request from stdin and write a closed JSON result to stdout.
 Search input: {"notebooks":[...],"query":"...","options":{...}}
 Open input: {"notebooks":[...],"result":{...},"hitId":"notebook-hit-..."}
 Strategy input: {"notebooks":[...],"questions":[{"id":"...","text":"..."}],"options":{"researchRevision":"...","strategy":"lexical|dense|hybrid","denseRankings":{...}}}
-Source input: {"notebooks":[...],"result":{...},"sourceId":"notebook-hit-..."}
+Source input: {"notebooks":[...],"result":{...},"sourceId":"notebook-hit-...","questionId":"optional exact question ID"}
 No paths, URLs, implicit notebook selections, persistence, or inference are used.`;
 
 try {
@@ -50,8 +50,8 @@ try {
       object(request, ["notebooks", "questions"], ["options"]);
       result = exportResearchRetrievalStrategy(request.notebooks, request.questions, request.options);
     } else {
-      object(request, ["notebooks", "result", "sourceId"]);
-      result = openResearchRetrievalSource(request.notebooks, request.result, request.sourceId);
+      object(request, ["notebooks", "result", "sourceId"], ["questionId"]);
+      result = openResearchRetrievalSource(request.notebooks, request.result, request.sourceId, request.questionId);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   }

@@ -132,5 +132,7 @@ strategy for each saved question that surfaced it, including any lexical
 fallback reason. These positions describe retrieval order, not evidence
 strength or source quality; cold reopen does not rerun either ranking. The CLI exposes the same bounded
 journey using `research-notebook-search --action strategy` and
-`--action source`; requests remain explicit JSON over stdin and results go to
+`--action source`. A caller can include `questionId` on source open to require
+that this source was ranked for that exact saved question; omission preserves
+the existing any-question behavior. Requests remain explicit JSON over stdin and results go to
 stdout. Existing `search` and `open` actions are unchanged.

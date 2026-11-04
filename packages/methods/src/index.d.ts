@@ -1459,7 +1459,7 @@ export function exportResearchRetrievalStrategy(notebooks: ResearchNotebook[], q
   denseRankings?: Record<string, Array<{ id: string; sha256: string; score: number }>>;
 }): ResearchRetrievalStrategyExport;
 /** Reopens an exact retained page or note version in a strategy export without rerunning ranking. */
-export function openResearchRetrievalSource(notebooks: ResearchNotebook[], result: ResearchRetrievalStrategyExport, sourceId: string): {
+export function openResearchRetrievalSource(notebooks: ResearchNotebook[], result: ResearchRetrievalStrategyExport, sourceId: string, questionId?: string): {
   id: string; notebookId: string; kind: NotebookSearchKind; recordId: string; documentId: string | null; page: number | null;
   version: number | null; title: string; sourceDigest: string; contentSha256: string; text: string;
   /** One-based final rank for each declared question that surfaced this source. Ordering is not evidence strength. */

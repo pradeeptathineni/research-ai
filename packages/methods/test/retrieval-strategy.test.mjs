@@ -62,6 +62,8 @@ test("strategy arms rank exact retained sources, fall back offline, and cold-reo
   const fallbackSource = openResearchRetrievalSource([notebook], JSON.parse(JSON.stringify(fallback)), pageId);
   assert.equal(fallbackSource.rankedQuestions[0].effectiveStrategy, "lexical");
   assert.match(fallbackSource.rankedQuestions[0].fallbackReason, /no usable dense/);
+  assert.equal(openResearchRetrievalSource([notebook], cold, note.id, "q:orbits").id, note.id);
+  assert.throws(() => openResearchRetrievalSource([notebook], cold, note.id, "q:other"), /not ranked for the requested question/);
   const tampered = JSON.parse(JSON.stringify(cold));
   tampered.corpus.sources.find((source) => source.id === note.id).content_sha256 = "f".repeat(64);
   tampered.sha256 = sha(canonical(Object.fromEntries(Object.entries(tampered).filter(([key]) => key !== "sha256"))));
@@ -90,9 +92,12 @@ test("standalone strategy and source actions round-trip through explicit JSON st
   assert.equal(ranked.status, 0, ranked.stderr);
   const result = JSON.parse(ranked.stdout);
   const sourceId = result.arm.rankings["q:orbits"][0];
-  const reopened = run("source", { notebooks: [notebook], result, sourceId });
+  const reopened = run("source", { notebooks: [notebook], result, sourceId, questionId: "q:orbits" });
   assert.equal(reopened.status, 0, reopened.stderr);
   assert.equal(JSON.parse(reopened.stdout).id, sourceId);
   assert.deepEqual(JSON.parse(reopened.stdout).rankedQuestions, [{ questionId: "q:orbits",
     rank: 1, effectiveStrategy: "lexical", fallbackReason: "dense input absent" }]);
+  const wrongQuestion = run("source", { notebooks: [notebook], result, sourceId, questionId: "q:other" });
+  assert.equal(wrongQuestion.status, 1);
+  assert.match(wrongQuestion.stderr, /not ranked for the requested question/);
 });
