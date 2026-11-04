@@ -16,6 +16,37 @@ Capability reads never initialize storage, probe a native CLI or start research.
 
 Identity reuses S02's durable scope. Missing/corrupt/unreadable scope yields `503 provider_unavailable`, never an invented instance or repaired ledger. For an explicitly selected fresh workspace, obtain the existing session token and explicitly `POST request-scope` with `{}`. Session acquisition includes native readiness and is separate from capability/record reads. Never initialize another scope to resolve uncertain work, storage loss or restore. Already registered callers can pin `x-signals-instance-id` and `x-signals-owner-epoch` while negotiating.
 
+## Human literature screening
+
+Screening uses the existing private topic owner. The registered instance/epoch,
+loopback Origin and mutation session checks apply; these routes do not start
+research or fetch a source. See [screening inputs](literature-screening.md).
+
+| Method | Route                            | Purpose                                                                                                     |
+| ------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| GET    | `topics/{id}/screening`          | Cold-open protocol versions, reference metadata, source states, publication summaries and decision history. |
+| POST   | `topics/{id}/screening/protocol` | Save explicit human review criteria against the current topic `revision`.                                   |
+| POST   | `topics/{id}/screening/decision` | Save an explicit decision against the topic revision and exact protocol and metadata revision/SHA pairs.    |
+
+No query fields are accepted. Consumers must preserve the current topic revision
+returned by each successful edit. A `409 knowledge_topic_changed`,
+`review_protocol_changed` or `reference_metadata_changed` requires reopening and
+reviewing the changed basis. A detached reference refuses a new decision with
+`409 knowledge_reference_detached`; its old decisions remain readable.
+
+After an uncertain write reply, read screening before another edit. Compare the
+retained protocol or decision and its exact bindings with the submitted input;
+do not silently replay against a newly read revision. An identical decision
+submitted with the current revision is idempotent, but a stale revision still
+refuses. This is not a durable request-ID protocol.
+
+Each row's `state` describes the saved decision binding. Its separate
+`source.state` describes the configured owner snapshot. A binding-current decision
+can therefore accompany a changed or unavailable source. Unavailable owner data
+does not erase decisions or repair the saved source reference. Publication
+summaries are dated retained reports; missing reports remain unknown. Neither
+screening nor source availability proves factual support or full-text eligibility.
+
 ## Personal-saving settings
 
 The optional `owner-settings` v1 contract advertises `read_owner_settings`,
